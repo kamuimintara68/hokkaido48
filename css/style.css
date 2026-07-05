@@ -1,0 +1,133 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: sans-serif;
+    background: #f5f5f5;
+}
+
+.app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+.map-area {
+    flex: 1;
+    height: 100%;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+.info-panel {
+    width: 360px;
+    height: 100%;
+    overflow-y: auto;
+    background: #ffffff;
+    border-left: 1px solid #cccccc;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.info-panel h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+}
+
+.version {
+    font-size: 12px;
+    color: #666666;
+    margin: 0 0 16px;
+}
+
+.info-panel h2 {
+    font-size: 16px;
+    margin: 18px 0 8px;
+    border-bottom: 1px solid #dddddd;
+    padding-bottom: 4px;
+}
+
+.route-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.route-table th {
+    width: 90px;
+    text-align: left;
+    background: #f0f0f0;
+    padding: 6px;
+    border: 1px solid #dddddd;
+}
+
+.route-table td {
+    padding: 6px;
+    border: 1px solid #dddddd;
+}
+
+.status-control button {
+    margin: 4px 4px 4px 0;
+    padding: 8px 10px;
+    border: 1px solid #999999;
+    background: #ffffff;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.status-control button:hover {
+    background: #eeeeee;
+}
+
+.photo-placeholder {
+    height: 120px;
+    border: 2px dashed #bbbbbb;
+    border-radius: 8px;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #777777;
+    margin-bottom: 10px;
+}
+
+.wide-button {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #999999;
+    background: #ffffff;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.wide-button:hover {
+    background: #eeeeee;
+}
+
+#noteDisplay {
+    font-size: 14px;
+    color: #555555;
+    margin: 0 0 10px;
+}
+
+@media (max-width: 900px) {
+    .app {
+        display: block;
+        height: auto;
+    }
+
+    .map-area {
+        height: 60vh;
+    }
+
+    .info-panel {
+        width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid #cccccc;
+    }
+}

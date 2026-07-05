@@ -1,0 +1,17 @@
+{
+  "routes": [
+    {
+      "id": "040",
+      "number": 40,
+      "name": "国道40号",
+      "start": "旭川市",
+      "end": "稚内市",
+      "status": "untraveled",
+      "geojson": "route040.geojson",
+      "photoCount": 1,
+      "photo": "route040.jpg",
+      "note": "https://note.com/kamuimintara",
+      "kin": ""
+    }
+  ]
+}

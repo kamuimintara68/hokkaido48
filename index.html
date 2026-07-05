@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>北海道48路線走破システム Ver1.7</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<div class="app">
+  <div class="map-area">
+    <div id="map"></div>
+  </div>
+
+  <aside class="info-panel">
+    <h1>北海道48路線走破システム</h1>
+    <p class="version">Version1.7 写真・note表示版</p>
+
+    <section class="route-info">
+      <h2>路線情報</h2>
+
+      <div class="route-detail">
+        <table class="route-table">
+          <tr><th>国道番号</th><td id="routeNumber">-</td></tr>
+          <tr><th>路線名</th><td id="routeName">-</td></tr>
+          <tr><th>始点</th><td id="routeStart">-</td></tr>
+          <tr><th>終点</th><td id="routeEnd">-</td></tr>
+          <tr><th>走破状態</th><td id="routeStatus">-</td></tr>
+          <tr><th>写真</th><td id="photoCount">-</td></tr>
+          <tr><th>note</th><td id="noteInfo">-</td></tr>
+          <tr><th>菌採集</th><td id="kinInfo">-</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="status-control">
+      <h2>走破状態変更</h2>
+      <button id="btnUntraveled">未走破</button>
+      <button id="btnPartial">一部走破</button>
+      <button id="btnTraveled">走破済</button>
+    </section>
+
+    <section class="photo-section">
+      <h2>写真</h2>
+      <div class="photo-placeholder">
+        <span>写真未登録</span>
+      </div>
+      <button id="btnOpenPhoto" class="wide-button">写真を開く</button>
+    </section>
+
+    <section class="note-section">
+      <h2>note</h2>
+      <p id="noteDisplay">未登録</p>
+      <button id="btnOpenNote" class="wide-button">noteを開く</button>
+    </section>
+  </aside>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
