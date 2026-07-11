@@ -904,7 +904,20 @@
 
 
     renderTripList();
+const urlParams =
+  new URLSearchParams(
+    window.location.search
+  );
 
+const requestedTripId =
+  urlParams.get("trip");
+
+if (requestedTripId) {
+
+  loadTrip(
+    requestedTripId
+  );
+}
 
     console.log(
       "北海道48路線ふらふらlog Trip Version2.9 Ready"

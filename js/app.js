@@ -55,7 +55,8 @@ const fermentValue =
 
 const publicRecordValue =
     document.getElementById("publicRecordValue");
-
+const relatedTripsValue =
+    document.getElementById("relatedTripsValue");
 
 // ---------- 走破率表示 ----------
 
@@ -383,6 +384,140 @@ function updatePanel(route) {
         publicRecordValue.textContent =
             "未登録";
     }
+
+
+    relatedTripsValue.innerHTML = "";
+
+
+    let trips = [];
+
+    const savedTrips =
+        localStorage.getItem(
+            "hokkaido48Trips"
+        );
+
+
+    if (savedTrips) {
+
+        try {
+
+            trips =
+                JSON.parse(savedTrips);
+
+        } catch (error) {
+
+            console.error(
+                "Tripデータ読込エラー:",
+                error
+            );
+        }
+    }
+
+
+    const selectedRouteNumber =
+        String(route.number);
+
+
+    const relatedTrips =
+        trips
+            .filter(function (trip) {
+
+                const routeNumbers =
+                    String(trip.routes || "")
+    .normalize("NFKC")
+                        .split(/[,\s、，・]+/)
+                        .map(function (value) {
+
+                            return value.replace(
+                                /[^0-9]/g,
+                                ""
+                            );
+                        })
+                        .filter(function (value) {
+
+                            return value !== "";
+                        });
+
+                return routeNumbers.includes(
+                    selectedRouteNumber
+                );
+            })
+            .sort(function (a, b) {
+
+                return (
+                    (b.startDate || "")
+                        .localeCompare(
+                            a.startDate || ""
+                        )
+                );
+            });
+
+
+    if (relatedTrips.length === 0) {
+
+        relatedTripsValue.textContent =
+            "関連Tripなし";
+
+        return;
+    }
+
+
+    relatedTrips.forEach(
+        function (trip) {
+
+            const item =
+                document.createElement("div");
+
+            item.style.marginBottom =
+                "10px";
+
+
+            const link =
+                document.createElement("a");
+
+            link.href =
+                `trip.html?trip=${encodeURIComponent(trip.id)}`;
+
+            link.textContent =
+                trip.tripName ||
+                "名称未登録";
+
+            link.style.fontWeight =
+                "bold";
+
+
+            item.appendChild(link);
+
+
+            if (trip.startDate) {
+
+                const date =
+                    document.createElement("div");
+
+                date.textContent =
+                    trip.startDate.replaceAll(
+                        "-",
+                        "/"
+                    );
+
+                date.style.marginTop =
+                    "3px";
+
+                date.style.fontSize =
+                    "13px";
+
+                date.style.color =
+                    "#6b7280";
+
+                item.appendChild(date);
+            }
+
+
+            relatedTripsValue.appendChild(
+                item
+            );
+        }
+    );
 }
 
 
