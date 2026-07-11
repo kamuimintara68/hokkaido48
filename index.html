@@ -1,68 +1,274 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>北海道48路線走破システム Ver1.7</title>
+  <title>北海道48路線ふらふらlog Version2.8.1</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-<link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:,">
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body>
 
-<div class="app">
-  <div class="map-area">
-    <div id="map"></div>
+  <div class="app">
+
+    <header class="header">
+
+      <div>
+        <h1 class="header-title">
+          北海道48路線ふらふらlog
+        </h1>
+
+        <p class="header-subtitle">
+          Route / Status / Photo / note / Ferment Log
+        </p>
+      </div>
+
+      <div
+        style="
+          display:flex;
+          align-items:center;
+          gap:20px;
+        "
+      >
+
+        <a
+          href="trip.html"
+          style="
+            display:inline-block;
+            padding:10px 18px;
+            border-radius:8px;
+            background:#ffffff;
+            color:#1e3a8a;
+            font-weight:bold;
+            text-decoration:none;
+            white-space:nowrap;
+          "
+        >
+          Trip記録
+        </a>
+
+        <div class="progress-summary">
+
+          <div
+            class="progress-ring"
+            id="progressDonut"
+            style="--progress: 0%;"
+          >
+            <div class="progress-ring-center">
+              <span id="progressPercent">0%</span>
+            </div>
+          </div>
+
+          <div class="progress-text">
+
+            <span class="progress-label">
+              走破率
+            </span>
+
+            <strong>
+              <span id="completedRouteCount">0</span>
+              /
+              <span id="totalRouteCount">48</span>
+            </strong>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </header>
+
+    <main class="main">
+
+      <section class="map-area">
+        <div id="map"></div>
+      </section>
+
+      <aside
+        class="info-panel"
+        id="infoPanel"
+      >
+
+        <h2 class="info-panel-title">
+          Route Information
+        </h2>
+
+        <div
+          class="empty-panel"
+          id="emptyPanel"
+        >
+
+          <p class="empty-panel-title">
+            路線を選択してください
+          </p>
+
+          <p class="empty-panel-text">
+            地図上の国道をクリックすると、ここに情報が表示されます。
+          </p>
+
+        </div>
+
+        <div
+          class="panel-content"
+          id="panelContent"
+          hidden
+        >
+
+          <section class="route-summary">
+
+            <span
+              class="route-number"
+              id="routeNumber"
+            >
+              Route
+            </span>
+
+            <h3
+              class="route-name"
+              id="routeName"
+            >
+              路線名
+            </h3>
+
+            <div class="route-meta-grid">
+
+              <div class="route-meta-item">
+
+                <span class="route-meta-label">
+                  起点
+                </span>
+
+                <span id="routeStart">
+                  未登録
+                </span>
+
+              </div>
+
+              <div class="route-meta-item">
+
+                <span class="route-meta-label">
+                  終点
+                </span>
+
+                <span id="routeEnd">
+                  未登録
+                </span>
+
+              </div>
+
+            </div>
+
+            <div class="status-box">
+
+              <span class="status-label">
+                走破状態
+              </span>
+
+              <span
+                class="status-value"
+                id="routeStatus"
+              >
+                未走破
+              </span>
+
+            </div>
+
+          </section>
+
+          <section class="content-grid">
+
+            <article class="compact-card photo-card">
+
+              <h3 class="compact-card-title">
+                Photo
+              </h3>
+
+              <img
+                id="routePhoto"
+                src=""
+                alt="Route Photo"
+                class="route-photo"
+              >
+
+              <div
+                class="compact-card-value"
+                id="photoValue"
+              >
+                未登録
+              </div>
+
+            </article>
+
+            <article class="compact-card">
+
+              <h3 class="compact-card-title">
+                note
+              </h3>
+
+              <div
+                class="compact-card-value"
+                id="noteValue"
+              >
+                未登録
+              </div>
+
+            </article>
+
+            <article class="compact-card">
+
+              <h3 class="compact-card-title">
+                Ferment Log
+              </h3>
+
+              <div
+                class="compact-card-value"
+                id="fermentValue"
+              >
+                未登録
+              </div>
+
+            </article>
+
+            <article class="compact-card">
+
+              <h3 class="compact-card-title">
+                走破記録
+              </h3>
+
+              <div
+                class="compact-card-value"
+                id="publicRecordValue"
+              >
+                未登録
+              </div>
+
+            </article>
+
+          </section>
+
+        </div>
+
+      </aside>
+
+    </main>
+
   </div>
 
-  <aside class="info-panel">
-    <h1>北海道48路線走破システム</h1>
-    <p class="version">Version1.7 写真・note表示版</p>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
 
-    <section class="route-info">
-      <h2>路線情報</h2>
-
-      <div class="route-detail">
-        <table class="route-table">
-          <tr><th>国道番号</th><td id="routeNumber">-</td></tr>
-          <tr><th>路線名</th><td id="routeName">-</td></tr>
-          <tr><th>始点</th><td id="routeStart">-</td></tr>
-          <tr><th>終点</th><td id="routeEnd">-</td></tr>
-          <tr><th>走破状態</th><td id="routeStatus">-</td></tr>
-          <tr><th>写真</th><td id="photoCount">-</td></tr>
-          <tr><th>note</th><td id="noteInfo">-</td></tr>
-          <tr><th>菌採集</th><td id="kinInfo">-</td></tr>
-        </table>
-      </div>
-    </section>
-
-    <section class="status-control">
-      <h2>走破状態変更</h2>
-      <button id="btnUntraveled">未走破</button>
-      <button id="btnPartial">一部走破</button>
-      <button id="btnTraveled">走破済</button>
-    </section>
-
-    <section class="photo-section">
-      <h2>写真</h2>
-      <div class="photo-placeholder">
-        <span>写真未登録</span>
-      </div>
-      <button id="btnOpenPhoto" class="wide-button">写真を開く</button>
-    </section>
-
-    <section class="note-section">
-      <h2>note</h2>
-      <p id="noteDisplay">未登録</p>
-      <button id="btnOpenNote" class="wide-button">noteを開く</button>
-    </section>
-  </aside>
-</div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="js/app.js"></script>
+  <script src="js/app.js"></script>
 
 </body>
 </html>

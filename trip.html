@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>北海道48路線ふらふらlog Trip Version2.9</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 20px;
+      font-family: sans-serif;
+      line-height: 1.6;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    h1 {
+      margin-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #16a34a;
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 21px;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .card {
+      padding: 24px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .item {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #374151;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+    }
+
+    textarea {
+      min-height: 105px;
+      resize: vertical;
+    }
+
+    .date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .button-area {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    button {
+      padding: 11px 20px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #saveButton {
+      background: #16a34a;
+      color: #ffffff;
+    }
+
+    #clearButton {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    #deleteButton {
+      background: #dc2626;
+      color: #ffffff;
+    }
+
+    #deleteButton:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+    }
+
+    #message {
+      min-height: 24px;
+      margin-top: 16px;
+      font-weight: bold;
+      color: #15803d;
+    }
+
+    .trip-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .trip-list-empty {
+      color: #6b7280;
+    }
+
+    .trip-card {
+      padding: 18px;
+      border: 1px solid #dbe3ea;
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.06);
+    }
+
+    .trip-card-title {
+      margin: 0 0 8px;
+      font-size: 20px;
+      color: #111827;
+    }
+
+    .trip-card-date {
+      margin: 0 0 12px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .route-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+
+    .route-link {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: bold;
+      font-size: 14px;
+      text-decoration: none;
+    }
+
+    .route-link:hover {
+      background: #bbf7d0;
+    }
+
+    .route-unregistered {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #4b5563;
+      font-size: 14px;
+    }
+
+    .trip-card-info {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      color: #4b5563;
+    }
+
+    .trip-card-info span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .trip-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .open-button {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    .note-button {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 6px;
+      background: #f59e0b;
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .note-button.hidden {
+      display: none;
+    }
+
+    @media (max-width: 850px) {
+      body {
+        margin: 20px auto;
+        padding: 12px;
+      }
+
+      .page-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .date-grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+
+      .card {
+        padding: 18px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <a class="back-link" href="index.html">
+    ← 地図へ戻る
+  </a>
+
+  <h1>北海道48路線ふらふらlog</h1>
+
+  <div class="page-grid">
+
+    <section class="card">
+
+      <h2>Trip入力</h2>
+
+      <input type="hidden" id="tripId">
+
+      <div class="item">
+        <label for="tripName">Trip名</label>
+        <input
+          type="text"
+          id="tripName"
+          placeholder="例：国道40号 稚内ふらふら旅"
+        >
+      </div>
+
+      <div class="date-grid">
+
+        <div class="item">
+          <label for="startDate">出発日</label>
+          <input type="date" id="startDate">
+        </div>
+
+        <div class="item">
+          <label for="endDate">終了日</label>
+          <input type="date" id="endDate">
+        </div>
+
+      </div>
+
+      <div class="item">
+        <label for="routes">走破した国道</label>
+        <input
+          type="text"
+          id="routes"
+          placeholder="例：40,239,273"
+        >
+      </div>
+
+      <div class="item">
+        <label for="thumbnail">サムネ候補</label>
+        <textarea
+          id="thumbnail"
+          placeholder="写真名や候補地点を記録"
+        ></textarea>
+      </div>
+
+      <div class="item">
+        <label for="ferment">菌（アイデア）</label>
+        <textarea
+          id="ferment"
+          placeholder="旅の途中で拾った言葉や発想"
+        ></textarea>
+      </div>
+
+      <div class="item">
+        <label for="note">note記事</label>
+        <input
+          type="url"
+          id="note"
+          placeholder="https://note.com/..."
+        >
+      </div>
+
+      <div class="item">
+        <label for="memo">メモ</label>
+        <textarea id="memo"></textarea>
+      </div>
+
+      <div class="button-area">
+
+        <button id="saveButton" type="button">
+          保存
+        </button>
+
+        <button id="clearButton" type="button">
+          新規入力
+        </button>
+
+        <button id="deleteButton" type="button" disabled>
+          このTripを削除
+        </button>
+
+      </div>
+
+      <div id="message"></div>
+
+    </section>
+
+    <section>
+
+      <h2>保存済みTrip</h2>
+
+      <div id="tripList" class="trip-list">
+        <p class="trip-list-empty">
+          保存済みTripはありません。
+        </p>
+      </div>
+
+    </section>
+
+  </div>
+
+  <script>
+    const storageKey = "hokkaido48Trips";
+
+    const fields = [
+      "tripName",
+      "startDate",
+      "endDate",
+      "routes",
+      "thumbnail",
+      "ferment",
+      "note",
+      "memo"
+    ];
+
+    const tripId =
+      document.getElementById("tripId");
+
+    const message =
+      document.getElementById("message");
+
+    const tripList =
+      document.getElementById("tripList");
+
+    const deleteButton =
+      document.getElementById("deleteButton");
+
+
+    function getTrips() {
+
+      const savedData =
+        localStorage.getItem(storageKey);
+
+      if (!savedData) {
+        return [];
+      }
+
+      try {
+        return JSON.parse(savedData);
+      } catch (error) {
+
+        console.error(
+          "Tripデータ読込エラー:",
+          error
+        );
+
+        return [];
+      }
+    }
+
+
+    function saveTrips(trips) {
+
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify(trips)
+      );
+    }
+
+
+    function createTripId() {
+
+      return (
+        "trip-" +
+        Date.now() +
+        "-" +
+        Math.random()
+          .toString(36)
+          .slice(2, 8)
+      );
+    }
+
+
+    function getInputData() {
+
+      const trip = {
+        id: tripId.value || createTripId(),
+        updatedAt: new Date().toISOString()
+      };
+
+      fields.forEach(function(field) {
+
+        trip[field] =
+          document
+            .getElementById(field)
+            .value
+            .trim();
+      });
+
+      return trip;
+    }
+
+
+    function clearForm() {
+
+      tripId.value = "";
+
+      fields.forEach(function(field) {
+
+        document
+          .getElementById(field)
+          .value = "";
+      });
+
+      deleteButton.disabled = true;
+
+      message.textContent =
+        "新しいTripを入力できます。";
+    }
+
+
+    function saveTrip() {
+
+      const trip =
+        getInputData();
+
+      if (!trip.tripName) {
+
+        message.textContent =
+          "Trip名を入力してください。";
+
+        return;
+      }
+
+      const trips =
+        getTrips();
+
+      const existingIndex =
+        trips.findIndex(
+          item => item.id === trip.id
+        );
+
+      if (existingIndex >= 0) {
+
+        trips[existingIndex] = trip;
+
+      } else {
+
+        trips.push(trip);
+      }
+
+      saveTrips(trips);
+
+      tripId.value = trip.id;
+      deleteButton.disabled = false;
+
+      message.textContent =
+        "Tripを保存しました。";
+
+      renderTripList();
+    }
+
+
+    function loadTrip(id) {
+
+      const trips =
+        getTrips();
+
+      const trip =
+        trips.find(
+          item => item.id === id
+        );
+
+      if (!trip) {
+
+        message.textContent =
+          "Tripデータが見つかりません。";
+
+        return;
+      }
+
+      tripId.value = trip.id;
+
+      fields.forEach(function(field) {
+
+        document
+          .getElementById(field)
+          .value =
+            trip[field] || "";
+      });
+
+      deleteButton.disabled = false;
+
+      message.textContent =
+        "保存済みTripを読み込みました。";
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+
+
+    function deleteTrip() {
+
+      const id =
+        tripId.value;
+
+      if (!id) {
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          "このTripを削除しますか？"
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const trips =
+        getTrips().filter(
+          trip => trip.id !== id
+        );
+
+      saveTrips(trips);
+
+      clearForm();
+
+      message.textContent =
+        "Tripを削除しました。";
+
+      renderTripList();
+    }
+
+
+    function formatDate(dateText) {
+
+      if (!dateText) {
+        return "日付未登録";
+      }
+
+      return dateText.replaceAll("-", "/");
+    }
+
+
+    function shortenText(text, maxLength) {
+
+      if (!text) {
+        return "未登録";
+      }
+
+      if (text.length <= maxLength) {
+        return text;
+      }
+
+      return text.slice(0, maxLength) + "…";
+    }
+
+
+    function parseRouteNumbers(routeText) {
+
+      if (!routeText) {
+        return [];
+      }
+
+      const routeNumbers =
+        routeText
+          .split(/[,\s、，・]+/)
+          .map(function(value) {
+
+            return value.replace(
+              /[^0-9]/g,
+              ""
+            );
+          })
+          .filter(function(value) {
+
+            return value !== "";
+          });
+
+      return [...new Set(routeNumbers)];
+    }
+
+
+    function createRouteLinks(routeText) {
+
+      const container =
+        document.createElement("div");
+
+      container.className =
+        "route-links";
+
+      const routeNumbers =
+        parseRouteNumbers(routeText);
+
+      if (routeNumbers.length === 0) {
+
+        const empty =
+          document.createElement("span");
+
+        empty.className =
+          "route-unregistered";
+
+        empty.textContent =
+          "国道 未登録";
+
+        container.appendChild(empty);
+
+        return container;
+      }
+
+      routeNumbers.forEach(
+        function(routeNumber) {
+
+          const link =
+            document.createElement("a");
+
+          link.className =
+            "route-link";
+
+          link.href =
+            `record.html?route=${routeNumber}`;
+
+          link.target =
+            "_blank";
+
+          link.rel =
+            "noopener noreferrer";
+
+          link.textContent =
+            `国道${routeNumber}号`;
+
+          link.title =
+            `国道${routeNumber}号の走破記録を開く`;
+
+          container.appendChild(link);
+        }
+      );
+
+      return container;
+    }
+
+
+    function renderTripList() {
+
+      const trips =
+        getTrips();
+
+      tripList.innerHTML = "";
+
+      if (trips.length === 0) {
+
+        tripList.innerHTML =
+          '<p class="trip-list-empty">保存済みTripはありません。</p>';
+
+        return;
+      }
+
+      const sortedTrips =
+        [...trips].sort(
+          function(a, b) {
+
+            return (
+              (b.startDate || "")
+                .localeCompare(
+                  a.startDate || ""
+                )
+            );
+          }
+        );
+
+      sortedTrips.forEach(function(trip) {
+
+        const card =
+          document.createElement("article");
+
+        card.className =
+          "trip-card";
+
+
+        const title =
+          document.createElement("h3");
+
+        title.className =
+          "trip-card-title";
+
+        title.textContent =
+          trip.tripName ||
+          "名称未登録";
+
+
+        const date =
+          document.createElement("p");
+
+        date.className =
+          "trip-card-date";
+
+        const startDate =
+          formatDate(trip.startDate);
+
+        const endDate =
+          trip.endDate
+            ? formatDate(trip.endDate)
+            : "";
+
+        date.textContent =
+          endDate &&
+          endDate !== startDate
+            ? `${startDate} ～ ${endDate}`
+            : startDate;
+
+
+        const routeLinks =
+          createRouteLinks(
+            trip.routes
+          );
+
+
+        const info =
+          document.createElement("div");
+
+        info.className =
+          "trip-card-info";
+
+
+        const thumbnail =
+          document.createElement("span");
+
+        thumbnail.textContent =
+          "📷 サムネ候補：" +
+          shortenText(
+            trip.thumbnail,
+            35
+          );
+
+
+        const ferment =
+          document.createElement("span");
+
+        ferment.textContent =
+          "💡 菌：" +
+          shortenText(
+            trip.ferment,
+            35
+          );
+
+
+        const memo =
+          document.createElement("span");
+
+        memo.textContent =
+          "📝 メモ：" +
+          shortenText(
+            trip.memo,
+            35
+          );
+
+
+        const actions =
+          document.createElement("div");
+
+        actions.className =
+          "trip-card-actions";
+
+
+        const openButton =
+          document.createElement("button");
+
+        openButton.type =
+          "button";
+
+        openButton.className =
+          "open-button";
+
+        openButton.textContent =
+          "Tripを開く";
+
+        openButton.addEventListener(
+          "click",
+          function() {
+
+            loadTrip(trip.id);
+          }
+        );
+
+
+        const noteLink =
+          document.createElement("a");
+
+        noteLink.className =
+          "note-button";
+
+        noteLink.textContent =
+          "noteを見る";
+
+        if (trip.note) {
+
+          noteLink.href =
+            trip.note;
+
+          noteLink.target =
+            "_blank";
+
+          noteLink.rel =
+            "noopener noreferrer";
+
+        } else {
+
+          noteLink.classList.add(
+            "hidden"
+          );
+        }
+
+
+        info.appendChild(thumbnail);
+        info.appendChild(ferment);
+        info.appendChild(memo);
+
+        actions.appendChild(openButton);
+        actions.appendChild(noteLink);
+
+        card.appendChild(title);
+        card.appendChild(date);
+        card.appendChild(routeLinks);
+        card.appendChild(info);
+        card.appendChild(actions);
+
+        tripList.appendChild(card);
+      });
+    }
+
+
+    document
+      .getElementById("saveButton")
+      .addEventListener(
+        "click",
+        saveTrip
+      );
+
+
+    document
+      .getElementById("clearButton")
+      .addEventListener(
+        "click",
+        clearForm
+      );
+
+
+    deleteButton.addEventListener(
+      "click",
+      deleteTrip
+    );
+
+
+    renderTripList();
+
+
+    console.log(
+      "北海道48路線ふらふらlog Trip Version2.9 Ready"
+    );
+  </script>
+
+</body>
+</html>

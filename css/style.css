@@ -1,21 +1,125 @@
-html,
-body {
+/* =====================================================
+   北海道48路線創作システム
+   Version 2.6
+===================================================== */
+
+* {
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
     height: 100%;
-    font-family: sans-serif;
-    background: #f5f5f5;
+    overflow: hidden;
+    font-family:
+        "Yu Gothic",
+        "Meiryo",
+        sans-serif;
+    background: #f3f4f6;
 }
 
 .app {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
 }
+
+/* ---------- Header ---------- */
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    background: #1e3a8a;
+    color: #ffffff;
+    padding: 12px 24px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+}
+
+.header-title {
+    font-size: 30px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.header-subtitle {
+    font-size: 14px;
+    opacity: .9;
+}
+
+/* ---------- Progress ---------- */
+
+.progress-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.progress-ring {
+    --progress: 0deg;
+
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background:
+        conic-gradient(
+            #22c55e var(--progress),
+            rgba(255, 255, 255, .25) 0deg
+        );
+}
+
+.progress-ring-center {
+    display: grid;
+    place-items: center;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: #1e3a8a;
+}
+
+.progress-ring-center span {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.progress-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.progress-label {
+    font-size: 13px;
+    opacity: .85;
+}
+
+.progress-text strong {
+    font-size: 20px;
+}
+
+/* ---------- Main ---------- */
+
+.main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ---------- Map ---------- */
 
 .map-area {
     flex: 1;
-    height: 100%;
+    position: relative;
+    min-width: 0;
+    background: #dbeafe;
 }
 
 #map {
@@ -23,111 +127,246 @@ body {
     height: 100%;
 }
 
+/* ---------- Information Panel ---------- */
+
 .info-panel {
-    width: 360px;
-    height: 100%;
+    width: 390px;
+    flex: 0 0 390px;
+    min-width: 390px;
+    background: #ffffff;
     overflow-y: auto;
-    background: #ffffff;
-    border-left: 1px solid #cccccc;
-    padding: 16px;
-    box-sizing: border-box;
+    border-left: 1px solid #d1d5db;
+    padding: 18px;
 }
 
-.info-panel h1 {
-    font-size: 20px;
-    margin: 0 0 4px;
+.info-panel-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 14px;
 }
 
-.version {
-    font-size: 12px;
-    color: #666666;
-    margin: 0 0 16px;
-}
-
-.info-panel h2 {
-    font-size: 16px;
-    margin: 18px 0 8px;
-    border-bottom: 1px solid #dddddd;
-    padding-bottom: 4px;
-}
-
-.route-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-}
-
-.route-table th {
-    width: 90px;
-    text-align: left;
-    background: #f0f0f0;
-    padding: 6px;
-    border: 1px solid #dddddd;
-}
-
-.route-table td {
-    padding: 6px;
-    border: 1px solid #dddddd;
-}
-
-.status-control button {
-    margin: 4px 4px 4px 0;
-    padding: 8px 10px;
-    border: 1px solid #999999;
-    background: #ffffff;
-    cursor: pointer;
-    border-radius: 4px;
-}
-
-.status-control button:hover {
-    background: #eeeeee;
-}
-
-.photo-placeholder {
-    height: 120px;
-    border: 2px dashed #bbbbbb;
-    border-radius: 8px;
-    background: #fafafa;
+.panel-content {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #777777;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ---------- Route Summary ---------- */
+
+.route-summary {
+    padding: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.route-number {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 13px;
     margin-bottom: 10px;
 }
 
-.wide-button {
-    width: 100%;
+.route-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.route-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.route-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     padding: 10px;
-    border: 1px solid #999999;
+    border-radius: 8px;
     background: #ffffff;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.wide-button:hover {
-    background: #eeeeee;
-}
-
-#noteDisplay {
+    color: #374151;
     font-size: 14px;
-    color: #555555;
-    margin: 0 0 10px;
 }
+
+.route-meta-label {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.status-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #dbe4ea;
+    border-left: 6px solid #6b7280;
+    border-radius: 8px;
+}
+
+.status-label {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.status-value {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+/* ---------- Compact Cards ---------- */
+
+.content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.compact-card {
+    min-height: 92px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.compact-card-title {
+    font-size: 15px;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.compact-card-value {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #111827;
+    overflow-wrap: anywhere;
+}
+
+.compact-card-value a {
+    display: inline-block;
+    padding: 7px 10px;
+    border-radius: 7px;
+    background: #2563eb;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.compact-card-value a:hover {
+    background: #1d4ed8;
+}
+
+.photo-card {
+    grid-column: 1 / -1;
+}
+
+.route-photo {
+    display: none;
+    width: 100%;
+    max-height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #d1d5db;
+}
+
+/* ---------- Empty Panel ---------- */
+
+.empty-panel {
+    padding: 40px 10px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.empty-panel-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.empty-panel-text {
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* ---------- Leaflet ---------- */
+
+.leaflet-container {
+    width: 100%;
+    height: 100%;
+}
+
+.leaflet-popup-content {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ---------- Scroll ---------- */
+
+.info-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.info-panel::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.info-panel::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+
+/* ---------- Responsive ---------- */
 
 @media (max-width: 900px) {
-    .app {
-        display: block;
-        height: auto;
+
+    .header {
+        align-items: flex-start;
+    }
+
+    .header-title {
+        font-size: 22px;
+    }
+
+    .progress-ring {
+        width: 60px;
+        height: 60px;
+    }
+
+    .progress-ring-center {
+        width: 44px;
+        height: 44px;
+    }
+
+    .progress-ring-center span {
+        font-size: 13px;
+    }
+
+    .main {
+        flex-direction: column;
     }
 
     .map-area {
-        height: 60vh;
+        height: 58vh;
+        flex: 0 0 58vh;
     }
 
     .info-panel {
         width: 100%;
-        height: auto;
+        min-width: 0;
+        flex: 1;
         border-left: none;
-        border-top: 1px solid #cccccc;
+        border-top: 1px solid #d1d5db;
     }
 }

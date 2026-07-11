@@ -1,0 +1,73 @@
+[
+  {
+    "number": 40,
+    "name": "一般国道40号",
+    "start": "旭川市",
+    "end": "稚内市",
+    "status": "未走破",
+   "photo": "route040.jpg", 
+    "note": "https://note.com/kamuimintara",
+   "ferment": "https://example.com/ferment040" 
+  },
+  {
+    "number": 12,
+    "name": "一般国道12号",
+    "start": "札幌市",
+    "end": "旭川市",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  },
+  {
+    "number": 36,
+    "name": "一般国道36号",
+    "start": "札幌市",
+    "end": "室蘭市",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  },
+  {
+    "number": 38,
+    "name": "一般国道38号",
+    "start": "滝川市",
+    "end": "釧路市",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  },
+  {
+    "number": 39,
+    "name": "一般国道39号",
+    "start": "旭川市",
+    "end": "網走市",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  },
+    {
+    "number": 44,
+    "name": "一般国道44号",
+    "start": "釧路市",
+    "end": "根室市",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  
+  },
+  {
+    "number": 227,
+    "name": "一般国道227号",
+    "start": "函館市",
+    "end": "江差町",
+    "status": "未走破",
+    "photo": "未登録",
+    "note": "未登録",
+    "ferment": "未登録"
+  }
+]

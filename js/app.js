@@ -1,169 +1,719 @@
-let map;
-let selectedRoute = null;
+// =====================================================
+// 北海道48路線ふらふらlog
+// Version 2.6
+// app.js
+// 走破率ドーナツグラフ・Status自動更新版
+// =====================================================
+
+
+// ---------- 地図作成 ----------
+
+const map = L.map("map").setView([43.8, 142.8], 6);
+
+L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+        attribution: "&copy; OpenStreetMap contributors"
+    }
+).addTo(map);
+
+
+// ---------- 情報パネル ----------
+
+const emptyPanel =
+    document.getElementById("emptyPanel");
+
+const panelContent =
+    document.getElementById("panelContent");
+
+const routeNumber =
+    document.getElementById("routeNumber");
+
+const routeName =
+    document.getElementById("routeName");
+
+const routeStart =
+    document.getElementById("routeStart");
+
+const routeEnd =
+    document.getElementById("routeEnd");
+
+const routeStatus =
+    document.getElementById("routeStatus");
+
+const photoValue =
+    document.getElementById("photoValue");
+
+const routePhoto =
+    document.getElementById("routePhoto");
+
+const noteValue =
+    document.getElementById("noteValue");
+
+const fermentValue =
+    document.getElementById("fermentValue");
+
+const publicRecordValue =
+    document.getElementById("publicRecordValue");
+
+
+// ---------- 走破率表示 ----------
+
+function findElementByIds(idList) {
+
+    for (const id of idList) {
+
+        const element =
+            document.getElementById(id);
+
+        if (element) {
+            return element;
+        }
+    }
+
+    return null;
+}
+
+
+const progressDonut =
+    findElementByIds([
+        "progressDonut",
+        "routeProgressDonut",
+        "completionDonut",
+        "donutChart"
+    ]);
+
+const progressPercent =
+    findElementByIds([
+        "progressPercent",
+        "routeProgressPercent",
+        "completionRate",
+        "donutPercent"
+    ]);
+
+const completedRouteCount =
+    findElementByIds([
+        "completedRouteCount",
+        "completedCount",
+        "routeCompletedCount"
+    ]);
+
+const totalRouteCount =
+    findElementByIds([
+        "totalRouteCount",
+        "routeTotalCount"
+    ]);
+
+
+// ---------- 初期表示 ----------
+
+emptyPanel.hidden = false;
+panelContent.hidden = true;
+
+let routesData = [];
+
 let selectedLayer = null;
 
-const ROUTES_JSON_PATH = "data/routes.json";
+const allLayers =
+    L.featureGroup().addTo(map);
 
-document.addEventListener("DOMContentLoaded", () => {
-    initializeMap();
-    setupStatusButtons();
-    setupButtons();
-    loadRoutes();
-});
 
-function initializeMap() {
-    map = L.map("map").setView([43.7, 142.6], 7);
+// ---------- GeoJSONパス作成 ----------
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors"
-    }).addTo(map);
+function getGeojsonPath(number) {
+
+    return (
+        "data/geojson/route_" +
+        String(number).padStart(3, "0") +
+        ".geojson"
+    );
 }
 
-async function loadRoutes() {
-    const response = await fetch(ROUTES_JSON_PATH);
-    const json = await response.json();
 
-    for (const route of json.routes) {
-        const geoResponse = await fetch("data/" + route.geojson);
-        const geojson = await geoResponse.json();
+// ---------- 走破記録保存キー ----------
 
-        const layerGroup = L.geoJSON(geojson, {
-            style: getNormalStyle(route)
-        }).addTo(map);
+function getRecordStorageKey(number) {
 
-        layerGroup.eachLayer(layer => {
-            layer.on("click", () => selectRoute(route, layer));
-        });
+    const paddedNumber =
+        String(number).padStart(3, "0");
 
-        map.fitBounds(layerGroup.getBounds(), {
-            padding: [30, 30]
-        });
+    return `route${paddedNumber}Record`;
+}
+
+
+// ---------- 実際の走破状態 ----------
+
+function getEffectiveStatus(route) {
+
+    const storageKey =
+        getRecordStorageKey(route.number);
+
+    const savedRecord =
+        localStorage.getItem(storageKey);
+
+    if (savedRecord) {
+        return "走破済";
+    }
+
+    return route.status ?? "未走破";
+}
+
+
+// ---------- 色設定 ----------
+
+function getStatusColor(status) {
+
+    switch (status) {
+
+        case "走破済":
+            return "#16a34a";
+
+        case "走破中":
+            return "#ea580c";
+
+        default:
+            return "#6b7280";
     }
 }
 
-function selectRoute(route, layer) {
-    if (selectedLayer && selectedRoute) {
-        selectedLayer.setStyle(getNormalStyle(selectedRoute));
-    }
 
-    selectedRoute = route;
-    selectedLayer = layer;
+// ---------- 通常時の路線スタイル ----------
 
-    selectedLayer.setStyle(getSelectedStyle());
+function getRouteStyle(route) {
 
-    updateInfoPanel(route);
-}
+    const status =
+        getEffectiveStatus(route);
 
-function updateInfoPanel(route) {
-    document.getElementById("routeNumber").textContent = "国道" + route.number + "号";
-    document.getElementById("routeName").textContent = route.name || "未登録";
-    document.getElementById("routeStart").textContent = route.start || "未登録";
-    document.getElementById("routeEnd").textContent = route.end || "未登録";
-    document.getElementById("routeStatus").textContent = getStatusText(route.status);
-
-    document.getElementById("photoCount").textContent =
-        route.photoCount ? route.photoCount + "枚" : "未登録";
-
-    document.getElementById("noteInfo").textContent =
-        route.note ? "登録済" : "未登録";
-
-    document.getElementById("kinInfo").textContent =
-        route.kin || "未登録";
-
-    document.getElementById("noteDisplay").textContent =
-        route.note || "未登録";
-
-    const photoBox = document.querySelector(".photo-placeholder");
-
-    if (route.photo) {
-        photoBox.innerHTML =
-            `<img src="photos/${route.photo}" alt="路線写真" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`;
-    } else {
-        photoBox.innerHTML = "<span>写真未登録</span>";
-    }
-}
-
-function setupStatusButtons() {
-    document.getElementById("btnUntraveled").onclick = () => {
-        changeSelectedStatus("untraveled");
-    };
-
-    document.getElementById("btnPartial").onclick = () => {
-        changeSelectedStatus("partial");
-    };
-
-    document.getElementById("btnTraveled").onclick = () => {
-        changeSelectedStatus("traveled");
-    };
-}
-
-function setupButtons() {
-    document.getElementById("btnOpenPhoto").onclick = () => {
-        if (!selectedRoute || !selectedRoute.photo) {
-            alert("写真は登録されていません。");
-            return;
-        }
-
-        window.open("photos/" + selectedRoute.photo, "_blank");
-    };
-
-    document.getElementById("btnOpenNote").onclick = () => {
-        if (!selectedRoute || !selectedRoute.note) {
-            alert("noteは登録されていません。");
-            return;
-        }
-
-        window.open(selectedRoute.note, "_blank");
-    };
-}
-
-function changeSelectedStatus(status) {
-    if (!selectedRoute || !selectedLayer) {
-        alert("先に路線をクリックしてください。");
-        return;
-    }
-
-    selectedRoute.status = status;
-    selectedLayer.setStyle(getSelectedStyle());
-    updateInfoPanel(selectedRoute);
-}
-
-function getNormalStyle(route) {
     return {
-        color: getStatusColor(route.status),
-        weight: 5,
+        color: getStatusColor(status),
+        weight: 4,
         opacity: 0.9
     };
 }
 
-function getSelectedStyle() {
-    return {
-        color: "#1565c0",
-        weight: 8,
-        opacity: 1
-    };
+
+// ---------- 走破率更新 ----------
+
+function updateProgressDisplay() {
+
+    const totalCount =
+        routesData.length > 0
+            ? routesData.length
+            : 48;
+
+    const completedCount =
+        routesData.filter(
+            route =>
+                getEffectiveStatus(route) ===
+                "走破済"
+        ).length;
+
+    const percentage =
+        totalCount > 0
+            ? Math.round(
+                completedCount /
+                totalCount *
+                100
+            )
+            : 0;
+
+
+    if (progressPercent) {
+
+        progressPercent.textContent =
+            `${percentage}%`;
+    }
+
+
+    if (completedRouteCount) {
+
+        completedRouteCount.textContent =
+            completedCount;
+    }
+
+
+    if (totalRouteCount) {
+
+        totalRouteCount.textContent =
+            totalCount;
+    }
+
+
+    if (progressDonut) {
+
+        progressDonut.style.setProperty(
+            "--progress",
+            `${percentage}%`
+        );
+
+        progressDonut.style.background =
+            `conic-gradient(
+                #16a34a 0% ${percentage}%,
+                #e5e7eb ${percentage}% 100%
+            )`;
+
+        progressDonut.setAttribute(
+            "aria-label",
+            `走破率${percentage}パーセント。${totalCount}路線中${completedCount}路線走破済み`
+        );
+    }
+
+
+    console.log(
+        `走破率更新: ${completedCount}/${totalCount}路線 ${percentage}%`
+    );
 }
 
-function getStatusColor(status) {
-    if (status === "traveled") {
-        return "#2e7d32";
+
+// ---------- 情報パネル更新 ----------
+
+function updatePanel(route) {
+
+    emptyPanel.hidden = true;
+    panelContent.hidden = false;
+
+
+    routeNumber.textContent =
+        "Route " +
+        (route.number ?? "-");
+
+
+    routeName.textContent =
+        route.name ??
+        "名称未登録";
+
+
+    routeStart.textContent =
+        route.start ??
+        "未登録";
+
+
+    routeEnd.textContent =
+        route.end ??
+        "未登録";
+
+
+    const status =
+        getEffectiveStatus(route);
+
+    const statusColor =
+        getStatusColor(status);
+
+
+    routeStatus.textContent =
+        status;
+
+    routeStatus.style.color =
+        statusColor;
+
+    routeStatus.parentElement.style.borderLeft =
+        `6px solid ${statusColor}`;
+
+
+    if (
+        route.photo &&
+        route.photo !== "未登録"
+    ) {
+
+        routePhoto.src =
+            "photos/" +
+            route.photo;
+
+        routePhoto.style.display =
+            "block";
+
+        photoValue.textContent =
+            "1枚";
+
+    } else {
+
+        routePhoto.removeAttribute("src");
+
+        routePhoto.style.display =
+            "none";
+
+        photoValue.textContent =
+            "未登録";
     }
 
-    if (status === "partial") {
-        return "#f9a825";
+
+    if (
+        route.note &&
+        route.note !== "未登録"
+    ) {
+
+        noteValue.innerHTML =
+            `<a href="${route.note}" target="_blank" rel="noopener noreferrer">noteを見る</a>`;
+
+    } else {
+
+        noteValue.textContent =
+            "未登録";
     }
 
-    return "#d32f2f";
+
+    if (
+        route.ferment &&
+        route.ferment !== "未登録"
+    ) {
+
+        fermentValue.innerHTML =
+            `<a href="${route.ferment}" target="_blank" rel="noopener noreferrer">Ferment Logを見る</a>`;
+
+    } else {
+
+        fermentValue.textContent =
+            "未登録";
+    }
+
+
+    if (
+        route.publicRecord &&
+        route.publicRecord !== "未登録"
+    ) {
+
+        const recordUrl =
+            `record.html?route=${route.number}`;
+
+        publicRecordValue.innerHTML =
+            `<a href="${recordUrl}" target="_blank" rel="noopener noreferrer">走破記録を見る</a>`;
+
+    } else {
+
+        publicRecordValue.textContent =
+            "未登録";
+    }
 }
 
-function getStatusText(status) {
-    if (status === "traveled") {
-        return "走破済";
-    }
 
-    if (status === "partial") {
-        return "一部走破";
-    }
+// ---------- 全路線の色更新 ----------
 
-    return "未走破";
+function refreshRouteStyles() {
+
+    allLayers.eachLayer(
+        function (routeGroup) {
+
+            routeGroup.eachLayer(
+                function (layer) {
+
+                    if (!layer.routeData) {
+                        return;
+                    }
+
+
+                    if (layer === selectedLayer) {
+
+                        layer.setStyle({
+                            color: "#2563eb",
+                            weight: 7,
+                            opacity: 1
+                        });
+
+                    } else {
+
+                        layer.setStyle(
+                            getRouteStyle(
+                                layer.routeData
+                            )
+                        );
+                    }
+                }
+            );
+        }
+    );
 }
+
+
+// ---------- 保存内容反映 ----------
+
+function refreshSavedRecordStatus() {
+
+    updateProgressDisplay();
+
+    refreshRouteStyles();
+
+
+    if (
+        selectedLayer &&
+        selectedLayer.routeData
+    ) {
+
+        updatePanel(
+            selectedLayer.routeData
+        );
+    }
+}
+
+
+// ---------- 路線レイヤー作成 ----------
+
+function createRouteLayer(
+    geojson,
+    route
+) {
+
+    const routeLayer =
+        L.geoJSON(
+            geojson,
+            {
+
+                style: function () {
+
+                    return getRouteStyle(
+                        route
+                    );
+                },
+
+
+                onEachFeature:
+                    function (
+                        feature,
+                        layer
+                    ) {
+
+                        if (
+                            !feature.properties
+                        ) {
+
+                            feature.properties = {};
+                        }
+
+
+                        feature.properties.number =
+                            route.number;
+
+
+                        layer.routeData =
+                            route;
+
+
+                        layer.on(
+                            "click",
+                            function () {
+
+                                if (
+                                    selectedLayer &&
+                                    selectedLayer !== layer
+                                ) {
+
+                                    selectedLayer.setStyle(
+                                        getRouteStyle(
+                                            selectedLayer.routeData
+                                        )
+                                    );
+                                }
+
+
+                                layer.setStyle({
+                                    color: "#2563eb",
+                                    weight: 7,
+                                    opacity: 1
+                                });
+
+
+                                selectedLayer =
+                                    layer;
+
+
+                                updatePanel(
+                                    route
+                                );
+
+
+                                map.fitBounds(
+                                    layer.getBounds(),
+                                    {
+                                        padding:
+                                            [40, 40]
+                                    }
+                                );
+                            }
+                        );
+                    }
+            }
+        );
+
+
+    routeLayer.addTo(
+        allLayers
+    );
+}
+
+
+// ---------- 別タブ保存時の自動更新 ----------
+
+window.addEventListener(
+    "storage",
+    function (event) {
+
+        if (
+            event.key &&
+            /^route\d{3}Record$/.test(
+                event.key
+            )
+        ) {
+
+            refreshSavedRecordStatus();
+        }
+    }
+);
+
+
+// ---------- メイン画面へ戻った時の更新 ----------
+
+window.addEventListener(
+    "focus",
+    function () {
+
+        if (
+            routesData.length > 0
+        ) {
+
+            refreshSavedRecordStatus();
+        }
+    }
+);
+
+
+// ---------- タブ再表示時の更新 ----------
+
+document.addEventListener(
+    "visibilitychange",
+    function () {
+
+        if (
+            document.visibilityState ===
+            "visible" &&
+            routesData.length > 0
+        ) {
+
+            refreshSavedRecordStatus();
+        }
+    }
+);
+
+
+// ---------- データ読込 ----------
+
+fetch("data/routes.json")
+
+    .then(
+        function (response) {
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `routes.json読込失敗: ${response.status}`
+                );
+            }
+
+            return response.json();
+        }
+    )
+
+    .then(
+        function (routes) {
+
+            routesData =
+                routes;
+
+            updateProgressDisplay();
+
+
+            const loadTasks =
+                routesData.map(
+                    function (route) {
+
+                        return fetch(
+                            getGeojsonPath(
+                                route.number
+                            )
+                        )
+
+                            .then(
+                                function (response) {
+
+                                    if (
+                                        !response.ok
+                                    ) {
+
+                                        throw new Error(
+                                            `HTTP ${response.status}`
+                                        );
+                                    }
+
+                                    return response.json();
+                                }
+                            )
+
+                            .then(
+                                function (geojson) {
+
+                                    createRouteLayer(
+                                        geojson,
+                                        route
+                                    );
+                                }
+                            )
+
+                            .catch(
+                                function (error) {
+
+                                    console.error(
+                                        "GeoJSON読み込みエラー:",
+                                        route.number,
+                                        error
+                                    );
+                                }
+                            );
+                    }
+                );
+
+
+            return Promise.all(
+                loadTasks
+            );
+        }
+    )
+
+    .then(
+        function () {
+
+            if (
+                allLayers.getLayers()
+                    .length > 0
+            ) {
+
+                map.fitBounds(
+                    allLayers.getBounds(),
+                    {
+                        padding:
+                            [20, 20]
+                    }
+                );
+            }
+
+
+            refreshSavedRecordStatus();
+
+
+            console.log(
+                "48路線読み込み完了"
+            );
+        }
+    )
+
+    .catch(
+        function (error) {
+
+            console.error(
+                "読み込みエラー:",
+                error
+            );
+        }
+    );
+
+
+console.log(
+    " Version2.6 Ready"
+);
