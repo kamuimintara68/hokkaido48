@@ -33,7 +33,9 @@
     }
 
     .back-link {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
       margin-bottom: 20px;
       color: #2563eb;
       text-decoration: none;
@@ -41,7 +43,7 @@
 
     .page-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 380px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
       gap: 24px;
       align-items: start;
     }
@@ -92,6 +94,7 @@
     }
 
     button {
+      min-height: 44px;
       padding: 11px 20px;
       font-size: 15px;
       border: none;
@@ -163,7 +166,9 @@
     }
 
     .route-link {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
       padding: 5px 10px;
       border-radius: 999px;
       background: #dcfce7;
@@ -184,7 +189,9 @@
     }
 
     .record-link {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
       padding: 5px 9px;
       border-radius: 999px;
       background: #dbeafe;
@@ -231,14 +238,36 @@
       color: #ffffff;
     }
 
-    @media (max-width: 850px) {
+    @media (min-width: 721px) and (max-width: 900px) {
       body {
         margin: 20px auto;
+        padding: 16px;
+      }
+
+      .page-grid {
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 16px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      body {
+        margin: 16px auto;
         padding: 12px;
+      }
+
+      h1 {
+        font-size: 26px;
+        line-height: 1.35;
       }
 
       .page-grid {
         grid-template-columns: 1fr;
+        gap: 20px;
       }
 
       .date-grid {
@@ -248,6 +277,30 @@
 
       .card {
         padding: 18px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 23px;
+      }
+
+      .card,
+      .trip-card {
+        padding: 16px;
+      }
+
+      .button-area button {
+        flex: 1 1 calc(50% - 5px);
+      }
+
+      #deleteButton {
+        flex-basis: 100%;
+      }
     }
   </style>
 </head>
@@ -337,7 +390,7 @@
 
       </div>
 
-      <div id="message"></div>
+      <div id="message" aria-live="polite"></div>
 
     </section>
 

@@ -1,6 +1,6 @@
 /* =====================================================
-   北海道48路線創作システム
-   Version 2.6
+   北海道48路線ふらふらlog
+   Version 3.2
 ===================================================== */
 
 * {
@@ -13,6 +13,7 @@ html,
 body {
     width: 100%;
     height: 100%;
+    height: 100dvh;
     overflow: hidden;
     font-family:
         "Yu Gothic",
@@ -26,6 +27,7 @@ body {
     flex-direction: column;
     width: 100%;
     height: 100%;
+    height: 100dvh;
 }
 
 /* ---------- Header ---------- */
@@ -50,6 +52,30 @@ body {
 .header-subtitle {
     font-size: 14px;
     opacity: .9;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.trip-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1e3a8a;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.trip-button:hover {
+    background: #eff6ff;
 }
 
 /* ---------- Progress ---------- */
@@ -253,7 +279,9 @@ body {
 }
 
 .compact-card-value a {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     padding: 7px 10px;
     border-radius: 7px;
     background: #2563eb;
@@ -312,6 +340,12 @@ body {
     line-height: 1.6;
 }
 
+.leaflet-touch .leaflet-bar a {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+}
+
 /* ---------- Scroll ---------- */
 
 .info-panel::-webkit-scrollbar {
@@ -332,7 +366,8 @@ body {
 @media (max-width: 900px) {
 
     .header {
-        align-items: flex-start;
+        gap: 16px;
+        padding: 10px 16px;
     }
 
     .header-title {
@@ -358,8 +393,9 @@ body {
     }
 
     .map-area {
-        height: 58vh;
-        flex: 0 0 58vh;
+        height: auto;
+        min-height: 320px;
+        flex: 0 0 52%;
     }
 
     .info-panel {
@@ -368,5 +404,102 @@ body {
         flex: 1;
         border-left: none;
         border-top: 1px solid #d1d5db;
+        padding: 16px;
+    }
+}
+
+@media (max-width: 600px) {
+
+    .header {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .header > div:first-child {
+        width: 100%;
+    }
+
+    .header-title {
+        font-size: 20px;
+        line-height: 1.25;
+    }
+
+    .header-subtitle {
+        font-size: 12px;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .trip-button {
+        padding: 8px 14px;
+    }
+
+    .progress-summary {
+        gap: 8px;
+    }
+
+    .progress-ring {
+        width: 48px;
+        height: 48px;
+    }
+
+    .progress-ring-center {
+        width: 36px;
+        height: 36px;
+    }
+
+    .progress-ring-center span {
+        font-size: 12px;
+    }
+
+    .progress-label {
+        font-size: 11px;
+    }
+
+    .progress-text strong {
+        font-size: 17px;
+    }
+
+    .map-area {
+        min-height: 260px;
+        flex-basis: 48%;
+    }
+
+    .info-panel {
+        padding: 12px;
+    }
+
+    .info-panel-title {
+        margin-bottom: 10px;
+        font-size: 19px;
+    }
+
+    .route-summary {
+        padding: 12px;
+    }
+
+    .route-name {
+        font-size: 22px;
+    }
+
+    .compact-card {
+        min-height: 82px;
+    }
+}
+
+@media (max-width: 430px) {
+
+    .content-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .photo-card {
+        grid-column: auto;
     }
 }
