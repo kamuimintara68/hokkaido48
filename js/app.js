@@ -47,12 +47,6 @@ const photoValue =
 const routePhoto =
     document.getElementById("routePhoto");
 
-const noteValue =
-    document.getElementById("noteValue");
-
-const fermentValue =
-    document.getElementById("fermentValue");
-
 const publicRecordValue =
     document.getElementById("publicRecordValue");
 const relatedTripsValue =
@@ -364,36 +358,6 @@ function updatePanel(route) {
             "none";
 
         photoValue.textContent =
-            "未登録";
-    }
-
-
-    if (
-        route.note &&
-        route.note !== "未登録"
-    ) {
-
-        noteValue.innerHTML =
-            `<a href="${route.note}" target="_blank" rel="noopener noreferrer">noteを見る</a>`;
-
-    } else {
-
-        noteValue.textContent =
-            "未登録";
-    }
-
-
-    if (
-        route.ferment &&
-        route.ferment !== "未登録"
-    ) {
-
-        fermentValue.innerHTML =
-            `<a href="${route.ferment}" target="_blank" rel="noopener noreferrer">Ferment Logを見る</a>`;
-
-    } else {
-
-        fermentValue.textContent =
             "未登録";
     }
 

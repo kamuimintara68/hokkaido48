@@ -201,16 +201,6 @@
       <textarea id="memo"></textarea>
     </div>
 
-    <div class="item">
-      <label for="note">note記事</label>
-      <input type="url" id="note">
-    </div>
-
-    <div class="item">
-      <label for="ferment">Ferment Log</label>
-      <textarea id="ferment"></textarea>
-    </div>
-
     <button id="saveButton" type="button">保存</button>
     <button id="clearButton" type="button">入力を消去</button>
 
@@ -276,9 +266,7 @@
       "vehicle",
       "weather",
       "photo",
-      "memo",
-      "note",
-      "ferment"
+      "memo"
     ];
 
     function loadRecord() {
@@ -312,7 +300,27 @@
         return;
       }
 
+      let existingRecord = {};
+      const savedData = localStorage.getItem(storageKey);
+
+      if (savedData) {
+        try {
+          const parsedRecord = JSON.parse(savedData);
+
+          if (
+            parsedRecord &&
+            typeof parsedRecord === "object" &&
+            !Array.isArray(parsedRecord)
+          ) {
+            existingRecord = parsedRecord;
+          }
+        } catch (error) {
+          console.error("既存走破記録読込エラー:", error);
+        }
+      }
+
       const record = {
+        ...existingRecord,
         routeNumber: Number(validRouteNumber),
         updatedAt: new Date().toISOString()
       };

@@ -231,20 +231,6 @@
       color: #ffffff;
     }
 
-    .note-button {
-      display: inline-block;
-      padding: 8px 14px;
-      border-radius: 6px;
-      background: #f59e0b;
-      color: #ffffff;
-      text-decoration: none;
-      font-size: 14px;
-    }
-
-    .note-button.hidden {
-      display: none;
-    }
-
     @media (max-width: 850px) {
       body {
         margin: 20px auto;
@@ -323,20 +309,11 @@
       </div>
 
       <div class="item">
-        <label for="ferment">菌（アイデア）</label>
+        <label for="ferment">記事ネタ</label>
         <textarea
           id="ferment"
-          placeholder="旅の途中で拾った言葉や発想"
+          placeholder="記事にしたい出来事・言葉・気づき"
         ></textarea>
-      </div>
-
-      <div class="item">
-        <label for="note">note記事</label>
-        <input
-          type="url"
-          id="note"
-          placeholder="https://note.com/..."
-        >
       </div>
 
       <div class="item">
@@ -388,7 +365,6 @@
       "routes",
       "thumbnail",
       "ferment",
-      "note",
       "memo"
     ];
 
@@ -511,7 +487,10 @@
 
       if (existingIndex >= 0) {
 
-        trips[existingIndex] = trip;
+        trips[existingIndex] = {
+          ...trips[existingIndex],
+          ...trip
+        };
 
       } else {
 
@@ -834,7 +813,7 @@
           document.createElement("span");
 
         ferment.textContent =
-          "💡 菌：" +
+          "💡 記事ネタ：" +
           shortenText(
             trip.ferment,
             35
@@ -880,40 +859,11 @@
         );
 
 
-        const noteLink =
-          document.createElement("a");
-
-        noteLink.className =
-          "note-button";
-
-        noteLink.textContent =
-          "noteを見る";
-
-        if (trip.note) {
-
-          noteLink.href =
-            trip.note;
-
-          noteLink.target =
-            "_blank";
-
-          noteLink.rel =
-            "noopener noreferrer";
-
-        } else {
-
-          noteLink.classList.add(
-            "hidden"
-          );
-        }
-
-
         info.appendChild(thumbnail);
         info.appendChild(ferment);
         info.appendChild(memo);
 
         actions.appendChild(openButton);
-        actions.appendChild(noteLink);
 
         card.appendChild(title);
         card.appendChild(date);

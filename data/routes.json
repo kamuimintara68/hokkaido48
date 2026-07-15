@@ -5,10 +5,7 @@
     "start": "函館市",
     "end": "札幌市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 12,
@@ -16,10 +13,7 @@
     "start": "札幌市",
     "end": "旭川市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 36,
@@ -27,10 +21,7 @@
     "start": "札幌市",
     "end": "室蘭市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 37,
@@ -38,10 +29,7 @@
     "start": "長万部町",
     "end": "室蘭市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 38,
@@ -49,10 +37,7 @@
     "start": "滝川市",
     "end": "釧路市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 39,
@@ -60,10 +45,7 @@
     "start": "旭川市",
     "end": "網走市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 40,
@@ -71,10 +53,7 @@
     "start": "旭川市",
     "end": "稚内市",
     "status": "未走破",
-    "photo": "route040.jpg",
-    "note": "https://note.com/kamuimintara",
-    "ferment": "https://example.com/ferment040",
-    "publicRecord": "record.html?route=40"
+    "photo": "route040.jpg"
   },
   {
     "number": 44,
@@ -82,10 +61,7 @@
     "start": "釧路市",
     "end": "根室市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 227,
@@ -93,10 +69,7 @@
     "start": "函館市",
     "end": "江差町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 228,
@@ -104,10 +77,7 @@
     "start": "函館市",
     "end": "江差町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 229,
@@ -115,10 +85,7 @@
     "start": "小樽市",
     "end": "江差町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 230,
@@ -126,10 +93,7 @@
     "start": "札幌市",
     "end": "せたな町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 231,
@@ -137,10 +101,7 @@
     "start": "札幌市",
     "end": "留萌市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 232,
@@ -148,10 +109,7 @@
     "start": "稚内市",
     "end": "留萌市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 233,
@@ -159,10 +117,7 @@
     "start": "旭川市",
     "end": "留萌市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 234,
@@ -170,10 +125,7 @@
     "start": "岩見沢市",
     "end": "苫小牧市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 235,
@@ -181,10 +133,7 @@
     "start": "室蘭市",
     "end": "浦河町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 236,
@@ -192,10 +141,7 @@
     "start": "帯広市",
     "end": "浦河町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 237,
@@ -203,10 +149,7 @@
     "start": "旭川市",
     "end": "浦河町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 238,
@@ -214,10 +157,7 @@
     "start": "網走市",
     "end": "稚内市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 239,
@@ -225,10 +165,7 @@
     "start": "網走市",
     "end": "留萌市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 240,
@@ -236,10 +173,7 @@
     "start": "釧路市",
     "end": "網走市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 241,
@@ -247,10 +181,7 @@
     "start": "弟子屈町",
     "end": "帯広市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 242,
@@ -258,10 +189,7 @@
     "start": "網走市",
     "end": "帯広市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 243,
@@ -269,10 +197,7 @@
     "start": "網走市",
     "end": "根室市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 244,
@@ -280,10 +205,7 @@
     "start": "網走市",
     "end": "根室市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 272,
@@ -291,10 +213,7 @@
     "start": "釧路市",
     "end": "標津町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 273,
@@ -302,10 +221,7 @@
     "start": "帯広市",
     "end": "紋別市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 274,
@@ -313,10 +229,7 @@
     "start": "札幌市",
     "end": "標茶町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 275,
@@ -324,10 +237,7 @@
     "start": "札幌市",
     "end": "浜頓別町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 276,
@@ -335,10 +245,7 @@
     "start": "江差町",
     "end": "苫小牧市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 277,
@@ -346,10 +253,7 @@
     "start": "江差町",
     "end": "八雲町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 278,
@@ -357,10 +261,7 @@
     "start": "函館市",
     "end": "森町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 279,
@@ -368,10 +269,7 @@
     "start": "函館市",
     "end": "野辺地町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 280,
@@ -379,10 +277,7 @@
     "start": "青森市",
     "end": "函館市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 333,
@@ -390,10 +285,7 @@
     "start": "旭川市",
     "end": "北見市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 334,
@@ -401,10 +293,7 @@
     "start": "羅臼町",
     "end": "美幌町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 335,
@@ -412,10 +301,7 @@
     "start": "羅臼町",
     "end": "標津町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 336,
@@ -423,10 +309,7 @@
     "start": "浦河町",
     "end": "釧路市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 337,
@@ -434,10 +317,7 @@
     "start": "千歳市",
     "end": "小樽市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 338,
@@ -445,10 +325,7 @@
     "start": "函館市",
     "end": "おいらせ町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 391,
@@ -456,10 +333,7 @@
     "start": "釧路市",
     "end": "網走市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 392,
@@ -467,10 +341,7 @@
     "start": "釧路市",
     "end": "本別町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 393,
@@ -478,10 +349,7 @@
     "start": "小樽市",
     "end": "倶知安町",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 450,
@@ -489,10 +357,7 @@
     "start": "旭川市",
     "end": "紋別市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 451,
@@ -500,10 +365,7 @@
     "start": "留萌市",
     "end": "滝川市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 452,
@@ -511,10 +373,7 @@
     "start": "夕張市",
     "end": "旭川市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   },
   {
     "number": 453,
@@ -522,9 +381,6 @@
     "start": "札幌市",
     "end": "伊達市",
     "status": "未走破",
-    "photo": "未登録",
-    "note": "未登録",
-    "ferment": "未登録",
-    "publicRecord": "未登録"
+    "photo": "未登録"
   }
 ]
