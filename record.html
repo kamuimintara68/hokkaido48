@@ -79,14 +79,93 @@
 
     .back-link {
       display: inline-block;
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .navigation-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
       margin-bottom: 20px;
+    }
+
+    .related-trips {
+      margin-top: 24px;
+      padding: 24px;
+      border-radius: 8px;
+      background: white;
+    }
+
+    .related-trips h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+
+    .related-trip-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .related-trip-link {
+      display: block;
+      padding: 12px;
+      border: 1px solid #dbe3ea;
+      border-radius: 7px;
+      color: #1d4ed8;
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    .related-trip-link:hover {
+      background: #eff6ff;
+    }
+
+    .related-trip-date {
+      display: block;
+      margin-top: 3px;
+      color: #6b7280;
+      font-size: 13px;
+      font-weight: normal;
+    }
+
+    .related-trip-empty {
+      color: #6b7280;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        margin: 16px auto;
+        padding: 12px;
+      }
+
+      .record-form,
+      .related-trips {
+        padding: 18px;
+      }
+
+      #clearButton {
+        margin-top: 10px;
+        margin-left: 0;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <a class="back-link" href="index.html">← 地図へ戻る</a>
+  <nav class="navigation-links">
+    <a class="back-link" id="backToRouteLink" href="index.html">
+      ← 地図へ戻る
+    </a>
+    <a class="back-link" id="backToTripLink" href="trip.html" hidden>
+      ← Tripへ戻る
+    </a>
+  </nav>
 
   <h1 id="pageTitle">走破記録</h1>
 
@@ -139,23 +218,54 @@
 
   </div>
 
+  <section class="related-trips">
+    <h2>関連Trip</h2>
+    <div id="relatedTripsList" class="related-trip-list">
+      <span class="related-trip-empty">関連Tripはありません。</span>
+    </div>
+  </section>
+
   <script>
     const params = new URLSearchParams(window.location.search);
     const routeNumber = params.get("route");
+    const requestedTripId = params.get("trip");
 
-    if (!routeNumber) {
+    const validRouteNumber =
+      routeNumber && /^\d+$/.test(routeNumber)
+        ? String(Number(routeNumber))
+        : "";
+
+    if (!validRouteNumber) {
       document.getElementById("pageTitle").textContent =
         "路線番号が指定されていません";
     } else {
       document.getElementById("pageTitle").textContent =
-        `一般国道${routeNumber}号　走破記録`;
+        `一般国道${validRouteNumber}号　走破記録`;
 
       document.title =
-        `国道${routeNumber}号 走破記録`;
+        `国道${validRouteNumber}号 走破記録`;
+
+      document.getElementById("backToRouteLink").href =
+        `index.html?route=${validRouteNumber}`;
+
+      document.getElementById("backToRouteLink").textContent =
+        `← 国道${validRouteNumber}号へ戻る`;
+    }
+
+    if (requestedTripId) {
+      const backToTripLink =
+        document.getElementById("backToTripLink");
+
+      backToTripLink.href =
+        `trip.html?trip=${encodeURIComponent(requestedTripId)}&route=${encodeURIComponent(validRouteNumber)}`;
+
+      backToTripLink.hidden = false;
     }
 
     const paddedRouteNumber =
-      routeNumber ? routeNumber.padStart(3, "0") : "unknown";
+      validRouteNumber
+        ? validRouteNumber.padStart(3, "0")
+        : "unknown";
 
     const storageKey =
       `route${paddedRouteNumber}Record`;
@@ -178,7 +288,16 @@
         return;
       }
 
-      const record = JSON.parse(savedData);
+      let record;
+
+      try {
+        record = JSON.parse(savedData);
+      } catch (error) {
+        console.error("走破記録読込エラー:", error);
+        document.getElementById("message").textContent =
+          "保存済み記録を読み込めませんでした。";
+        return;
+      }
 
       fields.forEach(function(field) {
         document.getElementById(field).value =
@@ -187,13 +306,16 @@
     }
 
     function saveRecord() {
-      if (!routeNumber) {
+      if (!validRouteNumber) {
         document.getElementById("message").textContent =
           "路線番号が指定されていません。";
         return;
       }
 
-      const record = {};
+      const record = {
+        routeNumber: Number(validRouteNumber),
+        updatedAt: new Date().toISOString()
+      };
 
       fields.forEach(function(field) {
         record[field] =
@@ -228,7 +350,83 @@
       .getElementById("clearButton")
       .addEventListener("click", clearRecord);
 
+    function parseRouteNumbers(routeText) {
+      if (!routeText) {
+        return [];
+      }
+
+      return [
+        ...new Set(
+          String(routeText)
+            .normalize("NFKC")
+            .split(/[,\s、，・]+/)
+            .map(value => value.replace(/[^0-9]/g, ""))
+            .filter(Boolean)
+        )
+      ];
+    }
+
+    function getTrips() {
+      const savedData =
+        localStorage.getItem("hokkaido48Trips");
+
+      if (!savedData) {
+        return [];
+      }
+
+      try {
+        return JSON.parse(savedData);
+      } catch (error) {
+        console.error("Tripデータ読込エラー:", error);
+        return [];
+      }
+    }
+
+    function renderRelatedTrips() {
+      const container =
+        document.getElementById("relatedTripsList");
+
+      const relatedTrips =
+        getTrips()
+          .filter(trip =>
+            parseRouteNumbers(trip.routes)
+              .includes(validRouteNumber)
+          )
+          .sort((a, b) =>
+            (b.startDate || "")
+              .localeCompare(a.startDate || "")
+          );
+
+      container.innerHTML = "";
+
+      if (relatedTrips.length === 0) {
+        container.innerHTML =
+          '<span class="related-trip-empty">関連Tripはありません。</span>';
+        return;
+      }
+
+      relatedTrips.forEach(function(trip) {
+        const link = document.createElement("a");
+        link.className = "related-trip-link";
+        link.href =
+          `trip.html?trip=${encodeURIComponent(trip.id)}&route=${encodeURIComponent(validRouteNumber)}`;
+        link.textContent =
+          trip.tripName || "名称未登録";
+
+        if (trip.startDate) {
+          const date = document.createElement("span");
+          date.className = "related-trip-date";
+          date.textContent =
+            trip.startDate.replaceAll("-", "/");
+          link.appendChild(date);
+        }
+
+        container.appendChild(link);
+      });
+    }
+
     loadRecord();
+    renderRelatedTrips();
   </script>
 
 </body>

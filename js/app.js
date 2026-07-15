@@ -1,8 +1,8 @@
 // =====================================================
 // 北海道48路線ふらふらlog
-// Version 2.6
+// Version 3.2
 // app.js
-// 走破率ドーナツグラフ・Status自動更新版
+// Route・Trip・Record連携版
 // =====================================================
 
 
@@ -115,6 +115,9 @@ let routesData = [];
 
 let selectedLayer = null;
 
+const routeLayers =
+    new Map();
+
 const allLayers =
     L.featureGroup().addTo(map);
 
@@ -142,15 +145,42 @@ function getRecordStorageKey(number) {
 }
 
 
+// ---------- 保存済み走破記録 ----------
+
+function getSavedRecord(number) {
+
+    const savedData =
+        localStorage.getItem(
+            getRecordStorageKey(number)
+        );
+
+    if (!savedData) {
+        return null;
+    }
+
+    try {
+
+        return JSON.parse(savedData);
+
+    } catch (error) {
+
+        console.error(
+            "走破記録読込エラー:",
+            number,
+            error
+        );
+
+        return null;
+    }
+}
+
+
 // ---------- 実際の走破状態 ----------
 
 function getEffectiveStatus(route) {
 
-    const storageKey =
-        getRecordStorageKey(route.number);
-
     const savedRecord =
-        localStorage.getItem(storageKey);
+        getSavedRecord(route.number);
 
     if (savedRecord) {
         return "走破済";
@@ -368,22 +398,27 @@ function updatePanel(route) {
     }
 
 
-    if (
-        route.publicRecord &&
-        route.publicRecord !== "未登録"
-    ) {
+    const recordUrl =
+        `record.html?route=${route.number}`;
 
-        const recordUrl =
-            `record.html?route=${route.number}`;
+    const savedRecord =
+        getSavedRecord(route.number);
 
-        publicRecordValue.innerHTML =
-            `<a href="${recordUrl}" target="_blank" rel="noopener noreferrer">走破記録を見る</a>`;
+    const recordLink =
+        document.createElement("a");
 
-    } else {
+    recordLink.href =
+        recordUrl;
 
-        publicRecordValue.textContent =
-            "未登録";
-    }
+    recordLink.textContent =
+        savedRecord
+            ? "走破記録を見る・編集"
+            : "走破記録を入力";
+
+    publicRecordValue.innerHTML = "";
+    publicRecordValue.appendChild(
+        recordLink
+    );
 
 
     relatedTripsValue.innerHTML = "";
@@ -476,7 +511,7 @@ function updatePanel(route) {
                 document.createElement("a");
 
             link.href =
-                `trip.html?trip=${encodeURIComponent(trip.id)}`;
+                `trip.html?trip=${encodeURIComponent(trip.id)}&route=${route.number}`;
 
             link.textContent =
                 trip.tripName ||
@@ -580,6 +615,73 @@ function refreshSavedRecordStatus() {
 }
 
 
+// ---------- 路線選択 ----------
+
+function selectRouteLayer(
+    layer,
+    route,
+    updateUrl
+) {
+
+    if (
+        selectedLayer &&
+        selectedLayer !== layer
+    ) {
+
+        selectedLayer.setStyle(
+            getRouteStyle(
+                selectedLayer.routeData
+            )
+        );
+    }
+
+
+    layer.setStyle({
+        color: "#2563eb",
+        weight: 7,
+        opacity: 1
+    });
+
+
+    selectedLayer =
+        layer;
+
+
+    updatePanel(
+        route
+    );
+
+
+    map.fitBounds(
+        layer.getBounds(),
+        {
+            padding:
+                [40, 40]
+        }
+    );
+
+
+    if (updateUrl) {
+
+        const url =
+            new URL(
+                window.location.href
+            );
+
+        url.searchParams.set(
+            "route",
+            route.number
+        );
+
+        window.history.replaceState(
+            null,
+            "",
+            url
+        );
+    }
+}
+
+
 // ---------- 路線レイヤー作成 ----------
 
 function createRouteLayer(
@@ -622,45 +724,27 @@ function createRouteLayer(
                             route;
 
 
+                        if (
+                            !routeLayers.has(
+                                String(route.number)
+                            )
+                        ) {
+
+                            routeLayers.set(
+                                String(route.number),
+                                layer
+                            );
+                        }
+
+
                         layer.on(
                             "click",
                             function () {
 
-                                if (
-                                    selectedLayer &&
-                                    selectedLayer !== layer
-                                ) {
-
-                                    selectedLayer.setStyle(
-                                        getRouteStyle(
-                                            selectedLayer.routeData
-                                        )
-                                    );
-                                }
-
-
-                                layer.setStyle({
-                                    color: "#2563eb",
-                                    weight: 7,
-                                    opacity: 1
-                                });
-
-
-                                selectedLayer =
-                                    layer;
-
-
-                                updatePanel(
-                                    route
-                                );
-
-
-                                map.fitBounds(
-                                    layer.getBounds(),
-                                    {
-                                        padding:
-                                            [40, 40]
-                                    }
+                                selectRouteLayer(
+                                    layer,
+                                    route,
+                                    true
                                 );
                             }
                         );
@@ -814,7 +898,48 @@ fetch("data/routes.json")
     .then(
         function () {
 
+            const requestedRouteNumber =
+                new URLSearchParams(
+                    window.location.search
+                ).get("route");
+
+            const requestedLayer =
+                requestedRouteNumber
+                    ? routeLayers.get(
+                        String(
+                            Number(
+                                requestedRouteNumber
+                            )
+                        )
+                    )
+                    : null;
+
+            const requestedRoute =
+                requestedRouteNumber
+                    ? routesData.find(
+                        route =>
+                            String(route.number) ===
+                            String(
+                                Number(
+                                    requestedRouteNumber
+                                )
+                            )
+                    )
+                    : null;
+
+
             if (
+                requestedLayer &&
+                requestedRoute
+            ) {
+
+                selectRouteLayer(
+                    requestedLayer,
+                    requestedRoute,
+                    false
+                );
+
+            } else if (
                 allLayers.getLayers()
                     .length > 0
             ) {
@@ -850,5 +975,5 @@ fetch("data/routes.json")
 
 
 console.log(
-    " Version2.6 Ready"
+    "Version3.2 Route・Trip・Record連携 Ready"
 );

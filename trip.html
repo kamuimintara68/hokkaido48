@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>北海道48路線ふらふらlog Trip Version2.9</title>
+  <title>北海道48路線ふらふらlog Trip Version3.2</title>
 
   <style>
     * {
@@ -177,6 +177,27 @@
       background: #bbf7d0;
     }
 
+    .route-link-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .record-link {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: bold;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .record-link:hover {
+      background: #bfdbfe;
+    }
+
     .route-unregistered {
       display: inline-block;
       padding: 5px 10px;
@@ -241,14 +262,13 @@
 
       .card {
         padding: 18px;
-      }
     }
   </style>
 </head>
 
 <body>
 
-  <a class="back-link" href="index.html">
+  <a class="back-link" id="backToRouteLink" href="index.html">
     ← 地図へ戻る
   </a>
 
@@ -616,6 +636,7 @@
 
       const routeNumbers =
         routeText
+          .normalize("NFKC")
           .split(/[,\s、，・]+/)
           .map(function(value) {
 
@@ -633,7 +654,10 @@
     }
 
 
-    function createRouteLinks(routeText) {
+    function createRouteLinks(
+      routeText,
+      currentTripId
+    ) {
 
       const container =
         document.createElement("div");
@@ -663,28 +687,48 @@
       routeNumbers.forEach(
         function(routeNumber) {
 
-          const link =
+          const group =
+            document.createElement("span");
+
+          group.className =
+            "route-link-group";
+
+
+          const routeLink =
             document.createElement("a");
 
-          link.className =
+          routeLink.className =
             "route-link";
 
-          link.href =
-            `record.html?route=${routeNumber}`;
+          routeLink.href =
+            `index.html?route=${routeNumber}`;
 
-          link.target =
-            "_blank";
-
-          link.rel =
-            "noopener noreferrer";
-
-          link.textContent =
+          routeLink.textContent =
             `国道${routeNumber}号`;
 
-          link.title =
+          routeLink.title =
+            `国道${routeNumber}号を地図で開く`;
+
+
+          const recordLink =
+            document.createElement("a");
+
+          recordLink.className =
+            "record-link";
+
+          recordLink.href =
+            `record.html?route=${routeNumber}&trip=${encodeURIComponent(currentTripId)}`;
+
+          recordLink.textContent =
+            "記録";
+
+          recordLink.title =
             `国道${routeNumber}号の走破記録を開く`;
 
-          container.appendChild(link);
+
+          group.appendChild(routeLink);
+          group.appendChild(recordLink);
+          container.appendChild(group);
         }
       );
 
@@ -763,7 +807,8 @@
 
         const routeLinks =
           createRouteLinks(
-            trip.routes
+            trip.routes,
+            trip.id
           );
 
 
@@ -912,6 +957,17 @@ const urlParams =
 const requestedTripId =
   urlParams.get("trip");
 
+const requestedRouteNumber =
+  urlParams.get("route");
+
+if (requestedRouteNumber) {
+
+  document
+    .getElementById("backToRouteLink")
+    .href =
+      `index.html?route=${encodeURIComponent(requestedRouteNumber)}`;
+}
+
 if (requestedTripId) {
 
   loadTrip(
@@ -920,7 +976,7 @@ if (requestedTripId) {
 }
 
     console.log(
-      "北海道48路線ふらふらlog Trip Version2.9 Ready"
+      "北海道48路線ふらふらlog Trip Version3.2 Ready"
     );
   </script>
 
