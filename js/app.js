@@ -131,7 +131,7 @@ function addRouteLabelStyles() {
 
     style.textContent = `
         :root {
-            --route-label-scale: 0.32;
+            --route-label-scale: 0.16;
         }
 
         .route-number-div-icon {
@@ -183,8 +183,10 @@ function updateRouteLabelScale() {
     let scale = 1;
 
     if (zoom <= 9) {
-        scale = 0.32;
+        scale = 0.16;
     } else if (zoom === 10) {
+        scale = 0.3;
+    } else if (zoom === 11) {
         scale = 0.6;
     }
 
