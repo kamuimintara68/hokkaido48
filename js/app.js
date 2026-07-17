@@ -123,11 +123,32 @@ const routeLabelMarkers =
 
 const routeLabelPositionRatios =
     new Map([
-        ["231", 0.2],
-        ["337", 0.7],
+        ["5", 0.6],
+        ["39", 0.25],
+        ["229", 0.55],
+        ["231", 0.35],
+        ["232", 0.4],
         ["236", 0.3],
+        ["238", 0.55],
+        ["239", 0.55],
+        ["240", 0.35],
         ["241", 0.2],
-        ["242", 0.3]
+        ["242", 0.6],
+        ["243", 0.55],
+        ["244", 0.4],
+        ["273", 0.55],
+        ["274", 0.45],
+        ["275", 0.45],
+        ["276", 0.85],
+        ["280", 0.55],
+        ["333", 0.45],
+        ["337", 0.7],
+        ["391", 0.4],
+        ["392", 0.7],
+        ["393", 0.6],
+        ["450", 0.25],
+        ["451", 0.45],
+        ["453", 0.45]
     ]);
 
 
@@ -140,7 +161,7 @@ function addRouteLabelStyles() {
 
     style.textContent = `
         :root {
-            --route-label-scale: 0.32;
+            --route-label-scale: 0.4;
         }
 
         .route-number-div-icon {
@@ -192,9 +213,9 @@ function updateRouteLabelScale() {
     let scale = 1;
 
     if (zoom <= 9) {
-        scale = 0.32;
+        scale = 0.4;
     } else if (zoom === 10) {
-        scale = 0.6;
+        scale = 0.75;
     }
 
     document.documentElement.style.setProperty(
