@@ -9,6 +9,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     width: 100%;
@@ -176,6 +180,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 14px;
+}
+
+.panel-content[hidden] {
+    display: none;
 }
 
 /* ---------- Route Summary ---------- */
