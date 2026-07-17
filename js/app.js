@@ -115,6 +115,95 @@ const routeLayers =
 const allLayers =
     L.featureGroup().addTo(map);
 
+const routeLabelLayer =
+    L.layerGroup().addTo(map);
+
+const routeLabelMarkers =
+    new Map();
+
+
+// ---------- 路線番号ラベルの見た目 ----------
+
+function addRouteLabelStyles() {
+
+    const style =
+        document.createElement("style");
+
+    style.textContent = `
+        :root {
+            --route-label-scale: 0.96;
+        }
+
+        .route-number-div-icon {
+            background: transparent;
+            border: 0;
+        }
+
+        .route-number-label {
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 82px;
+            height: 48px;
+            color: #1d4ed8;
+            background: rgba(255, 255, 255, 0.96);
+            border: 3px solid #2563eb;
+            border-radius: 10px;
+            box-shadow: 0 2px 7px rgba(15, 23, 42, 0.28);
+            font-family: Arial, sans-serif;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+            transform: scale(var(--route-label-scale));
+            transform-origin: center;
+        }
+
+        .route-number-div-icon:focus .route-number-label,
+        .route-number-div-icon:hover .route-number-label {
+            background: #eff6ff;
+            box-shadow: 0 3px 10px rgba(15, 23, 42, 0.38);
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+
+function updateRouteLabelScale() {
+
+    const zoom =
+        map.getZoom();
+
+    let scale = 1.06;
+
+    if (zoom <= 5) {
+        scale = 0.9;
+    } else if (zoom === 6) {
+        scale = 0.96;
+    } else if (zoom === 7) {
+        scale = 1.02;
+    }
+
+    document.documentElement.style.setProperty(
+        "--route-label-scale",
+        scale
+    );
+}
+
+
+addRouteLabelStyles();
+
+map.on(
+    "zoomend",
+    updateRouteLabelScale
+);
+
+updateRouteLabelScale();
+
 
 // ---------- GeoJSONパス作成 ----------
 
@@ -211,9 +300,284 @@ function getRouteStyle(route) {
 
     return {
         color: getStatusColor(status),
-        weight: 4,
+        weight: 7,
         opacity: 0.9
     };
+}
+
+
+// ---------- 路線中央座標の取得 ----------
+
+function getRouteCenter(geojson) {
+
+    const coordinateLines = [];
+
+
+    function collectCoordinates(item) {
+
+        if (!item) {
+            return;
+        }
+
+
+        if (item.type === "FeatureCollection") {
+
+            (item.features || []).forEach(
+                collectCoordinates
+            );
+
+            return;
+        }
+
+
+        if (item.type === "Feature") {
+
+            collectCoordinates(
+                item.geometry
+            );
+
+            return;
+        }
+
+
+        if (item.type === "GeometryCollection") {
+
+            (item.geometries || []).forEach(
+                collectCoordinates
+            );
+
+            return;
+        }
+
+
+        if (item.type === "LineString") {
+
+            coordinateLines.push(
+                item.coordinates || []
+            );
+
+            return;
+        }
+
+
+        if (item.type === "MultiLineString") {
+
+            (item.coordinates || []).forEach(
+                function (coordinates) {
+
+                    coordinateLines.push(
+                        coordinates
+                    );
+                }
+            );
+        }
+    }
+
+
+    collectCoordinates(geojson);
+
+
+    const segments = [];
+    let totalDistance = 0;
+
+
+    coordinateLines.forEach(
+        function (coordinates) {
+
+            for (
+                let index = 1;
+                index < coordinates.length;
+                index += 1
+            ) {
+
+                const startCoordinate =
+                    coordinates[index - 1];
+
+                const endCoordinate =
+                    coordinates[index];
+
+
+                if (
+                    !Array.isArray(startCoordinate) ||
+                    !Array.isArray(endCoordinate) ||
+                    startCoordinate.length < 2 ||
+                    endCoordinate.length < 2
+                ) {
+                    continue;
+                }
+
+
+                const start =
+                    L.latLng(
+                        startCoordinate[1],
+                        startCoordinate[0]
+                    );
+
+                const end =
+                    L.latLng(
+                        endCoordinate[1],
+                        endCoordinate[0]
+                    );
+
+                const distance =
+                    map.distance(
+                        start,
+                        end
+                    );
+
+
+                if (
+                    !Number.isFinite(distance) ||
+                    distance <= 0
+                ) {
+                    continue;
+                }
+
+
+                segments.push({
+                    start,
+                    end,
+                    distance
+                });
+
+                totalDistance +=
+                    distance;
+            }
+        }
+    );
+
+
+    if (
+        segments.length === 0 ||
+        totalDistance <= 0
+    ) {
+        return null;
+    }
+
+
+    const halfDistance =
+        totalDistance / 2;
+
+    let traveledDistance = 0;
+
+
+    for (const segment of segments) {
+
+        if (
+            traveledDistance +
+            segment.distance >=
+            halfDistance
+        ) {
+
+            const remainingDistance =
+                halfDistance -
+                traveledDistance;
+
+            const ratio =
+                remainingDistance /
+                segment.distance;
+
+            return L.latLng(
+                segment.start.lat +
+                    (
+                        segment.end.lat -
+                        segment.start.lat
+                    ) * ratio,
+                segment.start.lng +
+                    (
+                        segment.end.lng -
+                        segment.start.lng
+                    ) * ratio
+            );
+        }
+
+
+        traveledDistance +=
+            segment.distance;
+    }
+
+
+    return segments[
+        segments.length - 1
+    ].end;
+}
+
+
+// ---------- 路線番号ラベル作成 ----------
+
+function createRouteNumberLabel(
+    geojson,
+    route,
+    layer
+) {
+
+    const routeKey =
+        String(route.number);
+
+
+    if (
+        routeLabelMarkers.has(
+            routeKey
+        )
+    ) {
+        return;
+    }
+
+
+    const center =
+        getRouteCenter(geojson) ||
+        layer.getBounds().getCenter();
+
+
+    const icon =
+        L.divIcon({
+            className:
+                "route-number-div-icon",
+            html:
+                `<span class="route-number-label">${route.number}</span>`,
+            iconSize:
+                [82, 48],
+            iconAnchor:
+                [41, 24]
+        });
+
+
+    const marker =
+        L.marker(
+            center,
+            {
+                icon,
+                interactive: true,
+                keyboard: true,
+                riseOnHover: true,
+                zIndexOffset: 1000,
+                title:
+                    `国道${route.number}号を選択`
+            }
+        );
+
+
+    marker.on(
+        "click",
+        function () {
+
+            selectRouteLayer(
+                layer,
+                route,
+                true
+            );
+        }
+    );
+
+
+    marker.addTo(
+        routeLabelLayer
+    );
+
+    routeLabelMarkers.set(
+        routeKey,
+        marker
+    );
 }
 
 
@@ -539,7 +903,7 @@ function refreshRouteStyles() {
 
                         layer.setStyle({
                             color: "#2563eb",
-                            weight: 7,
+                            weight: 10,
                             opacity: 1
                         });
 
@@ -602,7 +966,7 @@ function selectRouteLayer(
 
     layer.setStyle({
         color: "#2563eb",
-        weight: 7,
+        weight: 10,
         opacity: 1
     });
 
@@ -720,6 +1084,22 @@ function createRouteLayer(
     routeLayer.addTo(
         allLayers
     );
+
+
+    const selectionLayer =
+        routeLayers.get(
+            String(route.number)
+        );
+
+
+    if (selectionLayer) {
+
+        createRouteNumberLabel(
+            geojson,
+            route,
+            selectionLayer
+        );
+    }
 }
 
 
