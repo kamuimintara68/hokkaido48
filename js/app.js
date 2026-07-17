@@ -121,6 +121,15 @@ const routeLabelLayer =
 const routeLabelMarkers =
     new Map();
 
+const routeLabelPositionRatios =
+    new Map([
+        ["231", 0.2],
+        ["337", 0.7],
+        ["236", 0.3],
+        ["241", 0.2],
+        ["242", 0.3]
+    ]);
+
 
 // ---------- 路線番号ラベルの見た目 ----------
 
@@ -310,7 +319,10 @@ function getRouteStyle(route) {
 
 // ---------- 路線中央座標の取得 ----------
 
-function getRouteCenter(geojson) {
+function getRouteCenter(
+    geojson,
+    positionRatio
+) {
 
     const coordinateLines = [];
 
@@ -457,8 +469,9 @@ function getRouteCenter(geojson) {
     }
 
 
-    const halfDistance =
-        totalDistance / 2;
+    const targetDistance =
+        totalDistance *
+        positionRatio;
 
     let traveledDistance = 0;
 
@@ -468,11 +481,11 @@ function getRouteCenter(geojson) {
         if (
             traveledDistance +
             segment.distance >=
-            halfDistance
+            targetDistance
         ) {
 
             const remainingDistance =
-                halfDistance -
+                targetDistance -
                 traveledDistance;
 
             const ratio =
@@ -527,7 +540,12 @@ function createRouteNumberLabel(
 
 
     const center =
-        getRouteCenter(geojson) ||
+        getRouteCenter(
+            geojson,
+            routeLabelPositionRatios.get(
+                routeKey
+            ) ?? 0.5
+        ) ||
         layer.getBounds().getCenter();
 
 
