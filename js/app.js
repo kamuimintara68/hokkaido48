@@ -1010,6 +1010,39 @@ function selectRouteLayer(
     });
 
 
+    if (
+        typeof layer.bringToFront ===
+        "function"
+    ) {
+
+        layer.bringToFront();
+    }
+
+
+    routeLabelMarkers.forEach(
+        function (marker) {
+
+            marker.setZIndexOffset(
+                1000
+            );
+        }
+    );
+
+
+    const selectedRouteLabel =
+        routeLabelMarkers.get(
+            String(route.number)
+        );
+
+
+    if (selectedRouteLabel) {
+
+        selectedRouteLabel.setZIndexOffset(
+            3000
+        );
+    }
+
+
     selectedLayer =
         layer;
 
