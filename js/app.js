@@ -1,6 +1,6 @@
 // =====================================================
 // 北海道48路線ふらふらlog
-// Version 3.3
+// Version 3.4
 // app.js
 // Route・Trip・Record連携版
 // =====================================================
@@ -51,6 +51,27 @@ const publicRecordValue =
     document.getElementById("publicRecordValue");
 const relatedTripsValue =
     document.getElementById("relatedTripsValue");
+
+const openRouteFinderButton =
+    document.getElementById("openRouteFinderButton");
+
+const closeRouteFinderButton =
+    document.getElementById("closeRouteFinderButton");
+
+const routeFinderOverlay =
+    document.getElementById("routeFinderOverlay");
+
+const routeSearchInput =
+    document.getElementById("routeSearchInput");
+
+const routeFinderList =
+    document.getElementById("routeFinderList");
+
+const routeFinderResultCount =
+    document.getElementById("routeFinderResultCount");
+
+const clearRouteFiltersButton =
+    document.getElementById("clearRouteFiltersButton");
 
 // ---------- 走破率表示 ----------
 
@@ -129,6 +150,61 @@ const nonSelectableRouteNumbers =
         "279",
         "338"
     ]);
+
+const routeRegions =
+    new Map([
+        ["5", ["道南", "道央"]],
+        ["12", ["道央", "道北"]],
+        ["36", ["道央"]],
+        ["37", ["道南", "道央"]],
+        ["38", ["道央", "道北", "十勝", "釧路・根室"]],
+        ["39", ["道北", "オホーツク"]],
+        ["40", ["道北"]],
+        ["44", ["釧路・根室"]],
+        ["227", ["道南"]],
+        ["228", ["道南"]],
+        ["229", ["道央", "道南"]],
+        ["230", ["道央", "道南"]],
+        ["231", ["道央", "道北"]],
+        ["232", ["道北"]],
+        ["233", ["道北"]],
+        ["234", ["道央"]],
+        ["235", ["道央"]],
+        ["236", ["十勝", "道央"]],
+        ["237", ["道北", "道央"]],
+        ["238", ["オホーツク", "道北"]],
+        ["239", ["オホーツク", "道北"]],
+        ["240", ["釧路・根室", "オホーツク"]],
+        ["241", ["釧路・根室", "十勝"]],
+        ["242", ["オホーツク", "十勝"]],
+        ["243", ["オホーツク", "釧路・根室"]],
+        ["244", ["オホーツク", "釧路・根室"]],
+        ["272", ["釧路・根室"]],
+        ["273", ["十勝", "道北", "オホーツク"]],
+        ["274", ["道央", "十勝", "釧路・根室"]],
+        ["275", ["道央", "道北"]],
+        ["276", ["道南", "道央"]],
+        ["277", ["道南"]],
+        ["278", ["道南"]],
+        ["279", ["道南"]],
+        ["280", ["道南"]],
+        ["333", ["道北", "オホーツク"]],
+        ["334", ["釧路・根室", "オホーツク"]],
+        ["335", ["釧路・根室"]],
+        ["336", ["道央", "十勝", "釧路・根室"]],
+        ["337", ["道央"]],
+        ["338", ["道南"]],
+        ["391", ["釧路・根室", "オホーツク"]],
+        ["392", ["釧路・根室", "十勝"]],
+        ["393", ["道央"]],
+        ["450", ["道北", "オホーツク"]],
+        ["451", ["道北", "道央"]],
+        ["452", ["道央", "道北"]],
+        ["453", ["道央"]]
+    ]);
+
+let selectedRegionFilter = "all";
+let selectedStatusFilter = "all";
 
 const seaRouteDisplays = [
     {
@@ -452,6 +528,452 @@ function getEffectiveStatus(route) {
 
     return route.status ?? "未走破";
 }
+
+
+// ---------- 路線検索 ----------
+
+function normalizeSearchText(value) {
+
+    return String(value || "")
+        .normalize("NFKC")
+        .toLowerCase()
+        .replace(/\s+/g, "");
+}
+
+
+function getFinderStatusClass(status) {
+
+    if (status === "走破済") {
+        return "status-complete";
+    }
+
+    if (status === "走破中") {
+        return "status-progress";
+    }
+
+    return "status-untraveled";
+}
+
+
+function createRouteResultButton(route) {
+
+    const routeKey =
+        String(route.number);
+
+    const status =
+        getEffectiveStatus(route);
+
+    const regions =
+        routeRegions.get(routeKey) || [];
+
+    const button =
+        document.createElement("button");
+
+    button.type = "button";
+    button.className =
+        "route-result-button";
+
+
+    const number =
+        document.createElement("span");
+
+    number.className =
+        "route-result-number";
+
+    number.textContent =
+        `国道${route.number}号`;
+
+
+    const detail =
+        document.createElement("span");
+
+    detail.className =
+        "route-result-detail";
+
+
+    const endpoints =
+        document.createElement("span");
+
+    endpoints.className =
+        "route-result-endpoints";
+
+    endpoints.textContent =
+        `${route.start} → ${route.end}`;
+
+
+    const regionContainer =
+        document.createElement("span");
+
+    regionContainer.className =
+        "route-result-regions";
+
+
+    regions.forEach(
+        function (region) {
+
+            const regionLabel =
+                document.createElement("span");
+
+            regionLabel.className =
+                "route-result-region";
+
+            regionLabel.textContent =
+                region;
+
+            regionContainer.appendChild(
+                regionLabel
+            );
+        }
+    );
+
+
+    if (
+        nonSelectableRouteNumbers.has(
+            routeKey
+        )
+    ) {
+
+        const seaLabel =
+            document.createElement("span");
+
+        seaLabel.className =
+            "route-result-region";
+
+        seaLabel.textContent =
+            "海上区間・選択対象外";
+
+        regionContainer.appendChild(
+            seaLabel
+        );
+
+        button.disabled = true;
+    }
+
+
+    detail.appendChild(endpoints);
+    detail.appendChild(regionContainer);
+
+
+    const statusLabel =
+        document.createElement("span");
+
+    statusLabel.className =
+        "route-result-status " +
+        getFinderStatusClass(status);
+
+    statusLabel.textContent =
+        status;
+
+
+    button.appendChild(number);
+    button.appendChild(detail);
+    button.appendChild(statusLabel);
+
+
+    if (!button.disabled) {
+
+        button.addEventListener(
+            "click",
+            function () {
+
+                const layer =
+                    routeLayers.get(
+                        routeKey
+                    );
+
+                if (!layer) {
+                    return;
+                }
+
+                selectRouteLayer(
+                    layer,
+                    route,
+                    true
+                );
+
+                closeRouteFinder();
+            }
+        );
+    }
+
+
+    return button;
+}
+
+
+function renderRouteFinder() {
+
+    if (!routeFinderList) {
+        return;
+    }
+
+    const query =
+        normalizeSearchText(
+            routeSearchInput.value
+        );
+
+
+    const filteredRoutes =
+        routesData.filter(
+            function (route) {
+
+                const routeKey =
+                    String(route.number);
+
+                const regions =
+                    routeRegions.get(
+                        routeKey
+                    ) || [];
+
+                const status =
+                    getEffectiveStatus(route);
+
+                const searchableText =
+                    normalizeSearchText(
+                        [
+                            route.number,
+                            route.name,
+                            route.start,
+                            route.end
+                        ].join(" ")
+                    );
+
+                const matchesQuery =
+                    !query ||
+                    searchableText.includes(
+                        query
+                    );
+
+                const matchesRegion =
+                    selectedRegionFilter ===
+                        "all" ||
+                    regions.includes(
+                        selectedRegionFilter
+                    );
+
+                const matchesStatus =
+                    selectedStatusFilter ===
+                        "all" ||
+                    status ===
+                        selectedStatusFilter;
+
+                return (
+                    matchesQuery &&
+                    matchesRegion &&
+                    matchesStatus
+                );
+            }
+        );
+
+
+    routeFinderResultCount.textContent =
+        `${filteredRoutes.length}路線 / ${routesData.length || 48}路線`;
+
+    routeFinderList.innerHTML = "";
+
+
+    if (filteredRoutes.length === 0) {
+
+        const empty =
+            document.createElement("p");
+
+        empty.className =
+            "route-result-empty";
+
+        empty.textContent =
+            "条件に一致する路線はありません。";
+
+        routeFinderList.appendChild(empty);
+        return;
+    }
+
+
+    filteredRoutes.forEach(
+        function (route) {
+
+            routeFinderList.appendChild(
+                createRouteResultButton(route)
+            );
+        }
+    );
+}
+
+
+function setActiveFilterButton(
+    containerId,
+    dataName,
+    selectedValue
+) {
+
+    document
+        .querySelectorAll(
+            `#${containerId} [data-${dataName}]`
+        )
+        .forEach(
+            function (button) {
+
+                button.classList.toggle(
+                    "active",
+                    button.dataset[dataName] ===
+                        selectedValue
+                );
+            }
+        );
+}
+
+
+function clearRouteFilters() {
+
+    selectedRegionFilter = "all";
+    selectedStatusFilter = "all";
+    routeSearchInput.value = "";
+
+    setActiveFilterButton(
+        "regionFilterButtons",
+        "region",
+        selectedRegionFilter
+    );
+
+    setActiveFilterButton(
+        "statusFilterButtons",
+        "status",
+        selectedStatusFilter
+    );
+
+    renderRouteFinder();
+}
+
+
+function openRouteFinder() {
+
+    renderRouteFinder();
+    routeFinderOverlay.hidden = false;
+
+    window.setTimeout(
+        function () {
+            routeSearchInput.focus();
+        },
+        0
+    );
+}
+
+
+function closeRouteFinder() {
+
+    routeFinderOverlay.hidden = true;
+    openRouteFinderButton.focus();
+}
+
+
+openRouteFinderButton.addEventListener(
+    "click",
+    openRouteFinder
+);
+
+
+closeRouteFinderButton.addEventListener(
+    "click",
+    closeRouteFinder
+);
+
+
+routeSearchInput.addEventListener(
+    "input",
+    renderRouteFinder
+);
+
+
+clearRouteFiltersButton.addEventListener(
+    "click",
+    clearRouteFilters
+);
+
+
+document
+    .getElementById(
+        "regionFilterButtons"
+    )
+    .addEventListener(
+        "click",
+        function (event) {
+
+            const button =
+                event.target.closest(
+                    "[data-region]"
+                );
+
+            if (!button) {
+                return;
+            }
+
+            selectedRegionFilter =
+                button.dataset.region;
+
+            setActiveFilterButton(
+                "regionFilterButtons",
+                "region",
+                selectedRegionFilter
+            );
+
+            renderRouteFinder();
+        }
+    );
+
+
+document
+    .getElementById(
+        "statusFilterButtons"
+    )
+    .addEventListener(
+        "click",
+        function (event) {
+
+            const button =
+                event.target.closest(
+                    "[data-status]"
+                );
+
+            if (!button) {
+                return;
+            }
+
+            selectedStatusFilter =
+                button.dataset.status;
+
+            setActiveFilterButton(
+                "statusFilterButtons",
+                "status",
+                selectedStatusFilter
+            );
+
+            renderRouteFinder();
+        }
+    );
+
+
+routeFinderOverlay.addEventListener(
+    "click",
+    function (event) {
+
+        if (event.target === routeFinderOverlay) {
+            closeRouteFinder();
+        }
+    }
+);
+
+
+document.addEventListener(
+    "keydown",
+    function (event) {
+
+        if (
+            event.key === "Escape" &&
+            !routeFinderOverlay.hidden
+        ) {
+            closeRouteFinder();
+        }
+    }
+);
 
 
 // ---------- 色設定 ----------
@@ -1064,6 +1586,8 @@ function refreshSavedRecordStatus() {
 
     refreshRouteStyles();
 
+    renderRouteFinder();
+
 
     if (
         selectedLayer &&
@@ -1376,6 +1900,8 @@ fetch("data/routes.json")
 
             updateProgressDisplay();
 
+            renderRouteFinder();
+
 
             const loadTasks =
                 routesData.map(
@@ -1513,5 +2039,5 @@ fetch("data/routes.json")
 
 
 console.log(
-    "Version3.3 Route・Trip・Record連携 Ready"
+    "Version3.4 Route Finder Ready"
 );

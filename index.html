@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>北海道48路線ふらふらlog Version3.3</title>
+  <title>北海道48路線ふらふらlog Version3.4</title>
 
   <link rel="icon" href="data:,">
 
@@ -33,6 +33,14 @@
       </div>
 
       <div class="header-actions">
+
+        <button
+          id="openRouteFinderButton"
+          class="route-finder-button"
+          type="button"
+        >
+          路線検索
+        </button>
 
         <a
           href="trip.html"
@@ -229,6 +237,82 @@
       </aside>
 
     </main>
+
+    <div
+      id="routeFinderOverlay"
+      class="route-finder-overlay"
+      hidden
+    >
+
+      <aside
+        id="routeFinder"
+        class="route-finder"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="routeFinderTitle"
+      >
+
+        <div class="route-finder-header">
+          <div>
+            <h2 id="routeFinderTitle">路線を探す</h2>
+            <p>路線番号・始点・終点から検索できます。</p>
+          </div>
+
+          <button
+            id="closeRouteFinderButton"
+            class="route-finder-close"
+            type="button"
+            aria-label="路線検索を閉じる"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="route-finder-controls">
+
+          <label for="routeSearchInput">路線検索</label>
+          <input
+            id="routeSearchInput"
+            type="search"
+            placeholder="例：239、網走市、留萌市"
+            autocomplete="off"
+          >
+
+          <fieldset class="filter-group">
+            <legend>地方</legend>
+            <div id="regionFilterButtons" class="filter-buttons">
+              <button type="button" data-region="all" class="active">すべて</button>
+              <button type="button" data-region="道央">道央</button>
+              <button type="button" data-region="道南">道南</button>
+              <button type="button" data-region="道北">道北</button>
+              <button type="button" data-region="オホーツク">オホーツク</button>
+              <button type="button" data-region="十勝">十勝</button>
+              <button type="button" data-region="釧路・根室">釧路・根室</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="filter-group">
+            <legend>走破状態</legend>
+            <div id="statusFilterButtons" class="filter-buttons">
+              <button type="button" data-status="all" class="active">すべて</button>
+              <button type="button" data-status="未走破">未走破</button>
+              <button type="button" data-status="走破中">走破中</button>
+              <button type="button" data-status="走破済">走破済</button>
+            </div>
+          </fieldset>
+
+        </div>
+
+        <div class="route-finder-result-header">
+          <strong id="routeFinderResultCount">48路線</strong>
+          <button id="clearRouteFiltersButton" type="button">条件をクリア</button>
+        </div>
+
+        <div id="routeFinderList" class="route-finder-list"></div>
+
+      </aside>
+
+    </div>
 
   </div>
 
