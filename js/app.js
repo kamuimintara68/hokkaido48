@@ -1,6 +1,6 @@
 // =====================================================
 // 北海道48路線ふらふらlog
-// Version 3.2
+// Version 3.3
 // app.js
 // Route・Trip・Record連携版
 // =====================================================
@@ -425,11 +425,29 @@ function getSavedRecord(number) {
 
 function getEffectiveStatus(route) {
 
+    const tripStatus =
+        window.Hokkaido48TripData
+            ? window.Hokkaido48TripData.getRouteStatus(
+                route.number
+            )
+            : "未走破";
+
+
+    if (tripStatus === "走破済") {
+        return "走破済";
+    }
+
+
     const savedRecord =
         getSavedRecord(route.number);
 
     if (savedRecord) {
         return "走破済";
+    }
+
+
+    if (tripStatus === "走破中") {
+        return "走破中";
     }
 
     return route.status ?? "未走破";
@@ -924,68 +942,12 @@ function updatePanel(route) {
     relatedTripsValue.innerHTML = "";
 
 
-    let trips = [];
-
-    const savedTrips =
-        localStorage.getItem(
-            "hokkaido48Trips"
-        );
-
-
-    if (savedTrips) {
-
-        try {
-
-            trips =
-                JSON.parse(savedTrips);
-
-        } catch (error) {
-
-            console.error(
-                "Tripデータ読込エラー:",
-                error
-            );
-        }
-    }
-
-
-    const selectedRouteNumber =
-        String(route.number);
-
-
     const relatedTrips =
-        trips
-            .filter(function (trip) {
-
-                const routeNumbers =
-                    String(trip.routes || "")
-    .normalize("NFKC")
-                        .split(/[,\s、，・]+/)
-                        .map(function (value) {
-
-                            return value.replace(
-                                /[^0-9]/g,
-                                ""
-                            );
-                        })
-                        .filter(function (value) {
-
-                            return value !== "";
-                        });
-
-                return routeNumbers.includes(
-                    selectedRouteNumber
-                );
-            })
-            .sort(function (a, b) {
-
-                return (
-                    (b.startDate || "")
-                        .localeCompare(
-                            a.startDate || ""
-                        )
-                );
-            });
+        window.Hokkaido48TripData
+            ? window.Hokkaido48TripData.getRelatedTrips(
+                route.number
+            )
+            : [];
 
 
     if (relatedTrips.length === 0) {
@@ -1339,9 +1301,12 @@ window.addEventListener(
     function (event) {
 
         if (
-            event.key &&
-            /^route\d{3}Record$/.test(
-                event.key
+            event.key === "hokkaido48Trips" ||
+            (
+                event.key &&
+                /^route\d{3}Record$/.test(
+                    event.key
+                )
             )
         ) {
 
@@ -1548,5 +1513,5 @@ fetch("data/routes.json")
 
 
 console.log(
-    "Version3.2 Route・Trip・Record連携 Ready"
+    "Version3.3 Route・Trip・Record連携 Ready"
 );

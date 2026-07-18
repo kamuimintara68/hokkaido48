@@ -113,6 +113,30 @@
       background: white;
     }
 
+    .trip-status-summary {
+      margin-bottom: 24px;
+      padding: 18px 24px;
+      border-left: 6px solid #6b7280;
+      border-radius: 8px;
+      background: white;
+    }
+
+    .trip-status-summary h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    #tripRouteStatus {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .trip-status-note {
+      margin: 6px 0 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
     .related-trips h2 {
       margin-top: 0;
       font-size: 20px;
@@ -160,6 +184,7 @@
       }
 
       .record-form,
+      .trip-status-summary,
       .related-trips {
         padding: 18px;
       }
@@ -187,6 +212,14 @@
   </nav>
 
   <h1 id="pageTitle">走破記録</h1>
+
+  <section id="tripStatusSummary" class="trip-status-summary">
+    <h2>Tripから反映された走破状態</h2>
+    <div id="tripRouteStatus">未走破</div>
+    <p class="trip-status-note">
+      一部走破・全線走破の状態はTripの走行順データから自動計算されます。
+    </p>
+  </section>
 
   <div class="record-form">
 
@@ -235,6 +268,8 @@
       <span class="related-trip-empty">関連Tripはありません。</span>
     </div>
   </section>
+
+  <script src="js/trip-data.js"></script>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -379,36 +414,27 @@
       .getElementById("clearButton")
       .addEventListener("click", clearRecord);
 
-    function parseRouteNumbers(routeText) {
-      if (!routeText) {
-        return [];
-      }
+    function renderTripRouteStatus() {
+      const status =
+        window.Hokkaido48TripData.getRouteStatus(
+          validRouteNumber
+        );
 
-      return [
-        ...new Set(
-          String(routeText)
-            .normalize("NFKC")
-            .split(/[,\s、，・]+/)
-            .map(value => value.replace(/[^0-9]/g, ""))
-            .filter(Boolean)
-        )
-      ];
-    }
+      const statusElement =
+        document.getElementById("tripRouteStatus");
 
-    function getTrips() {
-      const savedData =
-        localStorage.getItem("hokkaido48Trips");
+      const summaryElement =
+        document.getElementById("tripStatusSummary");
 
-      if (!savedData) {
-        return [];
-      }
+      const colors = {
+        "走破済": "#16a34a",
+        "走破中": "#ea580c",
+        "未走破": "#6b7280"
+      };
 
-      try {
-        return JSON.parse(savedData);
-      } catch (error) {
-        console.error("Tripデータ読込エラー:", error);
-        return [];
-      }
+      statusElement.textContent = status;
+      statusElement.style.color = colors[status];
+      summaryElement.style.borderLeftColor = colors[status];
     }
 
     function renderRelatedTrips() {
@@ -416,15 +442,9 @@
         document.getElementById("relatedTripsList");
 
       const relatedTrips =
-        getTrips()
-          .filter(trip =>
-            parseRouteNumbers(trip.routes)
-              .includes(validRouteNumber)
-          )
-          .sort((a, b) =>
-            (b.startDate || "")
-              .localeCompare(a.startDate || "")
-          );
+        window.Hokkaido48TripData.getRelatedTrips(
+          validRouteNumber
+        );
 
       container.innerHTML = "";
 
@@ -442,6 +462,24 @@
         link.textContent =
           trip.tripName || "名称未登録";
 
+        const routeSegments =
+          window.Hokkaido48TripData.getSegmentsForRoute(
+            trip,
+            validRouteNumber
+          );
+
+        const statusText =
+          routeSegments.some(segment =>
+            segment.status === "complete"
+          )
+            ? "全線走破"
+            : "一部走破";
+
+        const status = document.createElement("span");
+        status.className = "related-trip-date";
+        status.textContent = statusText;
+        link.appendChild(status);
+
         if (trip.startDate) {
           const date = document.createElement("span");
           date.className = "related-trip-date";
@@ -455,7 +493,20 @@
     }
 
     loadRecord();
+    renderTripRouteStatus();
     renderRelatedTrips();
+
+    window.addEventListener("storage", function(event) {
+      if (event.key === "hokkaido48Trips") {
+        renderTripRouteStatus();
+        renderRelatedTrips();
+      }
+    });
+
+    window.addEventListener("focus", function() {
+      renderTripRouteStatus();
+      renderRelatedTrips();
+    });
   </script>
 
 </body>
