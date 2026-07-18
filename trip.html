@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>北海道48路線ふらふらlog Trip Version3.3</title>
+  <title>北海道48路線ふらふらlog Trip Version3.5</title>
 
   <link rel="icon" href="data:,">
   <link
@@ -71,6 +71,29 @@
 
     .item {
       margin-bottom: 20px;
+    }
+
+    .organize-section {
+      margin: 24px 0;
+      padding: 18px;
+      border: 1px solid #dbe3ea;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .organize-section h3 {
+      margin-bottom: 4px;
+      color: #1e3a8a;
+    }
+
+    .organize-help {
+      margin: 0 0 16px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .organize-section .item:last-child {
+      margin-bottom: 0;
     }
 
     label {
@@ -484,26 +507,84 @@
         <div id="routeMap" aria-label="Trip走行区間選択地図"></div>
       </section>
 
-      <div class="item">
-        <label for="thumbnail">サムネ候補</label>
-        <textarea
-          id="thumbnail"
-          placeholder="写真名や候補地点を記録"
-        ></textarea>
-      </div>
+      <section class="organize-section">
+        <h3>帰宅後の旅記録</h3>
+        <p class="organize-help">
+          音声ログなどを整理した結果をTrip単位で記録します。
+        </p>
 
-      <div class="item">
-        <label for="ferment">記事ネタ</label>
-        <textarea
-          id="ferment"
-          placeholder="記事にしたい出来事・言葉・気づき"
-        ></textarea>
-      </div>
+        <div class="item">
+          <label for="actionLog">行動ログ</label>
+          <textarea
+            id="actionLog"
+            placeholder="立ち寄り・通過・停車などを記録"
+          ></textarea>
+        </div>
 
-      <div class="item">
-        <label for="memo">メモ</label>
-        <textarea id="memo"></textarea>
-      </div>
+        <div class="item">
+          <label for="timeline">時系列</label>
+          <textarea
+            id="timeline"
+            placeholder="時刻順の出来事を記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="impressions">感想・気づき</label>
+          <textarea
+            id="impressions"
+            placeholder="走行中や帰宅後に気づいたことを記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="improvements">改善事項</label>
+          <textarea
+            id="improvements"
+            placeholder="次の旅やシステムで改善したいことを記録"
+          ></textarea>
+        </div>
+      </section>
+
+      <section class="organize-section">
+        <h3>記事用素材</h3>
+        <p class="organize-help">
+          写真候補と記事に使う材料をまとめます。
+        </p>
+
+        <div class="item">
+          <label for="thumbnail">サムネ候補</label>
+          <textarea
+            id="thumbnail"
+            placeholder="写真名や候補地点を記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="ferment">記事ネタ</label>
+          <textarea
+            id="ferment"
+            placeholder="記事にしたい出来事・言葉・気づき"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="noteArticle">関連note記事</label>
+          <input
+            type="url"
+            id="noteArticle"
+            placeholder="公開したnote記事のURL"
+          >
+        </div>
+      </section>
+
+      <section class="organize-section">
+        <h3>その他</h3>
+        <div class="item">
+          <label for="memo">メモ</label>
+          <textarea id="memo"></textarea>
+        </div>
+      </section>
 
       <div class="button-area">
         <button id="saveButton" type="button">保存</button>
@@ -530,7 +611,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
   <script src="js/trip-data.js"></script>
-  <script src="js/trip.js"></script>
+  <script src="js/trip-v35.js"></script>
 
 </body>
 </html>
