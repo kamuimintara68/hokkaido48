@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北海道48路線ふらふらlog 旅行計画 Version3.5</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Yu Gothic", "Meiryo", sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    .page-header {
+      padding: 18px 22px;
+      background: #1e3a8a;
+      color: #ffffff;
+    }
+
+    .page-header h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+    }
+
+    .page-header p {
+      margin: 0;
+      font-size: 14px;
+      opacity: .9;
+    }
+
+    .main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      margin-bottom: 14px;
+      color: #2563eb;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .source-note {
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border-left: 5px solid #16a34a;
+      border-radius: 8px;
+      background: #f0fdf4;
+      color: #166534;
+      font-weight: 700;
+    }
+
+    .plan-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .plan-summary h2 {
+      margin: 0;
+      font-size: 23px;
+    }
+
+    #planCount {
+      color: #475569;
+      font-weight: 700;
+    }
+
+    .plan-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .plan-card {
+      padding: 18px;
+      border: 1px solid #dbe3ea;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .07);
+    }
+
+    .plan-card h3 {
+      margin: 0 0 12px;
+      color: #1e3a8a;
+      font-size: 21px;
+    }
+
+    .plan-route {
+      margin: 0 0 14px;
+      padding: 9px 11px;
+      border-radius: 7px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+
+    .plan-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .plan-details div {
+      padding: 9px 10px;
+      border-radius: 7px;
+      background: #f8fafc;
+    }
+
+    .plan-details dt {
+      margin-bottom: 3px;
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    .plan-details dd {
+      margin: 0;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .plan-memo {
+      grid-column: 1 / -1;
+    }
+
+    .empty-message,
+    .error-message {
+      grid-column: 1 / -1;
+      padding: 28px 18px;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #64748b;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .error-message {
+      color: #b91c1c;
+      background: #fef2f2;
+    }
+
+    @media (max-width: 640px) {
+      .page-header h1 {
+        font-size: 22px;
+      }
+
+      .main {
+        padding: 14px;
+      }
+
+      .plan-list {
+        grid-template-columns: 1fr;
+      }
+
+      .plan-details {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>北海道48路線ふらふらlog 旅行計画</h1>
+    <p>① 出発前計画／Excel閲覧画面</p>
+  </header>
+
+  <main class="main">
+    <a class="back-link" href="index.html">← 地図へ戻る</a>
+
+    <div class="source-note">
+      計画の編集元はExcelです。この画面では計画を編集できません。
+    </div>
+
+    <div class="plan-summary">
+      <h2>登録済み計画</h2>
+      <span id="planCount">読込中</span>
+    </div>
+
+    <section id="planList" class="plan-list" aria-live="polite">
+      <p class="empty-message">Excelの計画を読み込んでいます。</p>
+    </section>
+  </main>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+  ></script>
+  <script src="js/plan-v35.js"></script>
+</body>
+</html>
