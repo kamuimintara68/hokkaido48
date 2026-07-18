@@ -121,6 +121,32 @@ const routeLabelLayer =
 const routeLabelMarkers =
     new Map();
 
+const seaRouteLayer =
+    L.layerGroup().addTo(map);
+
+const nonSelectableRouteNumbers =
+    new Set([
+        "279",
+        "338"
+    ]);
+
+const seaRouteDisplays = [
+    {
+        label: "279・338",
+        coordinates: [
+            [41.7430737, 140.6912345],
+            [41.5307731, 140.8991789]
+        ]
+    },
+    {
+        label: "280",
+        coordinates: [
+            [41.4727205, 140.2594896],
+            [41.200545, 140.432891]
+        ]
+    }
+];
+
 const routeLabelPositionRatios =
     new Map([
         ["5", 0.6],
@@ -199,6 +225,34 @@ function addRouteLabelStyles() {
             background: #eff6ff;
             box-shadow: 0 3px 10px rgba(15, 23, 42, 0.38);
         }
+
+        .sea-route-number-div-icon {
+            background: transparent;
+            border: 0;
+            pointer-events: none !important;
+        }
+
+        .sea-route-number-label {
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 98px;
+            height: 42px;
+            color: #1d4ed8;
+            background: rgba(255, 255, 255, 0.92);
+            border: 3px dashed #2563eb;
+            border-radius: 10px;
+            box-shadow: 0 2px 7px rgba(15, 23, 42, 0.22);
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+            transform: scale(var(--route-label-scale));
+            transform-origin: center;
+        }
     `;
 
     document.head.appendChild(style);
@@ -233,6 +287,85 @@ map.on(
 );
 
 updateRouteLabelScale();
+
+
+// ---------- 海上国道表示 ----------
+
+function createSeaRouteDisplays() {
+
+    seaRouteDisplays.forEach(
+        function (seaRoute) {
+
+            L.polyline(
+                seaRoute.coordinates,
+                {
+                    color: "#2563eb",
+                    weight: 5,
+                    opacity: 0.85,
+                    dashArray: "12 10",
+                    lineCap: "round",
+                    interactive: false
+                }
+            ).addTo(seaRouteLayer);
+
+
+            seaRoute.coordinates.forEach(
+                function (coordinate) {
+
+                    L.circleMarker(
+                        coordinate,
+                        {
+                            radius: 5,
+                            color: "#2563eb",
+                            weight: 3,
+                            fillColor: "#ffffff",
+                            fillOpacity: 1,
+                            interactive: false
+                        }
+                    ).addTo(seaRouteLayer);
+                }
+            );
+
+
+            const start =
+                seaRoute.coordinates[0];
+
+            const end =
+                seaRoute.coordinates[1];
+
+            const center =
+                [
+                    (start[0] + end[0]) / 2,
+                    (start[1] + end[1]) / 2
+                ];
+
+            const icon =
+                L.divIcon({
+                    className:
+                        "sea-route-number-div-icon",
+                    html:
+                        `<span class="sea-route-number-label">${seaRoute.label}</span>`,
+                    iconSize:
+                        [98, 42],
+                    iconAnchor:
+                        [49, 21]
+                });
+
+            L.marker(
+                center,
+                {
+                    icon,
+                    interactive: false,
+                    keyboard: false,
+                    zIndexOffset: 500
+                }
+            ).addTo(seaRouteLayer);
+        }
+    );
+}
+
+
+createSeaRouteDisplays();
 
 
 // ---------- GeoJSONパス作成 ----------
@@ -1090,6 +1223,14 @@ function createRouteLayer(
     geojson,
     route
 ) {
+
+    if (
+        nonSelectableRouteNumbers.has(
+            String(route.number)
+        )
+    ) {
+        return;
+    }
 
     const routeLayer =
         L.geoJSON(
