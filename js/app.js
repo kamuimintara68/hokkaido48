@@ -1023,7 +1023,9 @@ function selectRouteLayer(
         layer.getBounds(),
         {
             padding:
-                [40, 40]
+                [40, 40],
+            maxZoom:
+                13
         }
     );
 
@@ -1060,6 +1062,20 @@ function createRouteLayer(
         L.geoJSON(
             geojson,
             {
+
+                pointToLayer:
+                    function (
+                        feature,
+                        latlng
+                    ) {
+
+                        return L.circle(
+                            latlng,
+                            {
+                                radius: 200
+                            }
+                        );
+                    },
 
                 style: function () {
 
