@@ -209,6 +209,9 @@
     <a class="back-link" id="backToTripLink" href="trip.html" hidden>
       ← Tripへ戻る
     </a>
+    <a class="back-link" href="backup.html">
+      データ管理
+    </a>
   </nav>
 
   <h1 id="pageTitle">走破記録</h1>
@@ -269,7 +272,7 @@
     </div>
   </section>
 
-  <script src="js/trip-data.js"></script>
+  <script src="js/trip-data-v36.js"></script>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -369,9 +372,16 @@
             !Array.isArray(parsedRecord)
           ) {
             existingRecord = parsedRecord;
+          } else {
+            document.getElementById("message").textContent =
+              "保存済み記録の形式を確認できません。データ管理からバックアップして確認してください。";
+            return;
           }
         } catch (error) {
           console.error("既存走破記録読込エラー:", error);
+          document.getElementById("message").textContent =
+            "保存済み記録を読み込めないため、上書きを中止しました。データ管理からバックアップしてください。";
+          return;
         }
       }
 
@@ -386,24 +396,44 @@
           document.getElementById(field).value;
       });
 
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify(record)
-      );
+      try {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify(record)
+        );
 
-      document.getElementById("message").textContent =
-        "走破記録を保存しました。";
+        document.getElementById("message").textContent =
+          "走破記録を保存しました。";
+      } catch (error) {
+        console.error("走破記録保存エラー:", error);
+        document.getElementById("message").textContent =
+          "走破記録を保存できませんでした。現在の入力内容は消去していません。";
+      }
     }
 
     function clearRecord() {
-      fields.forEach(function(field) {
-        document.getElementById(field).value = "";
-      });
+      const confirmed = window.confirm(
+        `国道${validRouteNumber}号の走破記録を削除しますか？削除後は元に戻せません。`
+      );
 
-      localStorage.removeItem(storageKey);
+      if (!confirmed) {
+        return;
+      }
 
-      document.getElementById("message").textContent =
-        "入力内容を消去しました。";
+      try {
+        localStorage.removeItem(storageKey);
+
+        fields.forEach(function(field) {
+          document.getElementById(field).value = "";
+        });
+
+        document.getElementById("message").textContent =
+          "入力内容を削除しました。";
+      } catch (error) {
+        console.error("走破記録削除エラー:", error);
+        document.getElementById("message").textContent =
+          "走破記録を削除できませんでした。";
+      }
     }
 
     document
@@ -511,3 +541,4 @@
 
 </body>
 </html>
+

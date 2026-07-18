@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>北海道48路線ふらふらlog データ管理 Version3.6</title>
+
+  <link rel="icon" href="data:,">
+
+  <style>
+    :root {
+      color-scheme: light;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Hiragino Kaku Gothic ProN",
+        "Yu Gothic",
+        sans-serif;
+      color: #172033;
+      background: #eef3f8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #eef3f8;
+    }
+
+    .page {
+      width: min(920px, 100%);
+      margin: 0 auto;
+    }
+
+    .page-header {
+      margin-bottom: 18px;
+      padding: 20px;
+      color: #ffffff;
+      background: #173b63;
+      border-radius: 16px;
+    }
+
+    .page-header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.35rem, 4vw, 2rem);
+    }
+
+    .page-header p {
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .navigation {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 10px 14px;
+      color: #173b63;
+      font-weight: 700;
+      text-decoration: none;
+      background: #ffffff;
+      border: 1px solid #cbd7e4;
+      border-radius: 10px;
+    }
+
+    .card {
+      margin-bottom: 18px;
+      padding: 20px;
+      background: #ffffff;
+      border: 1px solid #d8e2ec;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(31, 50, 74, 0.06);
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+    }
+
+    .card p {
+      line-height: 1.7;
+    }
+
+    .summary {
+      padding: 14px;
+      line-height: 1.7;
+      background: #f5f8fb;
+      border-radius: 10px;
+      white-space: pre-line;
+    }
+
+    .notice {
+      margin-top: 12px;
+      padding: 12px 14px;
+      line-height: 1.6;
+      color: #62450a;
+      background: #fff6dc;
+      border: 1px solid #f0d58b;
+      border-radius: 10px;
+    }
+
+    .message {
+      min-height: 1.6em;
+      margin: 12px 0 0;
+      font-weight: 700;
+      color: #244e77;
+      white-space: pre-line;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    button,
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 11px 16px;
+      font: inherit;
+      font-weight: 700;
+      color: #ffffff;
+      cursor: pointer;
+      background: #245f93;
+      border: 0;
+      border-radius: 10px;
+    }
+
+    button.secondary,
+    .file-label {
+      color: #173b63;
+      background: #e8f0f7;
+      border: 1px solid #bfd0df;
+    }
+
+    button.danger {
+      background: #a93636;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    input[type="file"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      clip-path: inset(50%);
+    }
+
+    .steps {
+      margin: 12px 0 0;
+      padding-left: 1.4em;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 12px;
+      }
+
+      .page-header,
+      .card {
+        padding: 16px;
+        border-radius: 12px;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+
+      button,
+      .file-label {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <header class="page-header">
+      <h1>データ管理</h1>
+      <p>④ システムアップデート／Version 3.6</p>
+    </header>
+
+    <nav class="navigation">
+      <a class="back-link" href="index.html">← 地図へ戻る</a>
+      <a class="back-link" href="trip.html">Trip入力へ</a>
+      <a class="back-link" href="plan.html">旅行計画へ</a>
+    </nav>
+
+    <section class="card">
+      <h2>現在の保存データ</h2>
+      <div id="currentSummary" class="summary">確認中です。</div>
+      <div id="currentWarning" class="notice" hidden></div>
+      <p>
+        TripとRecordは、この画面を開いている端末・ブラウザに保存されています。
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>バックアップを書き出す</h2>
+      <p>
+        TripとRouteごとのRecordを、1つのJSONファイルへそのまま保存します。
+      </p>
+
+      <div class="actions">
+        <button id="exportButton" type="button">
+          Trip・Recordをバックアップ
+        </button>
+
+        <button id="excelBackupButton" class="secondary" type="button">
+          公開中のExcel旅行計画を保存
+        </button>
+      </div>
+
+      <div class="notice">
+        Excelボタンで保存されるのは、GitHub Pagesで現在公開中の
+        data\travel_plans.xlsx です。Windows側で編集中・未Pushの内容は含まれません。
+      </div>
+
+      <p id="exportMessage" class="message" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>バックアップから復元する</h2>
+
+      <ol class="steps">
+        <li>バックアップファイルを選び、内容を確認します。</li>
+        <li>復元直前のデータを別ファイルへ書き出します。</li>
+        <li>確認画面の後に復元を実行します。</li>
+      </ol>
+
+      <div class="actions">
+        <label class="file-label" for="backupFileInput">
+          バックアップファイルを選ぶ
+        </label>
+        <input
+          id="backupFileInput"
+          type="file"
+          accept=".json,application/json"
+        >
+      </div>
+
+      <div id="importPreview" class="summary">
+        バックアップファイルはまだ選ばれていません。
+      </div>
+
+      <div class="actions">
+        <button
+          id="preRestoreButton"
+          class="secondary"
+          type="button"
+          disabled
+        >
+          復元前バックアップを書き出す
+        </button>
+
+        <button
+          id="restoreButton"
+          class="danger"
+          type="button"
+          disabled
+        >
+          バックアップから復元
+        </button>
+      </div>
+
+      <div class="notice">
+        復元を実行するまでは、現在のデータは変更されません。
+        復元時に変更するのは hokkaido48Trips と route***Record だけです。
+      </div>
+
+      <p id="restoreMessage" class="message" aria-live="polite"></p>
+    </section>
+
+  </div>
+
+  <script src="js/backup-v36.js"></script>
+</body>
+</html>
+
