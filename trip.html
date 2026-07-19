@@ -145,6 +145,49 @@
       font-size: 13px;
     }
 
+    .material-import-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    .material-import-actions button {
+      min-height: 42px;
+      padding: 9px 14px;
+      font-size: 14px;
+    }
+
+    .material-import-backup-button {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    .material-import-delete-button {
+      background: #dc2626;
+      color: #ffffff;
+    }
+
+    .material-import-delete-button:disabled {
+      background: #d1d5db;
+      color: #ffffff;
+      cursor: not-allowed;
+    }
+
+    .material-import-delete-note {
+      margin: 9px 0 0;
+      color: #7f1d1d;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    #materialRemovalMessage {
+      min-height: 22px;
+      margin-top: 12px;
+      color: #1e3a8a;
+      font-weight: bold;
+    }
+
     label {
       display: block;
       margin-bottom: 6px;
@@ -561,6 +604,7 @@
         <div id="materialImportDetails" class="material-import-details">
           <div class="material-import-empty">旅素材は未登録です。</div>
         </div>
+        <div id="materialRemovalMessage" aria-live="polite"></div>
       </section>
 
       <section class="route-builder">
@@ -688,7 +732,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
   <script src="js/trip-data-v36.js"></script>
-  <script src="js/trip-v40-materials-v4.js"></script>
+  <script src="js/trip-v40-materials-v5.js"></script>
 
 </body>
 </html>
