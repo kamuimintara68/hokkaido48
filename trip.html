@@ -188,6 +188,67 @@
       font-weight: bold;
     }
 
+    .transcript-organizer {
+      display: grid;
+      gap: 14px;
+    }
+
+    .transcript-organizer-status {
+      padding: 12px;
+      border-radius: 8px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 14px;
+    }
+
+    .transcript-organizer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .transcript-organizer-actions button {
+      min-height: 42px;
+      padding: 9px 14px;
+      font-size: 14px;
+    }
+
+    .transcript-export-button {
+      background: #4f46e5;
+      color: #ffffff;
+    }
+
+    .transcript-load-button {
+      background: #0f766e;
+      color: #ffffff;
+    }
+
+    .transcript-apply-button {
+      background: #16a34a;
+      color: #ffffff;
+    }
+
+    .transcript-file-input {
+      padding: 8px;
+      min-height: 42px;
+      background: #ffffff;
+    }
+
+    .transcript-preview-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .transcript-preview-grid textarea {
+      min-height: 120px;
+    }
+
+    #transcriptOrganizerMessage {
+      min-height: 22px;
+      color: #1e3a8a;
+      font-weight: bold;
+    }
+
     label {
       display: block;
       margin-bottom: 6px;
@@ -607,6 +668,93 @@
         <div id="materialRemovalMessage" aria-live="polite"></div>
       </section>
 
+      <section class="organize-section">
+        <h3>文字起こし整理（Version 4.0 第9段階）</h3>
+        <p class="organize-help">
+          Tripへ保存した文字起こし原文を失わず、ChatGPTで整理した結果を一度確認してからTrip入力欄へ反映します。
+        </p>
+
+        <div id="transcriptOrganizer" class="transcript-organizer">
+          <div id="transcriptOrganizerStatus" class="transcript-organizer-status">
+            文字起こしTXTを含むTripを開くと利用できます。
+          </div>
+
+          <div class="transcript-organizer-actions">
+            <button
+              id="exportTranscriptPromptButton"
+              class="transcript-export-button"
+              type="button"
+              disabled
+            >
+              ChatGPT整理用TXTを書き出す
+            </button>
+          </div>
+
+          <div class="item">
+            <label for="organizedTranscriptFile">
+              ChatGPTで整理したTXTを選択
+            </label>
+            <input
+              id="organizedTranscriptFile"
+              class="transcript-file-input"
+              type="file"
+              accept=".txt,text/plain"
+              disabled
+            >
+          </div>
+
+          <div class="transcript-organizer-actions">
+            <button
+              id="loadOrganizedTranscriptButton"
+              class="transcript-load-button"
+              type="button"
+              disabled
+            >
+              整理結果を読み込む
+            </button>
+          </div>
+
+          <div id="transcriptPreviewGrid" class="transcript-preview-grid" hidden>
+            <div class="item">
+              <label for="organizedActionLog">行動ログ候補</label>
+              <textarea id="organizedActionLog"></textarea>
+            </div>
+
+            <div class="item">
+              <label for="organizedTimeline">時系列候補</label>
+              <textarea id="organizedTimeline"></textarea>
+            </div>
+
+            <div class="item">
+              <label for="organizedImpressions">感想・気づき候補</label>
+              <textarea id="organizedImpressions"></textarea>
+            </div>
+
+            <div class="item">
+              <label for="organizedImprovements">改善事項候補</label>
+              <textarea id="organizedImprovements"></textarea>
+            </div>
+
+            <div class="item">
+              <label for="organizedFerment">記事ネタ候補</label>
+              <textarea id="organizedFerment"></textarea>
+            </div>
+
+            <div class="transcript-organizer-actions">
+              <button
+                id="applyOrganizedTranscriptButton"
+                class="transcript-apply-button"
+                type="button"
+              >
+                確認した内容をTrip入力欄へ反映
+              </button>
+            </div>
+          </div>
+
+          <div id="transcriptOrganizerMessage" aria-live="polite"></div>
+        </div>
+      </section>
+
       <section class="route-builder">
         <div class="route-builder-header">
           <h3>走行した国道を順番に登録</h3>
@@ -732,7 +880,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
   <script src="js/trip-data-v36.js"></script>
-  <script src="js/trip-v40-materials-v5.js"></script>
+  <script src="js/trip-v40-materials-v6.js"></script>
 
 </body>
 </html>
