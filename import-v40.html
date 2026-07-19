@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北海道48路線ふらふらlog 旅素材取込 Version4.0</title>
+  <link rel="icon" href="data:,">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+      color: #172033;
+      background: #eef3f8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+      line-height: 1.65;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: clamp(28px, 5vw, 42px);
+    }
+
+    h2 {
+      font-size: 23px;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+
+    .hero {
+      padding: 28px;
+      border-radius: 20px;
+      color: #ffffff;
+      background: #1d4773;
+    }
+
+    .hero p {
+      margin-bottom: 0;
+      font-size: 17px;
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .nav a,
+    button,
+    .file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 11px 18px;
+      border: 1px solid #bfd0e0;
+      border-radius: 11px;
+      color: #123d68;
+      background: #ffffff;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #1f6ba5;
+      color: #ffffff;
+      background: #1f6ba5;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .card {
+      margin-bottom: 20px;
+      padding: 24px;
+      border: 1px solid #d5e0e9;
+      border-radius: 18px;
+      background: #ffffff;
+      box-shadow: 0 12px 28px rgba(30, 65, 95, 0.08);
+    }
+
+    .notice {
+      padding: 15px 17px;
+      border: 1px solid #f0ca66;
+      border-radius: 12px;
+      color: #714c00;
+      background: #fff7dc;
+    }
+
+    .safe-notice {
+      border-color: #8fd5ac;
+      color: #155b35;
+      background: #ecfdf3;
+    }
+
+    .file-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .file-box {
+      padding: 18px;
+      border: 2px dashed #b9cddd;
+      border-radius: 14px;
+      background: #f7fafc;
+    }
+
+    .file-box p {
+      min-height: 52px;
+      color: #53677a;
+      font-size: 14px;
+    }
+
+    .file-box input {
+      width: 100%;
+      min-height: 44px;
+      font-size: 15px;
+    }
+
+    .selection-status {
+      margin: 12px 0 0;
+      color: #31506d;
+      font-weight: 700;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .summary-item {
+      padding: 15px;
+      border-radius: 12px;
+      background: #f1f6fa;
+    }
+
+    .summary-item strong {
+      display: block;
+      font-size: 25px;
+      color: #174f7b;
+    }
+
+    .result-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .result-item {
+      padding: 15px;
+      border: 1px solid #dce5ec;
+      border-radius: 12px;
+      background: #f9fbfd;
+    }
+
+    .result-item dl {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 4px 10px;
+      margin: 0;
+    }
+
+    .result-item dt {
+      color: #63768a;
+    }
+
+    .result-item dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .trip-link-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-top: 18px;
+    }
+
+    .trip-link-grid label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: 700;
+    }
+
+    .trip-link-grid select {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid #bfd0e0;
+      border-radius: 11px;
+      color: #172033;
+      background: #ffffff;
+      font: inherit;
+    }
+
+    .trip-preview {
+      margin-top: 18px;
+      padding: 18px;
+      border: 2px solid #8fd5ac;
+      border-radius: 14px;
+      background: #f4fff8;
+    }
+
+    .trip-preview dl {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 6px 12px;
+      margin: 0 0 16px;
+    }
+
+    .trip-preview dt {
+      color: #526a5d;
+    }
+
+    .trip-preview dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .photo-card {
+      overflow: hidden;
+      border: 1px solid #dce5ec;
+      border-radius: 12px;
+      background: #f9fbfd;
+    }
+
+    .photo-card img {
+      display: block;
+      width: 100%;
+      height: 170px;
+      object-fit: cover;
+      background: #e7edf3;
+    }
+
+    .photo-card div {
+      padding: 12px;
+    }
+
+    .photo-card strong,
+    .photo-card span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .photo-card span {
+      margin-top: 4px;
+      color: #596d80;
+      font-size: 13px;
+    }
+
+    #materialMap {
+      width: 100%;
+      height: 430px;
+      border: 1px solid #b7c9d8;
+      border-radius: 14px;
+    }
+
+    .empty {
+      padding: 18px;
+      border-radius: 12px;
+      color: #64748b;
+      background: #f3f6f9;
+    }
+
+    .error {
+      color: #9f2525;
+      font-weight: 700;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 820px) {
+      body {
+        padding: 14px;
+      }
+
+      .hero,
+      .card {
+        padding: 19px;
+      }
+
+      .file-grid,
+      .photo-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .file-box p {
+        min-height: auto;
+      }
+
+      .summary-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .result-item dl {
+        grid-template-columns: 1fr;
+      }
+
+      .result-item dd {
+        margin-bottom: 7px;
+      }
+
+      .trip-link-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trip-preview dl {
+        grid-template-columns: 1fr;
+      }
+
+      .trip-preview dd {
+        margin-bottom: 7px;
+      }
+
+      #materialMap {
+        height: 360px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>旅素材取込</h1>
+    <p>③ 帰宅後データ整理 ／ Version 4.0 第2段階</p>
+  </header>
+
+  <nav class="nav" aria-label="ページ移動">
+    <a href="index.html">← 地図へ戻る</a>
+    <a href="trip.html">Trip入力へ</a>
+    <a href="backup.html">データ管理へ</a>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h2>素材を選ぶ</h2>
+      <p>
+        GPX・音声・写真をまとめて選び、撮影日時や位置情報を確認します。
+      </p>
+
+      <div class="notice safe-notice">
+        素材を読み取り、対象Tripを確認する段階です。Trip・Record・写真本体は保存しません。選んだファイルは外部へ送信されません。
+      </div>
+
+      <div class="file-grid" style="margin-top: 18px;">
+        <section class="file-box">
+          <h3>GPXデータ</h3>
+          <p>移動経路・時刻・距離を読み取ります。</p>
+          <input
+            id="gpxFiles"
+            type="file"
+            accept=".gpx,application/gpx+xml,application/xml,text/xml"
+            multiple
+          >
+          <div id="gpxSelection" class="selection-status">未選択</div>
+        </section>
+
+        <section class="file-box">
+          <h3>音声・文字起こし</h3>
+          <p>WMA・M4A・MP3・WAVと、Buzzなどで作成したTXTを確認します。</p>
+          <input
+            id="audioFiles"
+            type="file"
+            accept=".wma,.m4a,.mp3,.wav,.aac,.txt,audio/*,audio/x-ms-wma,text/plain"
+            multiple
+          >
+          <div id="audioSelection" class="selection-status">未選択</div>
+        </section>
+
+        <section class="file-box">
+          <h3>写真</h3>
+          <p>撮影日時・GPS位置・ファイル名を読み取ります。写真本体は保存しません。</p>
+          <input
+            id="photoFiles"
+            type="file"
+            accept=".jpg,.jpeg,.png,.heic,.heif,image/*"
+            multiple
+          >
+          <div id="photoSelection" class="selection-status">未選択</div>
+        </section>
+      </div>
+
+      <div class="action-row">
+        <button id="analyzeButton" class="primary" type="button">
+          選んだ素材を読み取る
+        </button>
+        <button id="clearButton" type="button">選択を解除</button>
+      </div>
+
+      <p id="mainMessage" class="selection-status" aria-live="polite">
+        素材はまだ選ばれていません。
+      </p>
+    </section>
+
+    <section id="resultArea" class="hidden">
+      <section class="card">
+        <h2>読取結果</h2>
+        <div class="summary-grid">
+          <div class="summary-item">GPX<strong id="gpxCount">0</strong></div>
+          <div class="summary-item">音声<strong id="audioCount">0</strong></div>
+          <div class="summary-item">文字起こし<strong id="textCount">0</strong></div>
+          <div class="summary-item">写真<strong id="photoCount">0</strong></div>
+        </div>
+        <div class="notice" style="margin-top: 16px;">
+          読取結果を確認する段階です。「Tripへ保存」はまだ行いません。
+        </div>
+      </section>
+
+      <section class="card" id="tripLinkCard">
+        <h2>対象Tripを確認する</h2>
+        <p>
+          保存済みTripから、今回の旅素材を関連付ける対象を選びます。
+          素材の日付とTripの日付が一致する場合は候補を表示します。
+        </p>
+        <div class="notice safe-notice">
+          この確認では、保存済みTrip・Record・写真本体を変更しません。
+        </div>
+
+        <div class="trip-link-grid">
+          <div>
+            <label for="targetTripSelect">関連付けるTrip</label>
+            <select id="targetTripSelect">
+              <option value="">保存済みTripを読み込んでいます</option>
+            </select>
+          </div>
+          <button id="confirmTripButton" class="primary" type="button" disabled>
+            対象Tripを確認
+          </button>
+        </div>
+
+        <p id="tripSuggestion" class="selection-status" aria-live="polite">
+          素材を読み取ると候補を確認できます。
+        </p>
+
+        <div id="tripPreview" class="trip-preview hidden" aria-live="polite">
+          <h3>関連付け確認</h3>
+          <dl>
+            <dt>対象Trip</dt>
+            <dd id="previewTripName">未選択</dd>
+            <dt>Tripの日付</dt>
+            <dd id="previewTripDates">未登録</dd>
+            <dt>登録済み国道</dt>
+            <dd id="previewTripRoutes">未登録</dd>
+            <dt>素材の日付</dt>
+            <dd id="previewMaterialDates">日時なし</dd>
+            <dt>今回の素材</dt>
+            <dd id="previewMaterialCounts">0件</dd>
+            <dt>日付の照合</dt>
+            <dd id="previewDateMatch">確認できません</dd>
+          </dl>
+          <div class="notice safe-notice">
+            対象Tripの確認が完了しました。この段階ではTripへ保存していません。
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>移動経路と写真位置</h2>
+        <div id="materialMap"></div>
+      </section>
+
+      <section class="card">
+        <h2>GPXデータ</h2>
+        <div id="gpxResults" class="result-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>音声・文字起こし</h2>
+        <div id="audioResults" class="result-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>写真</h2>
+        <div id="photoResults" class="photo-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.js"></script>
+  <script src="js/trip-data-v36.js"></script>
+  <script src="js/import-v40-triplink.js"></script>
+</body>
+</html>
