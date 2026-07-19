@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>北海道48路線ふらふらlog Trip Version3.6</title>
+  <title>北海道48路線ふらふらlog Trip Version4.0</title>
 
   <link rel="icon" href="data:,">
   <link
@@ -94,6 +94,55 @@
 
     .organize-section .item:last-child {
       margin-bottom: 0;
+    }
+
+    .material-import-details {
+      display: grid;
+      gap: 12px;
+    }
+
+    .material-import-empty {
+      padding: 14px;
+      border-radius: 8px;
+      background: #eef2f7;
+      color: #64748b;
+    }
+
+    .material-import-card {
+      padding: 14px;
+      border: 1px solid #bfdbfe;
+      border-radius: 9px;
+      background: #eff6ff;
+    }
+
+    .material-import-card h4 {
+      margin: 0 0 8px;
+      color: #1e3a8a;
+      font-size: 16px;
+    }
+
+    .material-import-stats {
+      display: grid;
+      gap: 5px;
+      margin: 0 0 10px;
+      color: #334155;
+      font-size: 14px;
+    }
+
+    .material-import-files {
+      margin: 5px 0 0;
+      color: #475569;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .material-import-note {
+      margin: 10px 0 0;
+      padding: 9px 11px;
+      border-radius: 7px;
+      background: #f0fdf4;
+      color: #166534;
+      font-size: 13px;
     }
 
     label {
@@ -396,6 +445,16 @@
       overflow-wrap: anywhere;
     }
 
+    .trip-material-summary {
+      margin: 0 0 14px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      background: #eff6ff;
+      color: #1e40af;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
     .open-button {
       background: #2563eb;
       color: #ffffff;
@@ -493,6 +552,16 @@
           <input type="date" id="endDate">
         </div>
       </div>
+
+      <section class="organize-section">
+        <h3>取り込んだ旅素材</h3>
+        <p class="organize-help">
+          旅素材取込で、このTripへ保存した情報を表示します。
+        </p>
+        <div id="materialImportDetails" class="material-import-details">
+          <div class="material-import-empty">旅素材は未登録です。</div>
+        </div>
+      </section>
 
       <section class="route-builder">
         <div class="route-builder-header">
@@ -619,7 +688,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
   <script src="js/trip-data-v36.js"></script>
-  <script src="js/trip-v36.js"></script>
+  <script src="js/trip-v40-materials.js"></script>
 
 </body>
 </html>
