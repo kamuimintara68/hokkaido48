@@ -190,7 +190,39 @@
     };
   }
 
-  function getAudioDuration(file) {
+  async function getWmaDuration(file) {
+    const filePropertiesGuid = [
+      0xa1, 0xdc, 0xab, 0x8c,
+      0x47, 0xa9, 0xcf, 0x11,
+      0x8e, 0xe4, 0x00, 0xc0,
+      0x0c, 0x20, 0x53, 0x65
+    ];
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const view = new DataView(buffer);
+
+    for (let offset = 0; offset <= bytes.length - 88; offset += 1) {
+      const matches = filePropertiesGuid.every(
+        (value, index) => bytes[offset + index] === value
+      );
+
+      if (!matches) {
+        continue;
+      }
+
+      const playDuration = Number(view.getBigUint64(offset + 64, true));
+      const preroll = Number(view.getBigUint64(offset + 80, true));
+      const duration = playDuration / 10000000 - preroll / 1000;
+
+      return Number.isFinite(duration) && duration > 0
+        ? duration
+        : null;
+    }
+
+    return null;
+  }
+
+  function getBrowserAudioDuration(file) {
     return new Promise(resolve => {
       const objectUrl = URL.createObjectURL(file);
       const audio = document.createElement("audio");
@@ -213,6 +245,22 @@
 
       window.setTimeout(() => finish(null), 5000);
     });
+  }
+
+  async function getAudioDuration(file) {
+    if (file.name.toLowerCase().endsWith(".wma")) {
+      try {
+        const duration = await getWmaDuration(file);
+
+        if (duration) {
+          return duration;
+        }
+      } catch (error) {
+        console.warn("WMAの長さを読み取れませんでした:", file.name, error);
+      }
+    }
+
+    return getBrowserAudioDuration(file);
   }
 
   async function parseAudioFile(file) {
