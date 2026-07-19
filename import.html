@@ -205,6 +205,55 @@
       overflow-wrap: anywhere;
     }
 
+    .trip-link-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-top: 18px;
+    }
+
+    .trip-link-grid label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: 700;
+    }
+
+    .trip-link-grid select {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid #bfd0e0;
+      border-radius: 11px;
+      color: #172033;
+      background: #ffffff;
+      font: inherit;
+    }
+
+    .trip-preview {
+      margin-top: 18px;
+      padding: 18px;
+      border: 2px solid #8fd5ac;
+      border-radius: 14px;
+      background: #f4fff8;
+    }
+
+    .trip-preview dl {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 6px 12px;
+      margin: 0 0 16px;
+    }
+
+    .trip-preview dt {
+      color: #526a5d;
+    }
+
+    .trip-preview dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
     .photo-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -296,6 +345,18 @@
         margin-bottom: 7px;
       }
 
+      .trip-link-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trip-preview dl {
+        grid-template-columns: 1fr;
+      }
+
+      .trip-preview dd {
+        margin-bottom: 7px;
+      }
+
       #materialMap {
         height: 360px;
       }
@@ -305,7 +366,7 @@
 <body>
   <header class="hero">
     <h1>旅素材取込</h1>
-    <p>③ 帰宅後データ整理 ／ Version 4.0 第1段階</p>
+    <p>③ 帰宅後データ整理 ／ Version 4.0 第2段階</p>
   </header>
 
   <nav class="nav" aria-label="ページ移動">
@@ -322,7 +383,7 @@
       </p>
 
       <div class="notice safe-notice">
-        この段階ではTrip・Record・写真本体を保存しません。選んだファイルは外部へ送信されません。
+        素材を読み取り、対象Tripを確認する段階です。Trip・Record・写真本体は保存しません。選んだファイルは外部へ送信されません。
       </div>
 
       <div class="file-grid" style="margin-top: 18px;">
@@ -389,6 +450,54 @@
         </div>
       </section>
 
+      <section class="card" id="tripLinkCard">
+        <h2>対象Tripを確認する</h2>
+        <p>
+          保存済みTripから、今回の旅素材を関連付ける対象を選びます。
+          素材の日付とTripの日付が一致する場合は候補を表示します。
+        </p>
+        <div class="notice safe-notice">
+          この確認では、保存済みTrip・Record・写真本体を変更しません。
+        </div>
+
+        <div class="trip-link-grid">
+          <div>
+            <label for="targetTripSelect">関連付けるTrip</label>
+            <select id="targetTripSelect">
+              <option value="">保存済みTripを読み込んでいます</option>
+            </select>
+          </div>
+          <button id="confirmTripButton" class="primary" type="button" disabled>
+            対象Tripを確認
+          </button>
+        </div>
+
+        <p id="tripSuggestion" class="selection-status" aria-live="polite">
+          素材を読み取ると候補を確認できます。
+        </p>
+
+        <div id="tripPreview" class="trip-preview hidden" aria-live="polite">
+          <h3>関連付け確認</h3>
+          <dl>
+            <dt>対象Trip</dt>
+            <dd id="previewTripName">未選択</dd>
+            <dt>Tripの日付</dt>
+            <dd id="previewTripDates">未登録</dd>
+            <dt>登録済み国道</dt>
+            <dd id="previewTripRoutes">未登録</dd>
+            <dt>素材の日付</dt>
+            <dd id="previewMaterialDates">日時なし</dd>
+            <dt>今回の素材</dt>
+            <dd id="previewMaterialCounts">0件</dd>
+            <dt>日付の照合</dt>
+            <dd id="previewDateMatch">確認できません</dd>
+          </dl>
+          <div class="notice safe-notice">
+            対象Tripの確認が完了しました。この段階ではTripへ保存していません。
+          </div>
+        </div>
+      </section>
+
       <section class="card">
         <h2>移動経路と写真位置</h2>
         <div id="materialMap"></div>
@@ -413,6 +522,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.js"></script>
-  <script src="js/import-v40-wma2.js"></script>
+  <script src="js/trip-data-v36.js"></script>
+  <script src="js/import-v40-triplink.js"></script>
 </body>
 </html>
