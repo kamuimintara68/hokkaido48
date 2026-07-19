@@ -305,6 +305,15 @@
     backupStorageFingerprint = null;
     saveMaterialsButton.disabled = true;
     materialBackupButton.disabled = !selectedTripReference;
+
+    if (selectedTripReference) {
+      materialBackupButton.removeAttribute("disabled");
+      materialBackupButton.setAttribute("aria-disabled", "false");
+    } else {
+      materialBackupButton.setAttribute("disabled", "");
+      materialBackupButton.setAttribute("aria-disabled", "true");
+    }
+
     materialSaveMessage.textContent = messageText || (
       selectedTripReference
         ? "保存前バックアップを書き出してください。"
@@ -431,8 +440,13 @@
       signature: tripSignature(trip),
       tripName: trip.tripName || "名称未登録"
     };
-    materialBackupButton.disabled = false;
     resetSavePreparation("対象Tripを確認しました。保存前バックアップを書き出してください。");
+
+    // 対象Trip確認後は、保存前バックアップを必ず操作可能にする。
+    // HTML側に disabled 属性が残っている場合も確実に解除する。
+    materialBackupButton.disabled = false;
+    materialBackupButton.removeAttribute("disabled");
+    materialBackupButton.setAttribute("aria-disabled", "false");
   }
 
   function isManagedKey(key) {
