@@ -46,6 +46,35 @@
         };
     }
 
+    function normalizeConfirmedPath(path) {
+
+        if (!Array.isArray(path)) {
+            return [];
+        }
+
+        return path
+            .map(point => {
+                if (Array.isArray(point) && point.length >= 2) {
+                    const lat = Number(point[0]);
+                    const lng = Number(point[1]);
+                    return Number.isFinite(lat) && Number.isFinite(lng)
+                        ? [lat, lng]
+                        : null;
+                }
+
+                if (point && typeof point === "object") {
+                    const lat = Number(point.lat);
+                    const lng = Number(point.lng);
+                    return Number.isFinite(lat) && Number.isFinite(lng)
+                        ? [lat, lng]
+                        : null;
+                }
+
+                return null;
+            })
+            .filter(Boolean);
+    }
+
     function createSegmentId() {
 
         return (
@@ -78,6 +107,9 @@
             ),
             endPoint: normalizePoint(
                 segment && segment.endPoint
+            ),
+            confirmedPath: normalizeConfirmedPath(
+                segment && segment.confirmedPath
             )
         };
     }
@@ -121,7 +153,7 @@
 
         return {
             ...source,
-            schemaVersion: 1,
+            schemaVersion: 2,
             routes,
             routeSegments
         };
@@ -286,6 +318,7 @@
         getStatusLabel,
         getTrips,
         normalizePoint,
+        normalizeConfirmedPath,
         normalizeTrip,
         parseRouteNumbers,
         readTrips,

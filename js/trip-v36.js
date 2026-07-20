@@ -93,7 +93,10 @@ function cloneSegments(segments) {
         routeNumber: String(segment.routeNumber || ""),
         status: segment.status === "complete" ? "complete" : "partial",
         startPoint: clonePoint(segment.startPoint),
-        endPoint: clonePoint(segment.endPoint)
+        endPoint: clonePoint(segment.endPoint),
+        confirmedPath: Array.isArray(segment.confirmedPath)
+            ? segment.confirmedPath.map(point => [Number(point[0]), Number(point[1])])
+            : []
     }));
 }
 
@@ -1297,6 +1300,53 @@ routeMap.on("click", async function (event) {
 });
 
 
+async function attachConfirmedPaths(trip) {
+
+    const segments = [];
+
+    for (const segment of trip.routeSegments) {
+
+        if (segment.status === "complete") {
+            segments.push({ ...segment, confirmedPath: [] });
+            continue;
+        }
+
+        if (!segment.startPoint || !segment.endPoint) {
+            segments.push({ ...segment, confirmedPath: [] });
+            continue;
+        }
+
+        try {
+            const geojson = await loadRouteGeojson(segment.routeNumber);
+            const confirmedPath = buildSelectedSection(
+                geojson,
+                segment.startPoint,
+                segment.endPoint
+            );
+
+            segments.push({
+                ...segment,
+                confirmedPath: confirmedPath.length >= 2
+                    ? confirmedPath
+                    : []
+            });
+
+        } catch (error) {
+            console.error(
+                "確定走破区間生成エラー:",
+                segment.routeNumber,
+                error
+            );
+            segments.push({ ...segment, confirmedPath: [] });
+        }
+    }
+
+    return TripData.normalizeTrip({
+        ...trip,
+        routeSegments: segments
+    });
+}
+
 function getInputData() {
 
     const trip = {
@@ -1332,9 +1382,9 @@ function clearForm() {
 }
 
 
-function saveTrip() {
+async function saveTrip() {
 
-    const trip = getInputData();
+    let trip = getInputData();
 
     if (!trip.tripName) {
 
@@ -1347,6 +1397,9 @@ function saveTrip() {
         message.textContent = "走行した国道を選択してください。";
         return;
     }
+
+    message.textContent = "確定走破区間を保存しています。";
+    trip = await attachConfirmedPaths(trip);
 
     const readResult = TripData.readTrips();
 
