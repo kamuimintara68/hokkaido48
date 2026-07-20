@@ -190,15 +190,45 @@
     }
   }
 
-  function flattenRoutePoints(geojson) {
+  function routeLines(geojson) {
     const lines = [];
     collectLineCoordinates(geojson, lines);
-    return lines.flatMap(line =>
-      line.map(coordinate => ({
+    return lines
+      .map(line => line.map(coordinate => ({
         lat: Number(coordinate[1]),
         lng: Number(coordinate[0])
-      })).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng))
-    );
+      })).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng)))
+      .filter(line => line.length >= 2);
+  }
+
+  function distanceMeters(a, b) {
+    const rad = Math.PI / 180;
+    const meanLat = (a.lat + b.lat) * 0.5 * rad;
+    const x = (b.lng - a.lng) * rad * Math.cos(meanLat);
+    const y = (b.lat - a.lat) * rad;
+    return Math.sqrt(x * x + y * y) * 6371000;
+  }
+
+  // GeoJSONの頂点間隔に左右されないよう、道路線を約100m間隔で補間する。
+  function densifyLines(lines, intervalMeters = 100) {
+    const points = [];
+    lines.forEach(line => {
+      for (let index = 1; index < line.length; index += 1) {
+        const start = line[index - 1];
+        const end = line[index];
+        const distance = distanceMeters(start, end);
+        const steps = Math.max(1, Math.ceil(distance / intervalMeters));
+        for (let step = 0; step < steps; step += 1) {
+          const ratio = step / steps;
+          points.push({
+            lat: start.lat + (end.lat - start.lat) * ratio,
+            lng: start.lng + (end.lng - start.lng) * ratio
+          });
+        }
+      }
+      points.push(line[line.length - 1]);
+    });
+    return points;
   }
 
   function samplePoints(points, maximum) {
@@ -208,14 +238,6 @@
       sampled.push(points[Math.round(i * (points.length - 1) / (maximum - 1))]);
     }
     return sampled;
-  }
-
-  function distanceMeters(a, b) {
-    const rad = Math.PI / 180;
-    const meanLat = (a.lat + b.lat) * 0.5 * rad;
-    const x = (b.lng - a.lng) * rad * Math.cos(meanLat);
-    const y = (b.lat - a.lat) * rad;
-    return Math.sqrt(x * x + y * y) * 6371000;
   }
 
   function nearestDistance(point, points, stopAt) {
@@ -228,13 +250,16 @@
     return best;
   }
 
-  function evaluateRoute(route, routePoints, gpxPoints) {
-    const sampledRoute = samplePoints(routePoints, 220);
-    const sampledGpx = samplePoints(gpxPoints, 420);
+  function evaluateRoute(route, routePointCloud, gpxPoints) {
+    // 路線側は高密度化後に最大900点、GPX側は最大1200点で比較。
+    // 旧版の「GeoJSON頂点だけ比較」による見落としを減らす。
+    const sampledRoute = samplePoints(routePointCloud, 900);
+    const sampledGpx = samplePoints(gpxPoints, 1200);
     if (!sampledRoute.length || !sampledGpx.length) return null;
 
-    const routeThreshold = 180;
-    const gpxThreshold = 140;
+    // 一般的なスマホGPS誤差、道路中心線との差、並走路を考慮。
+    const routeThreshold = 220;
+    const gpxThreshold = 180;
 
     let coveredRouteCount = 0;
     sampledRoute.forEach(point => {
@@ -245,24 +270,35 @@
 
     let nearGpxCount = 0;
     let firstGpxIndex = Infinity;
+    let lastGpxIndex = -1;
     sampledGpx.forEach((point, index) => {
       if (nearestDistance(point, sampledRoute, gpxThreshold) <= gpxThreshold) {
         nearGpxCount += 1;
         if (firstGpxIndex === Infinity) firstGpxIndex = index;
+        lastGpxIndex = index;
       }
     });
 
     const routeCoverage = coveredRouteCount / sampledRoute.length;
     const gpxShare = nearGpxCount / sampledGpx.length;
+    const matchedSpan = lastGpxIndex >= 0 && firstGpxIndex !== Infinity
+      ? (lastGpxIndex - firstGpxIndex + 1) / sampledGpx.length
+      : 0;
 
-    // ごく短い交差だけは候補から外す。重複区間は人間確認用に候補として残す。
-    if (coveredRouteCount < 3 || nearGpxCount < 2) return null;
-    if (routeCoverage < 0.015 && gpxShare < 0.008) return null;
+    // 短時間だけ交差した道路は除外するが、短い実走区間（例: 国道38号）も拾える閾値にする。
+    if (coveredRouteCount < 2 || nearGpxCount < 2) return null;
+    if (routeCoverage < 0.006 && gpxShare < 0.003 && matchedSpan < 0.004) return null;
 
-    const complete = routeCoverage >= 0.84;
+    // 全線走破は路線カバー率を主判定。
+    // 高密度補間後85%以上を基本とし、80%以上かつGPX上でまとまった区間なら全線候補。
+    const complete =
+      routeCoverage >= 0.85 ||
+      (routeCoverage >= 0.80 && matchedSpan >= 0.08);
+
     const confidence = Math.min(100, Math.round(
-      routeCoverage * 72 +
-      Math.min(gpxShare * 4, 0.28) * 100
+      routeCoverage * 75 +
+      Math.min(gpxShare * 3, 0.18) * 100 +
+      Math.min(matchedSpan, 0.07) * 100
     ));
 
     return {
@@ -272,6 +308,7 @@
       end: route.end || "",
       routeCoverage,
       gpxShare,
+      matchedSpan,
       status: complete ? "complete" : "partial",
       confidence,
       firstGpxIndex
@@ -321,8 +358,9 @@
           const response = await fetch(getGeojsonPath(route.number));
           if (!response.ok) return;
           const geojson = await response.json();
-          const routePoints = flattenRoutePoints(geojson);
-          const candidate = evaluateRoute(route, routePoints, gpxPoints);
+          const lines = routeLines(geojson);
+          const routePointCloud = densifyLines(lines, 100);
+          const candidate = evaluateRoute(route, routePointCloud, gpxPoints);
           if (candidate) candidates.push(candidate);
         } catch (error) {
           console.warn("路線照合スキップ:", route.number, error);
@@ -366,6 +404,7 @@
 
       const coveragePercent = Math.round(candidate.routeCoverage * 100);
       const gpxPercent = Math.round(candidate.gpxShare * 100);
+      const spanPercent = Math.round((candidate.matchedSpan || 0) * 100);
 
       item.innerHTML = `
         <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;">
@@ -379,7 +418,7 @@
           <div>
             <strong>国道${candidate.routeNumber}号　${candidate.start}－${candidate.end}</strong>
             <div style="font-size:13px;color:#53677a;margin-top:4px;">
-              路線カバー推定 ${coveragePercent}% ／ GPX全体に占める区間 ${gpxPercent}% ／ 判定信頼度 ${candidate.confidence}%
+              路線カバー推定 ${coveragePercent}% ／ GPX全体に占める区間 ${gpxPercent}% ／ 連続走行範囲 ${spanPercent}% ／ 判定信頼度 ${candidate.confidence}%
             </div>
           </div>
           <select class="gpx-route-status" style="min-height:42px;padding:7px 10px;">
