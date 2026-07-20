@@ -492,6 +492,24 @@ function clearAllConnections() {
 }
 
 
+
+function focusSelectionMap() {
+
+    const mapElement = document.getElementById("routeMap");
+
+    if (mapElement) {
+        mapElement.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
+    }
+
+    window.setTimeout(function () {
+        routeMap.invalidateSize();
+    }, 250);
+}
+
+
 function beginPointSelection(type, segmentIndex) {
 
     const segment = routeSegments[segmentIndex];
@@ -520,8 +538,10 @@ function beginPointSelection(type, segmentIndex) {
     };
 
     mapInstruction.textContent =
-        `国道${segment.routeNumber}号の` +
+        `【選択中】国道${segment.routeNumber}号の` +
         `${type === "start" ? "開始" : "終了"}地点付近を地図で選択してください。`;
+
+    focusSelectionMap();
 }
 
 
@@ -536,8 +556,10 @@ function beginConnectionSelection(segmentIndex) {
     };
 
     mapInstruction.textContent =
-        `国道${firstSegment.routeNumber}号から国道${secondSegment.routeNumber}号へ` +
+        `【選択中】国道${firstSegment.routeNumber}号から国道${secondSegment.routeNumber}号へ` +
         "乗り換えた地点付近を地図で選択してください。";
+
+    focusSelectionMap();
 }
 
 
