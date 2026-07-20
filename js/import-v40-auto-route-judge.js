@@ -8,9 +8,11 @@
   const gpxInput = document.getElementById("gpxFiles");
   const audioInput = document.getElementById("audioFiles");
   const tripSelect = document.getElementById("targetTripSelect");
+  const saveButton = document.getElementById("saveAutoRouteJudgeButton");
+  const saveStatus = document.getElementById("autoRouteSaveStatus");
   const TripData = window.Hokkaido48TripData;
 
-  if (!button || !status || !summary || !results || !gpxInput || !audioInput) return;
+  if (!button || !status || !summary || !results || !gpxInput || !audioInput || !saveButton || !saveStatus) return;
 
   const ROUTE_GRID_DEG = 0.002;
   const MATCH_METERS = 150;
@@ -217,19 +219,6 @@
     };
   }
 
-  function ensureSaveButton() {
-    let saveButton = document.getElementById("saveAutoRouteJudgeButton");
-    if (saveButton) return saveButton;
-    saveButton = document.createElement("button");
-    saveButton.id = "saveAutoRouteJudgeButton";
-    saveButton.type = "button";
-    saveButton.className = "primary";
-    saveButton.style.marginTop = "12px";
-    saveButton.textContent = "この判定結果をTripに確定";
-    results.parentElement.append(saveButton);
-    saveButton.addEventListener("click", saveJudgementToTrip);
-    return saveButton;
-  }
 
   function render(items, gpxCount, textLength) {
     const auto = items
@@ -267,62 +256,78 @@
   }
 
   function saveJudgementToTrip() {
-    if (!latestJudgement || !TripData || typeof TripData.readTrips !== "function") {
-      status.textContent = "保存できる自動判定結果がありません。";
-      return;
-    }
-    if (!tripSelect || tripSelect.value === "") {
-      status.textContent = "先に対象Tripを選択してください。";
-      return;
-    }
+    saveStatus.textContent = "Tripへの確定処理を開始しました…";
 
-    const read = TripData.readTrips();
-    if (!read.ok || !read.trips.length) {
-      status.textContent = "保存済みTripを読み込めませんでした。";
-      return;
+    try {
+      if (!latestJudgement || !latestJudgement.length) {
+        saveStatus.textContent = "先にGPX＋TXTで走行国道を自動判定してください。";
+        return;
+      }
+
+      if (!TripData || typeof TripData.readTrips !== "function" || typeof TripData.saveTrips !== "function") {
+        saveStatus.textContent = "Tripデータ保存機能を読み込めませんでした。";
+        return;
+      }
+
+      if (!tripSelect || tripSelect.value === "") {
+        saveStatus.textContent = "上の「対象Tripを確認する」で対象Tripを選択してください。";
+        return;
+      }
+
+      const read = TripData.readTrips();
+      if (!read.ok || !Array.isArray(read.trips) || !read.trips.length) {
+        saveStatus.textContent = "保存済みTripを読み込めませんでした。";
+        return;
+      }
+
+      const sorted = [...read.trips].sort((a, b) =>
+        String(b.startDate || b.endDate || "").localeCompare(String(a.startDate || a.endDate || ""))
+      );
+      const selected = sorted[Number(tripSelect.value)];
+      if (!selected) {
+        saveStatus.textContent = "対象Tripを特定できませんでした。";
+        return;
+      }
+
+      const selectedId = selected.id ? String(selected.id) : "";
+      const selectedSig = tripSignature(selected);
+      const index = read.trips.findIndex(trip => selectedId
+        ? String(trip.id || "") === selectedId
+        : tripSignature(trip) === selectedSig
+      );
+
+      if (index < 0) {
+        saveStatus.textContent = "対象Tripを特定できませんでした。";
+        return;
+      }
+
+      const payload = {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        source: "GPX＋文字起こし自動走行判定",
+        policy: "coarse-route-first",
+        autoAccepted: latestJudgement,
+        needsReview: []
+      };
+
+      read.trips[index] = {
+        ...read.trips[index],
+        updatedAt: new Date().toISOString(),
+        autoRouteJudgement: payload
+      };
+
+      const saved = TripData.saveTrips(read.trips);
+      if (!saved.ok) {
+        saveStatus.textContent = `Tripへの確定に失敗しました：${saved.error || "不明なエラー"}`;
+        return;
+      }
+
+      saveStatus.textContent =
+        `「${selected.tripName || "名称未登録"}」へ ${latestJudgement.length}路線の判定結果を確定保存しました。`;
+    } catch (error) {
+      console.error("Trip確定保存エラー:", error);
+      saveStatus.textContent = `Tripへの確定処理でエラーが発生しました：${error.message || error}`;
     }
-
-    const sorted = [...read.trips].sort((a, b) =>
-      String(b.startDate || b.endDate || "").localeCompare(String(a.startDate || a.endDate || ""))
-    );
-    const selected = sorted[Number(tripSelect.value)];
-    if (!selected) {
-      status.textContent = "対象Tripを特定できませんでした。";
-      return;
-    }
-
-    const selectedId = selected.id ? String(selected.id) : "";
-    const selectedSig = tripSignature(selected);
-    const index = read.trips.findIndex(trip => selectedId
-      ? String(trip.id || "") === selectedId
-      : tripSignature(trip) === selectedSig
-    );
-    if (index < 0) {
-      status.textContent = "対象Tripを特定できませんでした。";
-      return;
-    }
-
-    const payload = {
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
-      source: "GPX＋文字起こし自動走行判定",
-      policy: "coarse-route-first",
-      autoAccepted: latestJudgement,
-      needsReview: []
-    };
-
-    read.trips[index] = {
-      ...read.trips[index],
-      updatedAt: new Date().toISOString(),
-      autoRouteJudgement: payload
-    };
-
-    const saved = TripData.saveTrips(read.trips);
-    if (!saved.ok) {
-      status.textContent = `自動判定結果を保存できませんでした：${saved.error || "不明なエラー"}`;
-      return;
-    }
-    status.textContent = `「${selected.tripName || "名称未登録"}」へ自動判定結果を保存しました。正式な走破記録はまだ変更していません。`;
   }
 
   async function run() {
@@ -353,7 +358,6 @@
       }
 
       latestJudgement = scored.filter(item => item.confidence === "自動採用候補" && item.hard >= 4 && item.maxRun >= 3);
-      ensureSaveButton();
       render(scored, allPoints.length, transcriptText.length);
       status.textContent = `自動判定が完了しました。走行国道 ${latestJudgement.length}路線を表示しています。`;
     } catch (error) {
@@ -365,4 +369,5 @@
   }
 
   button.addEventListener("click", run);
+  saveButton.addEventListener("click", saveJudgementToTrip);
 })();
