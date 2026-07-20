@@ -3,141 +3,620 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>北海道48路線ふらふらlog Trip Version4.0</title>
+
+  <title>北海道48路線ふらふらlog Trip Version3.6</title>
+
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
   <style>
-    *{box-sizing:border-box}
-    body{max-width:1280px;margin:32px auto;padding:20px;font-family:sans-serif;line-height:1.6;background:#f3f4f6;color:#1f2937}
-    h1{margin-top:0;padding-bottom:10px;border-bottom:3px solid #16a34a}
-    h2,h3{margin-top:0} h2{font-size:21px} h3{font-size:17px}
-    .back-link{display:inline-flex;align-items:center;min-height:44px;margin:0 12px 16px 0;color:#2563eb;text-decoration:none}
-    .page-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:24px;align-items:start}
-    .card,.trip-card{padding:24px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    .item{margin-bottom:20px}
-    .organize-section{margin:24px 0;padding:18px;border:1px solid #dbe3ea;border-radius:10px;background:#f8fafc}
-    .organize-section h3{margin-bottom:4px;color:#1e3a8a}
-    .organize-help{margin:0 0 16px;color:#64748b;font-size:14px}
-    .material-import-details,.transcript-organizer,.trip-list,.trip-card-info{display:grid;gap:12px}
-    .material-import-empty{padding:14px;border-radius:8px;background:#eef2f7;color:#64748b}
-    .material-import-card{padding:14px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff}
-    .material-import-actions,.transcript-organizer-actions,.button-area,.route-links,.segment-actions,.connection-candidates{display:flex;flex-wrap:wrap;gap:10px}
-    .transcript-organizer-status{padding:12px;border-radius:8px;background:#eef2ff;color:#3730a3;font-size:14px}
-    .transcript-preview-grid{display:grid;gap:12px}.transcript-preview-grid[hidden]{display:none}
-    label{display:block;margin-bottom:6px;font-weight:bold;color:#374151}
-    input,select,textarea{width:100%;min-height:44px;padding:10px;font-size:16px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
-    textarea{min-height:105px;resize:vertical}.transcript-preview-grid textarea{min-height:120px}
-    .date-grid,.route-segment-grid,.point-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .route-builder{margin-bottom:24px;padding:18px;border:2px solid #bbf7d0;border-radius:10px;background:#f0fdf4}
-    .route-builder-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-    .route-sequence{display:grid;gap:12px;margin-bottom:14px}
-    .route-segment-card{padding:14px;border:1px solid #d1d5db;border-radius:9px;background:#fff}
-    .point-box{padding:10px;border-radius:7px;background:#f8fafc;color:#475569;font-size:13px}
-    .map-instruction{min-height:44px;margin:12px 0 8px;padding:10px 12px;border-radius:7px;background:#fff7ed;color:#9a3412;font-weight:bold}
-    #routeMap{width:100%;height:430px;border:1px solid #94a3b8;border-radius:9px;background:#e2e8f0}
-    button{min-height:44px;padding:11px 20px;font-size:15px;border:none;border-radius:6px;cursor:pointer}
-    #addRouteButton,#saveButton,.transcript-apply-button{background:#16a34a;color:#fff}
-    .transcript-export-button{background:#4f46e5;color:#fff}.transcript-load-button{background:#0f766e;color:#fff}
-    #clearButton{background:#e5e7eb;color:#111827}#deleteButton{background:#dc2626;color:#fff}
-    #deleteButton:disabled{background:#d1d5db;cursor:not-allowed}
-    .open-button{background:#2563eb;color:#fff}
-    .trip-card{padding:18px}.trip-card-title{margin:0 0 8px;font-size:20px}.trip-card-date{color:#6b7280;font-size:14px}
-    .route-link{display:inline-flex;align-items:center;min-height:36px;padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534;font-weight:bold;font-size:13px;text-decoration:none}
-    .route-link.partial{background:#ffedd5;color:#9a3412}
-    .trip-material-summary{margin:0 0 14px;padding:9px 11px;border-radius:8px;background:#eff6ff;color:#1e40af;font-size:13px;font-weight:bold}
-    #message,#transcriptOrganizerMessage,#materialRemovalMessage{min-height:22px;margin-top:12px;font-weight:bold}
-    @media(max-width:900px){.page-grid{grid-template-columns:1fr}}
-    @media(max-width:620px){body{margin:0 auto;padding:10px}.card,.route-builder,.trip-card{padding:15px}.date-grid,.route-segment-grid,.point-grid{grid-template-columns:1fr}#routeMap{height:360px}}
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      max-width: 1280px;
+      margin: 32px auto;
+      padding: 20px;
+      font-family: sans-serif;
+      line-height: 1.6;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    h1 {
+      margin-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #16a34a;
+    }
+
+    h2,
+    h3 {
+      margin-top: 0;
+    }
+
+    h2 {
+      font-size: 21px;
+    }
+
+    h3 {
+      font-size: 17px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      margin-bottom: 16px;
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .card {
+      padding: 24px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .item {
+      margin-bottom: 20px;
+    }
+
+    .organize-section {
+      margin: 24px 0;
+      padding: 18px;
+      border: 1px solid #dbe3ea;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .organize-section h3 {
+      margin-bottom: 4px;
+      color: #1e3a8a;
+    }
+
+    .organize-help {
+      margin: 0 0 16px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .organize-section .item:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #374151;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+    }
+
+    textarea {
+      min-height: 105px;
+      resize: vertical;
+    }
+
+    .date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .route-builder {
+      margin-bottom: 24px;
+      padding: 18px;
+      border: 2px solid #bbf7d0;
+      border-radius: 10px;
+      background: #f0fdf4;
+    }
+
+    .route-builder-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .route-builder-header h3 {
+      margin: 0;
+    }
+
+    .route-help {
+      margin: 0 0 14px;
+      color: #4b5563;
+      font-size: 14px;
+    }
+
+    .route-sequence {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .route-segment-card {
+      padding: 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 9px;
+      background: #ffffff;
+    }
+
+    .route-segment-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .route-segment-grid {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(140px, 190px);
+      gap: 10px;
+    }
+
+    .point-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .point-box {
+      padding: 10px;
+      border-radius: 7px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    .point-box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #1f2937;
+    }
+
+    .point-button {
+      width: 100%;
+      margin-top: 7px;
+      padding: 7px 9px;
+      background: #e0f2fe;
+      color: #075985;
+      font-size: 13px;
+    }
+
+    .segment-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .small-button {
+      min-height: 36px;
+      padding: 7px 10px;
+      background: #e5e7eb;
+      color: #111827;
+      font-size: 13px;
+    }
+
+    .remove-button {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .connection-card {
+      padding: 12px;
+      border-left: 5px solid #2563eb;
+      border-radius: 7px;
+      background: #eff6ff;
+    }
+
+    .connection-title {
+      margin-bottom: 7px;
+      color: #1e3a8a;
+      font-weight: bold;
+    }
+
+    .connection-candidates {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .candidate-button {
+      min-height: 38px;
+      padding: 7px 10px;
+      background: #ffffff;
+      color: #1d4ed8;
+      border: 1px solid #93c5fd;
+      font-size: 13px;
+    }
+
+    .candidate-button.selected {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    .map-instruction {
+      min-height: 44px;
+      margin: 12px 0 8px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: bold;
+    }
+
+    #routeMap {
+      width: 100%;
+      height: 430px;
+      border: 1px solid #94a3b8;
+      border-radius: 9px;
+      background: #e2e8f0;
+    }
+
+    .button-area {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 11px 20px;
+      font-size: 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #addRouteButton {
+      background: #166534;
+      color: #ffffff;
+    }
+
+    #saveButton {
+      background: #16a34a;
+      color: #ffffff;
+    }
+
+    #clearButton {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    #deleteButton {
+      background: #dc2626;
+      color: #ffffff;
+    }
+
+    #deleteButton:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+    }
+
+    #message {
+      min-height: 24px;
+      margin-top: 16px;
+      font-weight: bold;
+      color: #15803d;
+    }
+
+    .trip-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .trip-list-empty {
+      color: #6b7280;
+    }
+
+    .trip-card {
+      padding: 18px;
+      border: 1px solid #dbe3ea;
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.06);
+    }
+
+    .trip-card-title {
+      margin: 0 0 8px;
+      font-size: 20px;
+      color: #111827;
+    }
+
+    .trip-card-date {
+      margin: 0 0 12px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .route-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+
+    .route-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: bold;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .route-link.partial {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .trip-card-info {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      color: #4b5563;
+    }
+
+    .trip-card-info span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .open-button {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        margin: 16px auto;
+        padding: 14px;
+      }
+
+      .page-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      body {
+        margin: 0 auto;
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .card,
+      .route-builder,
+      .trip-card {
+        padding: 15px;
+      }
+
+      .date-grid,
+      .route-segment-grid,
+      .point-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #routeMap {
+        height: 360px;
+      }
+
+      .button-area button {
+        flex: 1 1 calc(50% - 5px);
+      }
+
+      #deleteButton {
+        flex-basis: 100%;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <a class="back-link" id="backToRouteLink" href="index.html">← 地図へ戻る</a>
-  <a class="back-link" href="backup.html">データ管理</a>
-  <a class="back-link" href="import-v40-stable.html">旅素材取込</a>
+
+  <a class="back-link" id="backToRouteLink" href="index.html">
+    ← 地図へ戻る
+  </a>
+
+  <a class="back-link" href="backup.html">
+    データ管理
+  </a>
+
   <h1>北海道48路線ふらふらlog</h1>
 
   <div class="page-grid">
+
     <section class="card">
+
       <h2>Trip入力</h2>
+
       <input type="hidden" id="tripId">
 
-      <div class="item"><label for="tripName">Trip名</label><input type="text" id="tripName" placeholder="例：国道40号 稚内ふらふら旅"></div>
-      <div class="date-grid">
-        <div class="item"><label for="startDate">出発日</label><input type="date" id="startDate"></div>
-        <div class="item"><label for="endDate">終了日</label><input type="date" id="endDate"></div>
+      <div class="item">
+        <label for="tripName">Trip名</label>
+        <input
+          type="text"
+          id="tripName"
+          placeholder="例：国道40号 稚内ふらふら旅"
+        >
       </div>
 
-      <section class="organize-section">
-        <h3>取り込んだ旅素材</h3>
-        <p class="organize-help">旅素材取込で、このTripへ保存した情報を表示します。</p>
-        <div id="materialImportDetails" class="material-import-details"><div class="material-import-empty">旅素材は未登録です。</div></div>
-        <div id="materialRemovalMessage" aria-live="polite"></div>
-      </section>
-
-      <section class="organize-section">
-        <h3>文字起こし整理（Version 4.0 第9段階）</h3>
-        <p class="organize-help">Tripへ保存した文字起こし原文を失わず、ChatGPTで整理した結果を一度確認してからTrip入力欄へ反映します。</p>
-        <div id="transcriptOrganizer" class="transcript-organizer">
-          <div id="transcriptOrganizerStatus" class="transcript-organizer-status">文字起こしTXTを含むTripを開くと利用できます。</div>
-          <div class="transcript-organizer-actions"><button id="exportTranscriptPromptButton" class="transcript-export-button" type="button" disabled>ChatGPT整理用TXTを書き出す</button></div>
-          <div class="item"><label for="organizedTranscriptFile">ChatGPTで整理したTXTを選択</label><input id="organizedTranscriptFile" class="transcript-file-input" type="file" accept=".txt,text/plain" disabled></div>
-          <div class="transcript-organizer-actions"><button id="loadOrganizedTranscriptButton" class="transcript-load-button" type="button" disabled>整理結果を読み込む</button></div>
-          <div id="transcriptPreviewGrid" class="transcript-preview-grid" hidden>
-            <div class="item"><label for="organizedActionLog">行動ログ候補</label><textarea id="organizedActionLog"></textarea></div>
-            <div class="item"><label for="organizedTimeline">時系列候補</label><textarea id="organizedTimeline"></textarea></div>
-            <div class="item"><label for="organizedImpressions">感想・気づき候補</label><textarea id="organizedImpressions"></textarea></div>
-            <div class="item"><label for="organizedImprovements">改善事項候補</label><textarea id="organizedImprovements"></textarea></div>
-            <div class="item"><label for="organizedFerment">記事ネタ候補</label><textarea id="organizedFerment"></textarea></div>
-            <div class="transcript-organizer-actions"><button id="applyOrganizedTranscriptButton" class="transcript-apply-button" type="button">確認した内容をTrip入力欄へ反映</button></div>
-          </div>
-          <div id="transcriptOrganizerMessage" aria-live="polite"></div>
+      <div class="date-grid">
+        <div class="item">
+          <label for="startDate">出発日</label>
+          <input type="date" id="startDate">
         </div>
-      </section>
+
+        <div class="item">
+          <label for="endDate">終了日</label>
+          <input type="date" id="endDate">
+        </div>
+      </div>
 
       <section class="route-builder">
-        <div class="route-builder-header"><h3>走行した国道を順番に登録</h3><button id="addRouteButton" type="button">国道を追加</button></div>
-        <p class="organize-help">国道を走行順に追加します。隣り合う国道の接続候補は自動で表示されます。</p>
+        <div class="route-builder-header">
+          <h3>走行した国道を順番に登録</h3>
+          <button id="addRouteButton" type="button">
+            国道を追加
+          </button>
+        </div>
+
+        <p class="route-help">
+          国道を走行順に追加します。隣り合う国道の接続候補は自動で表示されます。
+        </p>
+
         <div id="routeSequence" class="route-sequence"></div>
-        <div id="mapInstruction" class="map-instruction">国道を追加すると地図に表示されます。</div>
+
+        <div id="mapInstruction" class="map-instruction">
+          国道を追加すると地図に表示されます。
+        </div>
+
         <div id="routeMap" aria-label="Trip走行区間選択地図"></div>
       </section>
 
       <section class="organize-section">
         <h3>帰宅後の旅記録</h3>
-        <p class="organize-help">音声ログなどを整理した結果をTrip単位で記録します。</p>
-        <div class="item"><label for="actionLog">行動ログ</label><textarea id="actionLog" placeholder="立ち寄り・通過・停車などを記録"></textarea></div>
-        <div class="item"><label for="timeline">時系列</label><textarea id="timeline" placeholder="時刻順の出来事を記録"></textarea></div>
-        <div class="item"><label for="impressions">感想・気づき</label><textarea id="impressions" placeholder="走行中や帰宅後に気づいたことを記録"></textarea></div>
-        <div class="item"><label for="improvements">改善事項</label><textarea id="improvements" placeholder="次の旅やシステムで改善したいことを記録"></textarea></div>
+        <p class="organize-help">
+          音声ログなどを整理した結果をTrip単位で記録します。
+        </p>
+
+        <div class="item">
+          <label for="actionLog">行動ログ</label>
+          <textarea
+            id="actionLog"
+            placeholder="立ち寄り・通過・停車などを記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="timeline">時系列</label>
+          <textarea
+            id="timeline"
+            placeholder="時刻順の出来事を記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="impressions">感想・気づき</label>
+          <textarea
+            id="impressions"
+            placeholder="走行中や帰宅後に気づいたことを記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="improvements">改善事項</label>
+          <textarea
+            id="improvements"
+            placeholder="次の旅やシステムで改善したいことを記録"
+          ></textarea>
+        </div>
       </section>
 
       <section class="organize-section">
         <h3>記事用素材</h3>
-        <p class="organize-help">写真候補と記事に使う材料をまとめます。</p>
-        <div class="item"><label for="thumbnail">サムネ候補</label><textarea id="thumbnail" placeholder="写真名や候補地点を記録"></textarea></div>
-        <div class="item"><label for="ferment">記事ネタ</label><textarea id="ferment" placeholder="記事にしたい出来事・言葉・気づき"></textarea></div>
-        <div class="item"><label for="noteArticle">関連note記事</label><input type="url" id="noteArticle" placeholder="公開したnote記事のURL"></div>
+        <p class="organize-help">
+          写真候補と記事に使う材料をまとめます。
+        </p>
+
+        <div class="item">
+          <label for="thumbnail">サムネ候補</label>
+          <textarea
+            id="thumbnail"
+            placeholder="写真名や候補地点を記録"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="ferment">記事ネタ</label>
+          <textarea
+            id="ferment"
+            placeholder="記事にしたい出来事・言葉・気づき"
+          ></textarea>
+        </div>
+
+        <div class="item">
+          <label for="noteArticle">関連note記事</label>
+          <input
+            type="url"
+            id="noteArticle"
+            placeholder="公開したnote記事のURL"
+          >
+        </div>
       </section>
 
-      <section class="organize-section"><h3>その他</h3><div class="item"><label for="memo">メモ</label><textarea id="memo"></textarea></div></section>
+      <section class="organize-section">
+        <h3>その他</h3>
+        <div class="item">
+          <label for="memo">メモ</label>
+          <textarea id="memo"></textarea>
+        </div>
+      </section>
 
       <div class="button-area">
         <button id="saveButton" type="button">保存</button>
         <button id="clearButton" type="button">新規入力</button>
-        <button id="deleteButton" type="button" disabled>このTripを削除</button>
+        <button id="deleteButton" type="button" disabled>
+          このTripを削除
+        </button>
       </div>
+
       <div id="message" aria-live="polite"></div>
+
     </section>
 
     <section>
       <h2>保存済みTrip</h2>
-      <div id="tripList" class="trip-list"><p class="trip-list-empty">保存済みTripはありません。</p></div>
+      <div id="tripList" class="trip-list">
+        <p class="trip-list-empty">保存済みTripはありません。</p>
+      </div>
     </section>
+
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
   <script src="js/trip-data-v36.js"></script>
-  <script src="js/trip-v40-materials-v8.js"></script>
-  <script src="js/trip-v40-organized-apply-fix-v1.js"></script>
+  <script src="js/trip-v36.js"></script>
+
 </body>
 </html>
+
