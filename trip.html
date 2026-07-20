@@ -519,6 +519,30 @@
       }
     }
 
+  
+    /* ---------- One-map waypoint route builder ---------- */
+    .waypoint-planner {
+      margin: 14px 0 18px;
+      padding: 14px;
+      border: 2px solid #93c5fd;
+      border-radius: 14px;
+      background: #eff6ff;
+    }
+    .waypoint-planner h4 { margin: 0 0 6px; }
+    .waypoint-actions { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+    .waypoint-actions button { padding:9px 12px; }
+    .waypoint-status { margin:8px 0; padding:9px 10px; border-radius:8px; background:#fff; }
+    .waypoint-map-slot #routeMapPanel { margin: 8px 0 0; }
+    .waypoint-list { display:grid; gap:7px; margin:10px 0; }
+    .waypoint-row { display:grid; grid-template-columns: 42px minmax(120px, 1fr) auto; gap:8px; align-items:center; }
+    .waypoint-row input { width:100%; padding:8px; }
+    .waypoint-candidates { display:grid; gap:7px; margin-top:10px; }
+    .waypoint-candidate { padding:9px 10px; border:1px solid #bfdbfe; border-radius:8px; background:#fff; }
+    @media (max-width: 700px) {
+      .waypoint-row { grid-template-columns:36px 1fr; }
+      .waypoint-row button { grid-column:2; justify-self:start; }
+    }
+
   </style>
 </head>
 
@@ -574,6 +598,26 @@
         <p class="route-help">
           国道を走行順に追加します。隣り合う国道の接続候補は自動で表示されます。
         </p>
+
+
+        <section id="waypointPlanner" class="waypoint-planner">
+          <h4>1枚の地図から走行順を作る</h4>
+          <p class="route-help">
+            士別 → 旭川 → 深川のように、実際に通った順に地図へ地点を追加します。地点間から近い国道を候補として自動推定し、確認後に走行国道欄へ反映します。
+          </p>
+          <div class="waypoint-actions">
+            <button id="startWaypointMode" type="button">地図で経由地点を追加</button>
+            <button id="inferWaypointRoutes" type="button">国道候補を自動推定</button>
+            <button id="applyWaypointRoutes" type="button" disabled>候補を走行国道欄へ反映</button>
+            <button id="clearWaypoints" type="button">経由地点をクリア</button>
+          </div>
+          <div id="waypointStatus" class="waypoint-status">
+            「地図で経由地点を追加」を押してから、地図を走行順にクリックしてください。
+          </div>
+          <div id="waypointList" class="waypoint-list"></div>
+          <div id="waypointCandidates" class="waypoint-candidates"></div>
+          <div id="waypointMapSlot" class="waypoint-map-slot"></div>
+        </section>
 
         <div id="routeSequence" class="route-sequence"></div>
 
