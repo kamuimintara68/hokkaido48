@@ -324,8 +324,16 @@
     // 1) 従来どおり高い路線カバー率
     // 2) 端点両方を通過し、かつ路線カバー率が一定以上
     // 3) 端点両方を通過し、GPX上でもまとまった走行区間を形成
+    const hasVerifiedEndpointAnchors =
+      Boolean(explicitAnchors);
+
     const complete =
       routeCoverage >= 0.85 ||
+      (
+        hasVerifiedEndpointAnchors &&
+        endpointsReached &&
+        matchedSpan >= 0.05
+      ) ||
       (endpointsReached && routeCoverage >= 0.68) ||
       (endpointsReached && routeCoverage >= 0.60 && matchedSpan >= 0.10);
 
