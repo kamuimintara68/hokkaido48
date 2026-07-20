@@ -301,8 +301,60 @@
         return;
       }
 
+      const judgementMap = new Map(
+        latestJudgement.map(item => [String(Number(item.number)), item])
+      );
+      const acceptedNumbers = new Set(judgementMap.keys());
+      const existingSegments = Array.isArray(read.trips[index].routeSegments)
+        ? read.trips[index].routeSegments
+        : [];
+
+      function longestConfirmedPath(item) {
+        const chunks = Array.isArray(item.matchedChunks) ? item.matchedChunks : [];
+        if (!chunks.length) return [];
+        return chunks
+          .filter(chunk => Array.isArray(chunk) && chunk.length >= 2)
+          .sort((a, b) => b.length - a.length)[0] || [];
+      }
+
+      // 既存の走行順を優先し、自動判定された6路線だけ正式データとして残す。
+      const nextSegments = [];
+      const used = new Set();
+
+      existingSegments.forEach(segment => {
+        const number = String(Number(segment.routeNumber || ""));
+        if (!acceptedNumbers.has(number) || used.has(number)) return;
+
+        const item = judgementMap.get(number);
+        const isComplete = segment.status === "complete";
+
+        nextSegments.push({
+          ...segment,
+          routeNumber: number,
+          status: isComplete ? "complete" : "partial",
+          confirmedPath: isComplete ? [] : longestConfirmedPath(item)
+        });
+        used.add(number);
+      });
+
+      // 既存Tripに無かった自動判定路線は末尾へ追加。
+      latestJudgement.forEach(item => {
+        const number = String(Number(item.number));
+        if (used.has(number)) return;
+
+        nextSegments.push({
+          id: `segment-auto-${number}-${Date.now()}`,
+          routeNumber: number,
+          status: "partial",
+          startPoint: null,
+          endPoint: null,
+          confirmedPath: longestConfirmedPath(item)
+        });
+        used.add(number);
+      });
+
       const payload = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: new Date().toISOString(),
         source: "GPX＋文字起こし自動走行判定",
         policy: "coarse-route-first",
@@ -313,6 +365,8 @@
       read.trips[index] = {
         ...read.trips[index],
         updatedAt: new Date().toISOString(),
+        routes: nextSegments.map(segment => segment.routeNumber).join(","),
+        routeSegments: nextSegments,
         autoRouteJudgement: payload
       };
 
@@ -322,8 +376,15 @@
         return;
       }
 
+      const partialWithPath = nextSegments.filter(
+        segment => segment.status === "partial" &&
+          Array.isArray(segment.confirmedPath) &&
+          segment.confirmedPath.length >= 2
+      ).length;
+
       saveStatus.textContent =
-        `「${selected.tripName || "名称未登録"}」へ ${latestJudgement.length}路線の判定結果を確定保存しました。`;
+        `「${selected.tripName || "名称未登録"}」へ ${nextSegments.length}路線を正式確定しました。` +
+        ` 一部走破区間 ${partialWithPath}路線を保存しました。`;
     } catch (error) {
       console.error("Trip確定保存エラー:", error);
       saveStatus.textContent = `Tripへの確定処理でエラーが発生しました：${error.message || error}`;
