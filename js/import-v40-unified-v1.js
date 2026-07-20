@@ -19,6 +19,16 @@
   const AUDIO_TEXT = new Set(["wma", "m4a", "mp3", "wav", "aac", "txt"]);
   const PHOTO = new Set(["jpg", "jpeg", "png", "heic", "heif"]);
   const ROUTE_EXCLUSIONS = new Set(["279", "338"]);
+
+  // 国道路線の実際の起終点付近アンカー（必要な路線のみ明示）。
+  // GeoJSONの配列順に依存せず、GPXが実際の両端付近を通過したか判定する。
+  const ROUTE_ENDPOINT_ANCHORS = new Map([
+    ["451", {
+      start: { lat: 43.93970, lng: 141.63832 }, // 留萌側
+      end: { lat: 43.55730, lng: 141.91090 }    // 滝川側
+    }]
+  ]);
+
   const TRIP_STORAGE_KEY = "hokkaido48Trips";
   const RECORD_KEY_PATTERN = /^route\d{3}Record$/;
 
@@ -292,15 +302,22 @@
     // 全線走破は路線カバー率を主判定。
     // 高密度補間後85%以上を基本とし、80%以上かつGPX上でまとまった区間なら全線候補。
     // 路線端点付近をGPXが通過しているか確認。
-    // routePointCloud は補間済みなので、先頭・末尾を端点近似として利用する。
-    const routeStartPoint = sampledRoute[0];
-    const routeEndPoint = sampledRoute[sampledRoute.length - 1];
+    // 明示アンカーがある路線は実際の起終点付近を利用し、
+    // それ以外は従来どおりGeoJSON先頭・末尾を近似値として使う。
+    const explicitAnchors = ROUTE_ENDPOINT_ANCHORS.get(String(route.number));
+    const routeStartPoint = explicitAnchors
+      ? explicitAnchors.start
+      : sampledRoute[0];
+    const routeEndPoint = explicitAnchors
+      ? explicitAnchors.end
+      : sampledRoute[sampledRoute.length - 1];
 
-    const startNearDistance = nearestDistance(routeStartPoint, sampledGpx, 600);
-    const endNearDistance = nearestDistance(routeEndPoint, sampledGpx, 600);
+    const endpointThreshold = explicitAnchors ? 1200 : 600;
+    const startNearDistance = nearestDistance(routeStartPoint, sampledGpx, endpointThreshold);
+    const endNearDistance = nearestDistance(routeEndPoint, sampledGpx, endpointThreshold);
 
-    const startReached = startNearDistance <= 600;
-    const endReached = endNearDistance <= 600;
+    const startReached = startNearDistance <= endpointThreshold;
+    const endReached = endNearDistance <= endpointThreshold;
     const endpointsReached = startReached && endReached;
 
     // 全線走破判定:
