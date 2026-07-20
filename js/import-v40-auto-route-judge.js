@@ -199,8 +199,13 @@
 
     // 大まかなルート記録を優先。GPXに連続一致があれば自動採用候補にする。
     let confidence = "除外";
-    if ((hard >= 7 && maxRun >= 4) || (hard >= 4 && maxRun >= 3 && evidence.explicit > 0)) confidence = "自動採用候補";
-    else if (hard >= 3 || (hard >= 1 && evidence.explicit > 0)) confidence = "要確認";
+    // 自動採用はGPXの連続一致を必須とする。
+    // 地名だけ一致する路線（例: 留萌市→国道239号）は採用しない。
+    if ((hard >= 7 && maxRun >= 4) || (hard >= 4 && maxRun >= 3 && evidence.explicit > 0)) {
+      confidence = "自動採用候補";
+    } else {
+      confidence = "除外";
+    }
 
     const matchedChunks = confidence === "除外" ? [] : buildMatchedChunks(routeData.coords, gpxGrid);
 
@@ -351,7 +356,7 @@
         if (item) scored.push(item);
       }
 
-      latestJudgement = scored.filter(item => item.confidence === "自動採用候補");
+      latestJudgement = scored.filter(item => item.confidence === "自動採用候補" && item.hard >= 4 && item.maxRun >= 3);
       render(scored, allPoints.length, transcriptText.length);
       status.textContent = `自動判定が完了しました。走行国道 ${latestJudgement.length}路線を表示しています。`;
     } catch (error) {
