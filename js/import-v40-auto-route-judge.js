@@ -228,7 +228,6 @@
     saveButton.textContent = "この判定結果をTripに確定";
     results.parentElement.append(saveButton);
     saveButton.addEventListener("click", saveJudgementToTrip);
-    saveButton.disabled = !(latestJudgement && latestJudgement.length > 0);
     return saveButton;
   }
 
@@ -242,7 +241,6 @@
 
     if (!auto.length) {
       results.innerHTML = "<p>走行国道を自動判定できませんでした。</p>";
-      ensureSaveButton().disabled = true;
       return;
     }
 
@@ -257,8 +255,6 @@
         `<span>スコア ${item.score} ／ GPX近接 ${item.hard}点 ／ 連続一致 ${item.maxRun}点 ／ 推定区間 ${pathPoints}点 ／ ${esc(textEvidence)}</span>` +
         `</div>`;
     }).join("");
-
-    ensureSaveButton().disabled = !latestJudgement;
   }
 
   function tripSignature(trip) {
@@ -357,8 +353,7 @@
       }
 
       latestJudgement = scored.filter(item => item.confidence === "自動採用候補" && item.hard >= 4 && item.maxRun >= 3);
-      const confirmTripButton = ensureSaveButton();
-      confirmTripButton.disabled = !(latestJudgement && latestJudgement.length > 0);
+      ensureSaveButton();
       render(scored, allPoints.length, transcriptText.length);
       status.textContent = `自動判定が完了しました。走行国道 ${latestJudgement.length}路線を表示しています。`;
     } catch (error) {
