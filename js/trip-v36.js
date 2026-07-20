@@ -74,7 +74,8 @@ function createRouteSegment(routeNumber) {
         status: "partial",
         startPoint: null,
         endPoint: null,
-        confirmedPath: []
+        confirmedPath: [],
+        confirmedPaths: []
     };
 }
 
@@ -100,7 +101,22 @@ function cloneSegments(segments) {
                 .filter(point => Array.isArray(point) && point.length >= 2)
                 .map(point => [Number(point[0]), Number(point[1])])
                 .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
-            : []
+            : [],
+        confirmedPaths: Array.isArray(segment.confirmedPaths)
+            ? segment.confirmedPaths
+                .map(path => Array.isArray(path)
+                    ? path
+                        .filter(point => Array.isArray(point) && point.length >= 2)
+                        .map(point => [Number(point[0]), Number(point[1])])
+                        .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+                    : []
+                )
+                .filter(path => path.length >= 2)
+            : (
+                Array.isArray(segment.confirmedPath) && segment.confirmedPath.length >= 2
+                    ? [segment.confirmedPath.map(point => [Number(point[0]), Number(point[1])])]
+                    : []
+            )
     }));
 }
 
@@ -332,13 +348,26 @@ function createSegmentCard(segment, segmentIndex) {
 
     if (
         segment.status === "partial" &&
-        Array.isArray(segment.confirmedPath) &&
-        segment.confirmedPath.length >= 2
+        (
+            (Array.isArray(segment.confirmedPaths) &&
+             segment.confirmedPaths.some(path => Array.isArray(path) && path.length >= 2)) ||
+            (Array.isArray(segment.confirmedPath) && segment.confirmedPath.length >= 2)
+        )
     ) {
         const confirmedNote = document.createElement("p");
         confirmedNote.className = "auto-confirmed-note";
+        const confirmedPaths = Array.isArray(segment.confirmedPaths) &&
+            segment.confirmedPaths.length
+            ? segment.confirmedPaths
+            : [segment.confirmedPath];
+
+        const confirmedPointCount = confirmedPaths.reduce(
+            (sum, path) => sum + (Array.isArray(path) ? path.length : 0),
+            0
+        );
+
         confirmedNote.textContent =
-            `✅ GPX＋TXT自動確定済み区間（${segment.confirmedPath.length}点）`;
+            `✅ GPX＋TXT自動確定済み区間（${confirmedPaths.length}区間／${confirmedPointCount}点）`;
         confirmedNote.style.margin = "10px 0 0";
         confirmedNote.style.fontWeight = "700";
         confirmedNote.style.color = "#166534";

@@ -75,6 +75,22 @@
             .filter(Boolean);
     }
 
+    function normalizeConfirmedPaths(paths, fallbackPath) {
+
+        const normalized = Array.isArray(paths)
+            ? paths
+                .map(path => normalizeConfirmedPath(path))
+                .filter(path => path.length >= 2)
+            : [];
+
+        if (normalized.length) {
+            return normalized;
+        }
+
+        const fallback = normalizeConfirmedPath(fallbackPath);
+        return fallback.length >= 2 ? [fallback] : [];
+    }
+
     function createSegmentId() {
 
         return (
@@ -109,6 +125,10 @@
                 segment && segment.endPoint
             ),
             confirmedPath: normalizeConfirmedPath(
+                segment && segment.confirmedPath
+            ),
+            confirmedPaths: normalizeConfirmedPaths(
+                segment && segment.confirmedPaths,
                 segment && segment.confirmedPath
             )
         };

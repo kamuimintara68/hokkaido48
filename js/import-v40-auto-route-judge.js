@@ -108,6 +108,50 @@
     return best;
   }
 
+
+  function nearestRouteMatch(point, indexedGrid) {
+    const latCell = Math.floor(point.lat / ROUTE_GRID_DEG);
+    const lngCell = Math.floor(point.lng / ROUTE_GRID_DEG);
+    let bestDistance = Infinity;
+    let bestIndex = -1;
+
+    for (let dy = -2; dy <= 2; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        const bucket = indexedGrid.get(`${latCell + dy}:${lngCell + dx}`) || [];
+        for (const candidate of bucket) {
+          const distance = haversine(point, candidate);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = Number(candidate.routeIndex);
+          }
+        }
+      }
+    }
+
+    return {
+      distance: bestDistance,
+      routeIndex: Number.isInteger(bestIndex) ? bestIndex : -1
+    };
+  }
+
+  function cumulativeDistances(points) {
+    const out = [0];
+    for (let index = 1; index < points.length; index += 1) {
+      out.push(out[index - 1] + haversine(points[index - 1], points[index]));
+    }
+    return out;
+  }
+
+  function percentile(values, ratio) {
+    if (!values.length) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const position = Math.max(
+      0,
+      Math.min(sorted.length - 1, Math.round((sorted.length - 1) * ratio))
+    );
+    return sorted[position];
+  }
+
   async function loadRoutes() {
     const response = await fetch("data/routes.json", { cache: "no-store" });
     if (!response.ok) throw new Error("routes.jsonを読み込めませんでした。");
@@ -121,7 +165,15 @@
     if (!response.ok) return null;
     const geojson = await response.json();
     const coords = collectGeojsonCoords(geojson);
-    const value = { coords, grid: buildGrid(coords) };
+    const indexedCoords = coords.map((point, routeIndex) => ({
+      ...point,
+      routeIndex
+    }));
+    const value = {
+      coords,
+      grid: buildGrid(coords),
+      indexedGrid: buildGrid(indexedCoords)
+    };
     routeCache.set(number, value);
     return value;
   }
@@ -156,64 +208,147 @@
     return best;
   }
 
-  function buildMatchedChunks(routeCoords, gpxGrid) {
-    const routeSample = sampleEvenly(routeCoords, 5000);
-    if (routeSample.length < 2) return [];
+  function buildMatchedChunks(routeData, gpxPoints) {
+    const routeCoords = routeData.coords;
+    if (!Array.isArray(routeCoords) || routeCoords.length < 2) return [];
 
-    const matchedIndices = [];
-    routeSample.forEach((point, index) => {
-      if (nearbyDistance(point, gpxGrid) <= PATH_MATCH_METERS) {
-        matchedIndices.push(index);
+    const cumulative = cumulativeDistances(routeCoords);
+    const observations = [];
+
+    gpxPoints.forEach((gpxPoint, gpxIndex) => {
+      const match = nearestRouteMatch(gpxPoint, routeData.indexedGrid);
+      if (
+        match.routeIndex >= 0 &&
+        Number.isFinite(match.distance) &&
+        match.distance <= PATH_MATCH_METERS
+      ) {
+        observations.push({
+          gpxIndex,
+          routeIndex: match.routeIndex,
+          distance: match.distance
+        });
       }
     });
 
-    if (matchedIndices.length < 2) return [];
+    if (observations.length < 3) return [];
 
-    // 国道全長に対して約1.5%以内の判定抜けは、短い寄り道・GPSずれとして補完する。
-    // 最低6点、最大80点までを「同じ連続走破区間」とみなす。
-    const bridgeGap = Math.min(
-      80,
-      Math.max(6, Math.round(routeSample.length * 0.015))
+    // GPX走行順を基準に「同じ国道を連続して走ったまとまり」へ分割する。
+    // 交差点で一瞬近づいただけの別区間や、大きなジャンプをつながない。
+    const runs = [];
+    let current = [observations[0]];
+
+    for (let index = 1; index < observations.length; index += 1) {
+      const previous = current[current.length - 1];
+      const next = observations[index];
+
+      const gpxIndexGap = next.gpxIndex - previous.gpxIndex;
+      const routeDistanceJump = Math.abs(
+        cumulative[next.routeIndex] - cumulative[previous.routeIndex]
+      );
+      const gpxDirectDistance = haversine(
+        gpxPoints[previous.gpxIndex],
+        gpxPoints[next.gpxIndex]
+      );
+
+      const allowedRouteJump = Math.min(
+        15000,
+        Math.max(3000, gpxDirectDistance * 4 + 2000)
+      );
+
+      if (
+        gpxIndexGap <= 10 &&
+        routeDistanceJump <= allowedRouteJump
+      ) {
+        current.push(next);
+      } else {
+        if (current.length >= 3) runs.push(current);
+        current = [next];
+      }
+    }
+
+    if (current.length >= 3) runs.push(current);
+    if (!runs.length) return [];
+
+    // 各走行まとまりを国道GeoJSON上の連続区間へ変換。
+    // 端の単発誤一致を避けるため2%だけトリムする。
+    const intervals = [];
+
+    runs.forEach(run => {
+      const indices = run.map(item => item.routeIndex);
+      const low = percentile(indices, 0.02);
+      const high = percentile(indices, 0.98);
+
+      if (!Number.isInteger(low) || !Number.isInteger(high)) return;
+
+      const startIndex = Math.min(low, high);
+      const endIndex = Math.max(low, high);
+      const spanMeters = cumulative[endIndex] - cumulative[startIndex];
+
+      if (run.length >= 3 && spanMeters >= 800) {
+        intervals.push({
+          startIndex,
+          endIndex,
+          evidenceCount: run.length
+        });
+      }
+    });
+
+    if (!intervals.length) return [];
+
+    // 同じ国道上で重なる区間、または1.5km以内の短い判定抜けだけを結合。
+    // 離れた区間は別々のconfirmedPathsとして保持し、間を水色で結ばない。
+    intervals.sort((a, b) => a.startIndex - b.startIndex);
+    const merged = [];
+
+    intervals.forEach(interval => {
+      const previous = merged[merged.length - 1];
+
+      if (!previous) {
+        merged.push({ ...interval });
+        return;
+      }
+
+      const roadGapMeters = interval.startIndex <= previous.endIndex
+        ? 0
+        : cumulative[interval.startIndex] - cumulative[previous.endIndex];
+
+      if (
+        interval.startIndex <= previous.endIndex ||
+        roadGapMeters <= 1500
+      ) {
+        previous.endIndex = Math.max(previous.endIndex, interval.endIndex);
+        previous.evidenceCount += interval.evidenceCount;
+      } else {
+        merged.push({ ...interval });
+      }
+    });
+
+    // 極端に弱い単発区間を除外。
+    const strongestEvidence = Math.max(
+      ...merged.map(interval => interval.evidenceCount)
     );
 
-    const clusters = [];
-    let current = [matchedIndices[0]];
+    const accepted = merged.filter(interval =>
+      interval.evidenceCount >= Math.max(3, strongestEvidence * 0.15)
+    );
 
-    for (let i = 1; i < matchedIndices.length; i += 1) {
-      const previous = matchedIndices[i - 1];
-      const index = matchedIndices[i];
+    let paths = accepted.map(interval =>
+      routeCoords
+        .slice(interval.startIndex, interval.endIndex + 1)
+        .map(point => [point.lat, point.lng])
+    ).filter(path => path.length >= 2);
 
-      if (index - previous <= bridgeGap) {
-        current.push(index);
-      } else {
-        clusters.push(current);
-        current = [index];
-      }
-    }
-    clusters.push(current);
+    // 保存量を抑える。複数区間全体で最大MAX_PATH_POINTS点。
+    const totalPoints = paths.reduce((sum, path) => sum + path.length, 0);
 
-    // 一致点数を最優先し、同数なら国道上の走破幅が広いまとまりを採用。
-    clusters.sort((a, b) => {
-      if (b.length !== a.length) return b.length - a.length;
-      return (b[b.length - 1] - b[0]) - (a[a.length - 1] - a[0]);
-    });
-
-    const best = clusters[0];
-    if (!best || best.length < 2) return [];
-
-    const startIndex = best[0];
-    const endIndex = best[best.length - 1];
-
-    // 一致点だけではなく、その間の正式な国道GeoJSON線を丸ごと採用する。
-    let confirmedPath = routeSample
-      .slice(startIndex, endIndex + 1)
-      .map(point => [point.lat, point.lng]);
-
-    if (confirmedPath.length > MAX_PATH_POINTS) {
-      confirmedPath = sampleEvenly(confirmedPath, MAX_PATH_POINTS);
+    if (totalPoints > MAX_PATH_POINTS) {
+      const ratio = MAX_PATH_POINTS / totalPoints;
+      paths = paths.map(path =>
+        sampleEvenly(path, Math.max(2, Math.round(path.length * ratio)))
+      );
     }
 
-    return confirmedPath.length >= 2 ? [confirmedPath] : [];
+    return paths;
   }
 
   async function scoreRoute(route, gpxPoints, gpxGrid, transcriptText) {
@@ -241,7 +376,7 @@
       confidence = "除外";
     }
 
-    const matchedChunks = confidence === "除外" ? [] : buildMatchedChunks(routeData.coords, gpxGrid);
+    const matchedChunks = confidence === "除外" ? [] : buildMatchedChunks(routeData, gpxPoints);
 
     return {
       number: String(route.number), start: route.start, end: route.end,
@@ -341,11 +476,14 @@
         ? read.trips[index].routeSegments
         : [];
 
+      function confirmedPathsFor(item) {
+        return (Array.isArray(item.matchedChunks) ? item.matchedChunks : [])
+          .filter(path => Array.isArray(path) && path.length >= 2)
+          .map(path => path.map(point => [Number(point[0]), Number(point[1])]));
+      }
+
       function longestConfirmedPath(item) {
-        const chunks = Array.isArray(item.matchedChunks) ? item.matchedChunks : [];
-        if (!chunks.length) return [];
-        return chunks
-          .filter(chunk => Array.isArray(chunk) && chunk.length >= 2)
+        return confirmedPathsFor(item)
           .sort((a, b) => b.length - a.length)[0] || [];
       }
 
@@ -364,6 +502,7 @@
           ...segment,
           routeNumber: number,
           status: isComplete ? "complete" : "partial",
+          confirmedPaths: isComplete ? [] : confirmedPathsFor(item),
           confirmedPath: isComplete ? [] : longestConfirmedPath(item)
         });
         used.add(number);
@@ -380,6 +519,7 @@
           status: "partial",
           startPoint: null,
           endPoint: null,
+          confirmedPaths: confirmedPathsFor(item),
           confirmedPath: longestConfirmedPath(item)
         });
         used.add(number);
@@ -409,9 +549,11 @@
       }
 
       const partialWithPath = nextSegments.filter(
-        segment => segment.status === "partial" &&
-          Array.isArray(segment.confirmedPath) &&
-          segment.confirmedPath.length >= 2
+        segment => segment.status === "partial" && (
+          (Array.isArray(segment.confirmedPaths) &&
+            segment.confirmedPaths.some(path => Array.isArray(path) && path.length >= 2)) ||
+          (Array.isArray(segment.confirmedPath) && segment.confirmedPath.length >= 2)
+        )
       ).length;
 
       saveStatus.textContent =

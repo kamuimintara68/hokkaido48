@@ -32,27 +32,35 @@
           return;
         }
 
-        const path = Array.isArray(segment.confirmedPath)
-          ? segment.confirmedPath
-              .map(function (point) {
-                if (!Array.isArray(point) || point.length < 2) {
-                  return null;
-                }
-                const lat = Number(point[0]);
-                const lng = Number(point[1]);
-                return Number.isFinite(lat) && Number.isFinite(lng)
-                  ? [lat, lng]
-                  : null;
-              })
-              .filter(Boolean)
-          : [];
+        const sourcePaths =
+          Array.isArray(segment.confirmedPaths) && segment.confirmedPaths.length
+            ? segment.confirmedPaths
+            : [segment.confirmedPath];
 
-        if (path.length >= 2) {
-          paths.push({
-            routeNumber: String(segment.routeNumber || ""),
-            path: path
-          });
-        }
+        sourcePaths.forEach(function (sourcePath, pathIndex) {
+          const path = Array.isArray(sourcePath)
+            ? sourcePath
+                .map(function (point) {
+                  if (!Array.isArray(point) || point.length < 2) {
+                    return null;
+                  }
+                  const lat = Number(point[0]);
+                  const lng = Number(point[1]);
+                  return Number.isFinite(lat) && Number.isFinite(lng)
+                    ? [lat, lng]
+                    : null;
+                })
+                .filter(Boolean)
+            : [];
+
+          if (path.length >= 2) {
+            paths.push({
+              routeNumber: String(segment.routeNumber || ""),
+              pathIndex: pathIndex,
+              path: path
+            });
+          }
+        });
       });
     });
 
@@ -82,7 +90,7 @@
       routes: confirmedPaths.map(function (item) {
         return item.routeNumber;
       }),
-      mode: "trip-confirmed-path-only"
+      mode: "trip-confirmed-multipath-only"
     };
 
     return true;
