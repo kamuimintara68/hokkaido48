@@ -1,61 +1,162 @@
 // 北海道48路線ふらふらlog Version 4.0
-// メイン地図 走破状態表示 完成版補正
+// メイン地図 走破状態表示 完成版 v2
+// Trip保存データをlocalStorageから直接読み、路線状態を確定する。
 // 未走破=グレー / 一部走破=水色 / 全線走破=緑 / 選択中=青
 (function () {
   "use strict";
 
-  const STATUS_COLORS = {
+  const STORAGE_KEY = "hokkaido48Trips";
+
+  const COLORS = {
     untraveled: "#6b7280",
     partial: "#38bdf8",
     complete: "#16a34a"
   };
 
-  // app.js側の色判定が参照可能な場合は、元の判定自体も補正する。
+  function normalizeRouteNumber(value) {
+    const digits = String(value ?? "").replace(/[^0-9]/g, "");
+    return digits ? String(Number(digits)) : "";
+  }
+
+  function readTripRouteStatuses() {
+    const statuses = new Map();
+
+    let raw = null;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (error) {
+      console.error("Trip保存データ取得エラー:", error);
+      return statuses;
+    }
+
+    if (!raw) {
+      return statuses;
+    }
+
+    let trips;
+    try {
+      trips = JSON.parse(raw);
+    } catch (error) {
+      console.error("Trip保存データ解析エラー:", error);
+      return statuses;
+    }
+
+    if (!Array.isArray(trips)) {
+      return statuses;
+    }
+
+    trips.forEach(function (trip) {
+      let segments = [];
+
+      // 現行形式
+      if (Array.isArray(trip && trip.routeSegments)) {
+        segments = trip.routeSegments;
+      }
+      // 旧形式 routes しかないTripも一部走破として拾う
+      else if (trip && trip.routes) {
+        const source = Array.isArray(trip.routes)
+          ? trip.routes.join(",")
+          : String(trip.routes);
+
+        segments = source
+          .split(/[,\s、，・→>]+/)
+          .filter(Boolean)
+          .map(function (routeNumber) {
+            return {
+              routeNumber: routeNumber,
+              status: "partial"
+            };
+          });
+      }
+
+      segments.forEach(function (segment) {
+        const routeNumber = normalizeRouteNumber(
+          segment && (
+            segment.routeNumber ??
+            segment.number ??
+            segment.route
+          )
+        );
+
+        if (!routeNumber) {
+          return;
+        }
+
+        const isComplete =
+          segment &&
+          (
+            segment.status === "complete" ||
+            segment.status === "全線走破" ||
+            segment.status === "走破済"
+          );
+
+        const current = statuses.get(routeNumber);
+
+        if (isComplete) {
+          statuses.set(routeNumber, "走破済");
+        } else if (current !== "走破済") {
+          statuses.set(routeNumber, "走破中");
+        }
+      });
+    });
+
+    return statuses;
+  }
+
+  function getDirectStatus(routeNumber, savedRecordExists) {
+    const statuses = readTripRouteStatuses();
+    const routeKey = normalizeRouteNumber(routeNumber);
+
+    if (statuses.get(routeKey) === "走破済") {
+      return "走破済";
+    }
+
+    if (savedRecordExists) {
+      return "走破済";
+    }
+
+    if (statuses.get(routeKey) === "走破中") {
+      return "走破中";
+    }
+
+    return "未走破";
+  }
+
+  // 本体側の色関数も同じ仕様へ統一
   if (typeof getStatusColor === "function") {
     getStatusColor = function (status) {
       if (status === "走破済") {
-        return STATUS_COLORS.complete;
+        return COLORS.complete;
       }
       if (status === "走破中") {
-        return STATUS_COLORS.partial;
+        return COLORS.partial;
       }
-      return STATUS_COLORS.untraveled;
+      return COLORS.untraveled;
     };
   }
 
-  function getCorrectColor(status) {
-    if (status === "走破済") {
-      return STATUS_COLORS.complete;
-    }
-    if (status === "走破中") {
-      return STATUS_COLORS.partial;
-    }
-    return STATUS_COLORS.untraveled;
-  }
-
-  // 実際にLeaflet上へ描画済みの全路線を直接塗り直す。
-  // getStatusColorの上書きだけに依存しないため、キャッシュや描画順の影響を受けにくい。
   function applyRouteStatusColors() {
     if (
       typeof routesData === "undefined" ||
       typeof routeLayers === "undefined" ||
-      typeof getEffectiveStatus !== "function"
+      !Array.isArray(routesData)
     ) {
       return false;
     }
 
-    if (!Array.isArray(routesData) || routesData.length === 0) {
-      return false;
-    }
+    const statuses = readTripRouteStatuses();
 
     routesData.forEach(function (route) {
-      const layer = routeLayers.get(String(route.number));
+      const routeKey = normalizeRouteNumber(route.number);
+      const layer =
+        routeLayers.get(routeKey) ||
+        routeLayers.get(route.number);
 
       if (!layer || typeof layer.setStyle !== "function") {
         return;
       }
 
-      // 選択中の路線はapp.js本来の青い強調表示を維持する。
+      // URLで選択中の路線だけは青い強調表示を維持
       if (
         typeof selectedLayer !== "undefined" &&
         selectedLayer === layer
@@ -63,10 +164,29 @@
         return;
       }
 
-      const status = getEffectiveStatus(route);
+      let status = statuses.get(routeKey) || "未走破";
+
+      // RouteごとのRecordがあれば全線走破扱いを維持
+      try {
+        if (
+          typeof getSavedRecord === "function" &&
+          getSavedRecord(route.number)
+        ) {
+          status = "走破済";
+        }
+      } catch (error) {
+        // Record確認失敗時はTrip判定をそのまま使う
+      }
+
+      const color =
+        status === "走破済"
+          ? COLORS.complete
+          : status === "走破中"
+            ? COLORS.partial
+            : COLORS.untraveled;
 
       layer.setStyle({
-        color: getCorrectColor(status),
+        color: color,
         weight: 7,
         opacity: 0.9
       });
@@ -75,7 +195,9 @@
     return true;
   }
 
-  // app.jsの非同期GeoJSON読込が終わるまで待ってから確実に適用。
+  // GeoJSON非同期読込後に複数回適用し、描画順による上書きを防ぐ。
+  const delays = [0, 200, 600, 1200, 2500];
+
   let checks = 0;
   const timer = window.setInterval(function () {
     checks += 1;
@@ -88,12 +210,9 @@
       routeLayers.size > 0;
 
     if (ready) {
-      applyRouteStatusColors();
-
-      // URL ?route=... の選択処理など、初期表示後の再描画も吸収する。
-      window.setTimeout(applyRouteStatusColors, 300);
-      window.setTimeout(applyRouteStatusColors, 1000);
-
+      delays.forEach(function (delay) {
+        window.setTimeout(applyRouteStatusColors, delay);
+      });
       window.clearInterval(timer);
       return;
     }
@@ -103,29 +222,25 @@
     }
   }, 100);
 
-  // Trip保存後に地図へ戻った場合なども再適用。
   window.addEventListener("pageshow", function () {
-    window.setTimeout(applyRouteStatusColors, 50);
-    window.setTimeout(applyRouteStatusColors, 500);
+    delays.forEach(function (delay) {
+      window.setTimeout(applyRouteStatusColors, delay);
+    });
   });
 
   window.addEventListener("focus", function () {
     window.setTimeout(applyRouteStatusColors, 100);
   });
 
-  // localStorageが別タブで変更された場合。
-  window.addEventListener("storage", function () {
-    window.setTimeout(applyRouteStatusColors, 100);
+  window.addEventListener("storage", function (event) {
+    if (!event || event.key === STORAGE_KEY) {
+      window.setTimeout(applyRouteStatusColors, 100);
+    }
   });
 
-  // 既存の走破状態更新関数がある場合、その処理後にも必ず再適用する。
-  if (typeof refreshSavedRecordStatus === "function") {
-    const originalRefreshSavedRecordStatus = refreshSavedRecordStatus;
-
-    refreshSavedRecordStatus = function () {
-      const result = originalRefreshSavedRecordStatus.apply(this, arguments);
-      window.setTimeout(applyRouteStatusColors, 0);
-      return result;
-    };
-  }
+  // デバッグ用: ブラウザConsoleから確認可能
+  window.Hokkaido48RouteStatusDisplay = {
+    readTripRouteStatuses: readTripRouteStatuses,
+    applyRouteStatusColors: applyRouteStatusColors
+  };
 })();
