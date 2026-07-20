@@ -210,12 +210,14 @@ async function showWaypointCandidateTrace() {
     const bounds = L.latLngBounds();
 
     waypointRouteCandidates.forEach(item => {
-        const best = item.alternatives && item.alternatives[0];
-        if (!best) return;
+        if (item.selectedRouteNumber === "none") return;
+        const selected = item.alternatives.find(x => x.routeNumber === item.selectedRouteNumber)
+            || item.alternatives[0];
+        if (!selected) return;
 
-        const startPoint = { lat: best.firstNearest.lat, lng: best.firstNearest.lng };
-        const endPoint = { lat: best.secondNearest.lat, lng: best.secondNearest.lng };
-        const section = buildSelectedSection(best.geojson, startPoint, endPoint);
+        const startPoint = { lat: selected.firstNearest.lat, lng: selected.firstNearest.lng };
+        const endPoint = { lat: selected.secondNearest.lat, lng: selected.secondNearest.lng };
+        const section = buildSelectedSection(selected.geojson, startPoint, endPoint);
 
         if (section.length >= 2) {
             L.polyline(section.map(point => [point.lat, point.lng]), {
@@ -236,13 +238,51 @@ async function showWaypointCandidateTrace() {
 function renderWaypointCandidates() {
     waypointCandidates.innerHTML = "";
     applyWaypointRoutesButton.disabled = waypointRouteCandidates.length === 0;
+
     waypointRouteCandidates.forEach((item, index) => {
         const div = document.createElement("div");
         div.className = "waypoint-candidate";
-        const alternatives = item.alternatives.map((x, i) =>
-            `${i === 0 ? "推定" : "候補"}${i + 1}: 国道${x.routeNumber}号`
+
+        const heading = document.createElement("div");
+        heading.textContent = `${index + 1}. ${item.from.label} → ${item.to.label}`;
+        heading.style.fontWeight = "700";
+        heading.style.marginBottom = "6px";
+        div.appendChild(heading);
+
+        const candidateText = document.createElement("div");
+        candidateText.textContent = item.alternatives.map((x, i) =>
+            `${i === 0 ? "推定1" : `候補${i + 1}`}: 国道${x.routeNumber}号`
         ).join(" ／ ");
-        div.textContent = `${index + 1}. ${item.from.label} → ${item.to.label}　${alternatives}`;
+        candidateText.style.marginBottom = "7px";
+        div.appendChild(candidateText);
+
+        const label = document.createElement("label");
+        label.textContent = "この区間の確定国道： ";
+
+        const select = document.createElement("select");
+        item.alternatives.forEach((x, i) => {
+            const option = document.createElement("option");
+            option.value = x.routeNumber;
+            option.textContent = `${i === 0 ? "推定1" : `候補${i + 1}`}：国道${x.routeNumber}号`;
+            select.appendChild(option);
+        });
+        const noneOption = document.createElement("option");
+        noneOption.value = "none";
+        noneOption.textContent = "国道なし（走破記録に反映しない）";
+        select.appendChild(noneOption);
+
+        if (!item.selectedRouteNumber) {
+            item.selectedRouteNumber = item.alternatives[0]?.routeNumber || "none";
+        }
+        select.value = item.selectedRouteNumber;
+        select.addEventListener("change", async () => {
+            item.selectedRouteNumber = select.value;
+            await showWaypointCandidateTrace();
+            waypointStatus.textContent = "区間ごとの国道を確認中です。青線を確認し、必要な区間だけ候補を選び直してください。";
+        });
+
+        label.appendChild(select);
+        div.appendChild(label);
         waypointCandidates.appendChild(div);
     });
 }
@@ -257,38 +297,49 @@ async function inferWaypointRoutes() {
     for (let i = 0; i < waypoints.length - 1; i += 1) {
         const alternatives = await inferRouteBetweenWaypoints(waypoints[i], waypoints[i + 1]);
         if (alternatives.length === 0) continue;
-        waypointRouteCandidates.push({ from: waypoints[i], to: waypoints[i + 1], alternatives });
+        waypointRouteCandidates.push({
+            from: waypoints[i],
+            to: waypoints[i + 1],
+            alternatives,
+            selectedRouteNumber: alternatives[0].routeNumber
+        });
     }
     renderWaypointCandidates();
     await showWaypointCandidateTrace();
     waypointStatus.textContent = waypointRouteCandidates.length
-        ? "候補を作成しました。内容を確認し、問題なければ「候補を走行国道欄へ反映」を押してください。"
+        ? "候補を作成しました。各区間の確定国道を選び、青線を確認してから「候補を走行国道欄へ反映」を押してください。"
         : "国道候補を作成できませんでした。地点を追加・修正してください。";
 }
 
 function applyWaypointRoutes() {
     if (waypointRouteCandidates.length === 0) return;
     const generated = [];
+
     waypointRouteCandidates.forEach(item => {
-        const best = item.alternatives[0];
-        const routeNumber = best.routeNumber;
+        if (item.selectedRouteNumber === "none") return;
+        const selected = item.alternatives.find(x => x.routeNumber === item.selectedRouteNumber)
+            || item.alternatives[0];
+        if (!selected) return;
+
+        const routeNumber = selected.routeNumber;
         const startPoint = {
-            lat: best.firstNearest.lat,
-            lng: best.firstNearest.lng,
+            lat: selected.firstNearest.lat,
+            lng: selected.firstNearest.lng,
             label: `${item.from.label}付近`,
-            source: "waypoint-inference"
+            source: "waypoint-confirmed"
         };
         const endPoint = {
-            lat: best.secondNearest.lat,
-            lng: best.secondNearest.lng,
+            lat: selected.secondNearest.lat,
+            lng: selected.secondNearest.lng,
             label: `${item.to.label}付近`,
-            source: "waypoint-inference"
+            source: "waypoint-confirmed"
         };
-        const confirmedPath = buildSelectedSection(best.geojson, startPoint, endPoint);
+        const confirmedPath = buildSelectedSection(selected.geojson, startPoint, endPoint);
         const previous = generated[generated.length - 1];
+
         if (previous && previous.routeNumber === routeNumber) {
             previous.endPoint = endPoint;
-            previous.confirmedPath = buildSelectedSection(best.geojson, previous.startPoint, endPoint);
+            previous.confirmedPath = buildSelectedSection(selected.geojson, previous.startPoint, endPoint);
         } else {
             generated.push({
                 id: TripData.createSegmentId(),
@@ -300,14 +351,19 @@ function applyWaypointRoutes() {
             });
         }
     });
-    if (generated.length === 0) return;
+
+    if (generated.length === 0) {
+        waypointStatus.textContent = "反映できる国道区間がありません。各区間の確定国道を確認してください。";
+        return;
+    }
+
     routeSegments = generated;
     selectionMode = null;
     waypointMode = false;
     activeMapSegmentIndex = null;
     parkSelectionMap();
     refreshRouteBuilder(true);
-    waypointStatus.textContent = "候補を走行国道欄へ反映しました。各路線を確認し、全線走破など必要な修正を行ってからTripを保存してください。";
+    waypointStatus.textContent = "確定した国道を走行国道欄へ反映しました。全線走破など必要な修正を行ってからTripを保存してください。";
 }
 
 
