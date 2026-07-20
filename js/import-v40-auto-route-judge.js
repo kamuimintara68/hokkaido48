@@ -157,31 +157,63 @@
   }
 
   function buildMatchedChunks(routeCoords, gpxGrid) {
-    const chunks = [];
-    let current = [];
-    let gap = 0;
     const routeSample = sampleEvenly(routeCoords, 5000);
+    if (routeSample.length < 2) return [];
 
-    routeSample.forEach(point => {
-      const matched = nearbyDistance(point, gpxGrid) <= PATH_MATCH_METERS;
-      if (matched) {
-        current.push([point.lat, point.lng]);
-        gap = 0;
-      } else if (current.length) {
-        gap += 1;
-        if (gap > 3) {
-          if (current.length >= 2) chunks.push(current);
-          current = [];
-          gap = 0;
-        }
+    const matchedIndices = [];
+    routeSample.forEach((point, index) => {
+      if (nearbyDistance(point, gpxGrid) <= PATH_MATCH_METERS) {
+        matchedIndices.push(index);
       }
     });
-    if (current.length >= 2) chunks.push(current);
 
-    let total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    if (total <= MAX_PATH_POINTS) return chunks;
-    const ratio = MAX_PATH_POINTS / total;
-    return chunks.map(chunk => sampleEvenly(chunk, Math.max(2, Math.round(chunk.length * ratio))));
+    if (matchedIndices.length < 2) return [];
+
+    // 国道全長に対して約1.5%以内の判定抜けは、短い寄り道・GPSずれとして補完する。
+    // 最低6点、最大80点までを「同じ連続走破区間」とみなす。
+    const bridgeGap = Math.min(
+      80,
+      Math.max(6, Math.round(routeSample.length * 0.015))
+    );
+
+    const clusters = [];
+    let current = [matchedIndices[0]];
+
+    for (let i = 1; i < matchedIndices.length; i += 1) {
+      const previous = matchedIndices[i - 1];
+      const index = matchedIndices[i];
+
+      if (index - previous <= bridgeGap) {
+        current.push(index);
+      } else {
+        clusters.push(current);
+        current = [index];
+      }
+    }
+    clusters.push(current);
+
+    // 一致点数を最優先し、同数なら国道上の走破幅が広いまとまりを採用。
+    clusters.sort((a, b) => {
+      if (b.length !== a.length) return b.length - a.length;
+      return (b[b.length - 1] - b[0]) - (a[a.length - 1] - a[0]);
+    });
+
+    const best = clusters[0];
+    if (!best || best.length < 2) return [];
+
+    const startIndex = best[0];
+    const endIndex = best[best.length - 1];
+
+    // 一致点だけではなく、その間の正式な国道GeoJSON線を丸ごと採用する。
+    let confirmedPath = routeSample
+      .slice(startIndex, endIndex + 1)
+      .map(point => [point.lat, point.lng]);
+
+    if (confirmedPath.length > MAX_PATH_POINTS) {
+      confirmedPath = sampleEvenly(confirmedPath, MAX_PATH_POINTS);
+    }
+
+    return confirmedPath.length >= 2 ? [confirmedPath] : [];
   }
 
   async function scoreRoute(route, gpxPoints, gpxGrid, transcriptText) {
@@ -241,7 +273,7 @@
       const pathPoints = item.matchedChunks.reduce((sum, chunk) => sum + chunk.length, 0);
       return `<div style="padding:10px 12px;margin:8px 0;border:1px solid #c8d2ea;border-radius:8px;background:#fff;">` +
         `<strong>${badge}　国道${esc(item.number)}号</strong>　${esc(item.start)}－${esc(item.end)}<br>` +
-        `<span>スコア ${item.score} ／ GPX近接 ${item.hard}点 ／ 連続一致 ${item.maxRun}点 ／ 推定区間 ${pathPoints}点 ／ ${esc(textEvidence)}</span>` +
+        `<span>スコア ${item.score} ／ GPX近接 ${item.hard}点 ／ 連続一致 ${item.maxRun}点 ／ 連続推定区間 ${pathPoints}点 ／ ${esc(textEvidence)}</span>` +
         `</div>`;
     }).join("");
   }
