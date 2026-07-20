@@ -230,6 +230,7 @@
               </div>
 
             </article>
+
             <article class="compact-card">
 
               <h3 class="compact-card-title">
@@ -244,6 +245,7 @@
               </div>
 
             </article>
+
           </section>
 
         </div>
@@ -267,6 +269,7 @@
       >
 
         <div class="route-finder-header">
+
           <div>
             <h2 id="routeFinderTitle">路線を探す</h2>
             <p>路線番号・始点・終点から検索できます。</p>
@@ -280,11 +283,13 @@
           >
             ×
           </button>
+
         </div>
 
         <div class="route-finder-controls">
 
           <label for="routeSearchInput">路線検索</label>
+
           <input
             id="routeSearchInput"
             type="search"
@@ -293,8 +298,11 @@
           >
 
           <fieldset class="filter-group">
+
             <legend>地方</legend>
+
             <div id="regionFilterButtons" class="filter-buttons">
+
               <button type="button" data-region="all" class="active">すべて</button>
               <button type="button" data-region="道央">道央</button>
               <button type="button" data-region="道南">道南</button>
@@ -302,17 +310,24 @@
               <button type="button" data-region="オホーツク">オホーツク</button>
               <button type="button" data-region="十勝">十勝</button>
               <button type="button" data-region="釧路・根室">釧路・根室</button>
+
             </div>
+
           </fieldset>
 
           <fieldset class="filter-group">
+
             <legend>走破状態</legend>
+
             <div id="statusFilterButtons" class="filter-buttons">
+
               <button type="button" data-status="all" class="active">すべて</button>
               <button type="button" data-status="未走破">未走破</button>
               <button type="button" data-status="走破中">走破中</button>
               <button type="button" data-status="走破済">走破済</button>
+
             </div>
+
           </fieldset>
 
         </div>
@@ -334,9 +349,16 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
 
-  <script src="js/trip-data-v36.js"></script>
-  <script src="js/app-v34.js"></script>
-  <script src="js/map-mobile-v36.js"></script>
+  <script src="js/trip-data-v36.js?v=20260720-2"></script>
+
+  <!--
+    app.js は現在の app-v34.js と同系統の本体。
+    キャッシュを避けるためクエリを付与し、その直後に色判定パッチを適用する。
+  -->
+  <script src="js/app.js?v=20260720-2"></script>
+  <script src="js/app-v34.js?v=20260720-2"></script>
+
+  <script src="js/map-mobile-v36.js?v=20260720-2"></script>
 
 </body>
 </html>
