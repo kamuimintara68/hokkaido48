@@ -291,14 +291,32 @@
 
     // 全線走破は路線カバー率を主判定。
     // 高密度補間後85%以上を基本とし、80%以上かつGPX上でまとまった区間なら全線候補。
+    // 路線端点付近をGPXが通過しているか確認。
+    // routePointCloud は補間済みなので、先頭・末尾を端点近似として利用する。
+    const routeStartPoint = sampledRoute[0];
+    const routeEndPoint = sampledRoute[sampledRoute.length - 1];
+
+    const startNearDistance = nearestDistance(routeStartPoint, sampledGpx, 600);
+    const endNearDistance = nearestDistance(routeEndPoint, sampledGpx, 600);
+
+    const startReached = startNearDistance <= 600;
+    const endReached = endNearDistance <= 600;
+    const endpointsReached = startReached && endReached;
+
+    // 全線走破判定:
+    // 1) 従来どおり高い路線カバー率
+    // 2) 端点両方を通過し、かつ路線カバー率が一定以上
+    // 3) 端点両方を通過し、GPX上でもまとまった走行区間を形成
     const complete =
       routeCoverage >= 0.85 ||
-      (routeCoverage >= 0.80 && matchedSpan >= 0.08);
+      (endpointsReached && routeCoverage >= 0.68) ||
+      (endpointsReached && routeCoverage >= 0.60 && matchedSpan >= 0.10);
 
     const confidence = Math.min(100, Math.round(
-      routeCoverage * 75 +
+      routeCoverage * 70 +
       Math.min(gpxShare * 3, 0.18) * 100 +
-      Math.min(matchedSpan, 0.07) * 100
+      Math.min(matchedSpan, 0.07) * 100 +
+      (endpointsReached ? 12 : 0)
     ));
 
     return {
@@ -309,6 +327,9 @@
       routeCoverage,
       gpxShare,
       matchedSpan,
+      startReached,
+      endReached,
+      endpointsReached,
       status: complete ? "complete" : "partial",
       confidence,
       firstGpxIndex
@@ -405,6 +426,11 @@
       const coveragePercent = Math.round(candidate.routeCoverage * 100);
       const gpxPercent = Math.round(candidate.gpxShare * 100);
       const spanPercent = Math.round((candidate.matchedSpan || 0) * 100);
+      const endpointText = candidate.endpointsReached
+        ? "起終点とも通過"
+        : candidate.startReached || candidate.endReached
+          ? "片側端点のみ通過"
+          : "起終点未確認";
 
       item.innerHTML = `
         <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;">
@@ -418,7 +444,7 @@
           <div>
             <strong>国道${candidate.routeNumber}号　${candidate.start}－${candidate.end}</strong>
             <div style="font-size:13px;color:#53677a;margin-top:4px;">
-              路線カバー推定 ${coveragePercent}% ／ GPX全体に占める区間 ${gpxPercent}% ／ 連続走行範囲 ${spanPercent}% ／ 判定信頼度 ${candidate.confidence}%
+              路線カバー推定 ${coveragePercent}% ／ GPX全体に占める区間 ${gpxPercent}% ／ 連続走行範囲 ${spanPercent}% ／ ${endpointText} ／ 判定信頼度 ${candidate.confidence}%
             </div>
           </div>
           <select class="gpx-route-status" style="min-height:42px;padding:7px 10px;">
