@@ -565,12 +565,8 @@ function focusSelectionMap(segmentIndex, titleText) {
         `.route-inline-map-slot[data-segment-index="${segmentIndex}"]`
     );
 
-    if (slot) {
-        slot.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-        });
-    }
+    // 地図は選択中の路線カード内に表示する。
+    // 画面を地図位置へ自動スクロールさせない。
 }
 
 
