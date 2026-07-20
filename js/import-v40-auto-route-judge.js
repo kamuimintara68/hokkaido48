@@ -357,7 +357,7 @@
       }
 
       latestJudgement = scored.filter(item => item.confidence === "自動採用候補" && item.hard >= 4 && item.maxRun >= 3);
-      if (saveButton) saveButton.disabled = latestJudgement.length === 0;
+      ensureSaveButton().disabled = latestJudgement.length === 0;
       render(scored, allPoints.length, transcriptText.length);
       status.textContent = `自動判定が完了しました。走行国道 ${latestJudgement.length}路線を表示しています。`;
     } catch (error) {
