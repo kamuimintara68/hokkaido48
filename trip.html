@@ -275,7 +275,7 @@
 
     #routeMap {
       width: 100%;
-      height: 430px;
+      height: 560px;
       border: 1px solid #94a3b8;
       border-radius: 9px;
       background: #e2e8f0;
@@ -447,6 +447,8 @@
       }
     }
 
+    .route-card-confirm-note { margin:10px 0 0; color:#475569; font-size:13px; }
+
     /* ---------- Route selection side map ---------- */
 
     .route-segment-editor-grid {
@@ -589,51 +591,51 @@
 
       <section class="route-builder">
         <div class="route-builder-header">
-          <h3>走行した国道を順番に登録</h3>
+          <h3>実際の走行ルートを1枚地図から記録</h3>
           <button id="addRouteButton" type="button">
             国道を追加
           </button>
         </div>
 
         <p class="route-help">
-          国道を走行順に追加します。隣り合う国道の接続候補は自動で表示されます。
+          下の1枚地図を実際に走った順になぞるように地点指定します。地点間の国道を自動推定し、確認した区間だけをTripの正式な走破記録として保存します。
         </p>
 
 
         <section id="waypointPlanner" class="waypoint-planner">
-          <h4>1枚の地図から走行順を作る</h4>
+          <h4>走行ルート入力</h4>
           <p class="route-help">
-            士別 → 旭川 → 深川のように、実際に通った順に地図へ地点を追加します。地点間から近い国道を候補として自動推定し、確認後に走行国道欄へ反映します。
+            士別 → 旭川 → 深川 → 秩父別のように、下の地図を実際に走った順にクリックします。自動推定した国道区間は青線で表示し、確認後に走行国道一覧へ反映します。
           </p>
           <div class="waypoint-actions">
-            <button id="startWaypointMode" type="button">地図で経由地点を追加</button>
+            <button id="startWaypointMode" type="button">走行ルート入力を開始</button>
             <button id="inferWaypointRoutes" type="button">国道候補を自動推定</button>
             <button id="applyWaypointRoutes" type="button" disabled>候補を走行国道欄へ反映</button>
             <button id="clearWaypoints" type="button">経由地点をクリア</button>
           </div>
           <div id="waypointStatus" class="waypoint-status">
-            「地図で経由地点を追加」を押してから、地図を走行順にクリックしてください。
+            「走行ルート入力を開始」を押してから、地図を走行順にクリックしてください。
           </div>
           <div id="waypointList" class="waypoint-list"></div>
           <div id="waypointCandidates" class="waypoint-candidates"></div>
-          <div id="waypointMapSlot" class="waypoint-map-slot"></div>
         </section>
-
-        <div id="routeSequence" class="route-sequence"></div>
 
         <div id="routeMapParking" class="route-map-parking">
           <div id="routeMapPanel" class="route-map-panel">
             <div id="routeMapPanelTitle" class="route-map-panel-title">
-              走行区間選択地図
+              実際の走行ルート入力地図
             </div>
 
             <div id="mapInstruction" class="map-instruction">
-              国道を追加すると地図に表示されます。
+              「走行ルート入力を開始」を押し、地図を実際に走った順にクリックしてください。
             </div>
 
-            <div id="routeMap" aria-label="Trip走行区間選択地図"></div>
+            <div id="routeMap" aria-label="Trip実走ルート入力地図"></div>
           </div>
         </div>
+
+        <h4 style="margin-top:18px;">推定・確定した走行国道</h4>
+        <div id="routeSequence" class="route-sequence"></div>
       </section>
 
       <section class="organize-section">
@@ -739,8 +741,8 @@
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
-  <script src="js/trip-data-v36.js?v=20260720-10"></script>
-  <script src="js/trip-v36.js?v=20260720-10"></script>
+  <script src="js/trip-data-v36.js?v=20260720-11"></script>
+  <script src="js/trip-v36.js?v=20260720-11"></script>
 
 </body>
 </html>

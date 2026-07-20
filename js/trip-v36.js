@@ -123,12 +123,16 @@ function refreshWaypointMarkers() {
 
 function mountWaypointMap() {
     const panel = document.getElementById("routeMapPanel");
-    const slot = document.getElementById("waypointMapSlot");
+    const parking = document.getElementById("routeMapParking");
     const title = document.getElementById("routeMapPanelTitle");
-    if (!panel || !slot) return;
+    if (!panel || !parking) return;
     activeMapSegmentIndex = null;
-    title.textContent = "走行順・経由地点指定地図";
-    slot.appendChild(panel);
+    activeMapTitle = "";
+    title.textContent = "実際の走行ルート入力地図";
+    if (panel.parentElement !== parking) {
+        parking.appendChild(panel);
+    }
+    mapInstruction.textContent = "地図を実際に走った順にクリックしてください。地点間の国道候補を推定し、青線で確認できます。";
     window.setTimeout(() => routeMap.invalidateSize(), 80);
 }
 
@@ -201,6 +205,34 @@ async function inferRouteBetweenWaypoints(first, second) {
     return results.slice(0, 3);
 }
 
+async function showWaypointCandidateTrace() {
+    candidateLayerGroup.clearLayers();
+    const bounds = L.latLngBounds();
+
+    waypointRouteCandidates.forEach(item => {
+        const best = item.alternatives && item.alternatives[0];
+        if (!best) return;
+
+        const startPoint = { lat: best.firstNearest.lat, lng: best.firstNearest.lng };
+        const endPoint = { lat: best.secondNearest.lat, lng: best.secondNearest.lng };
+        const section = buildSelectedSection(best.geojson, startPoint, endPoint);
+
+        if (section.length >= 2) {
+            L.polyline(section.map(point => [point.lat, point.lng]), {
+                color: "#2563eb",
+                weight: 7,
+                opacity: 0.9
+            }).addTo(candidateLayerGroup);
+            section.forEach(point => bounds.extend([point.lat, point.lng]));
+        }
+    });
+
+    waypoints.forEach(point => bounds.extend([point.lat, point.lng]));
+    if (bounds.isValid()) {
+        routeMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 11 });
+    }
+}
+
 function renderWaypointCandidates() {
     waypointCandidates.innerHTML = "";
     applyWaypointRoutesButton.disabled = waypointRouteCandidates.length === 0;
@@ -228,6 +260,7 @@ async function inferWaypointRoutes() {
         waypointRouteCandidates.push({ from: waypoints[i], to: waypoints[i + 1], alternatives });
     }
     renderWaypointCandidates();
+    await showWaypointCandidateTrace();
     waypointStatus.textContent = waypointRouteCandidates.length
         ? "候補を作成しました。内容を確認し、問題なければ「候補を走行国道欄へ反映」を押してください。"
         : "国道候補を作成できませんでした。地点を追加・修正してください。";
@@ -523,48 +556,19 @@ function createSegmentCard(segment, segmentIndex) {
     selectGrid.appendChild(createRouteSelect(segment, segmentIndex));
     selectGrid.appendChild(createStatusSelect(segment));
 
-    const pointGrid = document.createElement("div");
-    pointGrid.className = "point-grid";
-    pointGrid.appendChild(
-        createPointBox(
-            "開始地点",
-            segment.startPoint,
-            "地図から指定",
-            function () {
-                beginPointSelection("start", segmentIndex);
-            }
-        )
-    );
-    pointGrid.appendChild(
-        createPointBox(
-            "終了地点",
-            segment.endPoint,
-            "地図から指定",
-            function () {
-                beginPointSelection("end", segmentIndex);
-            }
-        )
-    );
+    const note = document.createElement("p");
+    note.className = "route-card-confirm-note";
+    if (segment.status === "complete") {
+        note.textContent = "全線走破として記録します。";
+    } else if (Array.isArray(segment.confirmedPath) && segment.confirmedPath.length >= 2) {
+        note.textContent = `1枚地図で確定した走破区間を保存済み（${segment.confirmedPath.length}点）`;
+    } else {
+        note.textContent = "一部走破区間は上の1枚地図から走行順を入力して確定します。";
+    }
 
-    card.dataset.segmentIndex = String(segmentIndex);
-
-    const editorGrid = document.createElement("div");
-    editorGrid.className = "route-segment-editor-grid";
-
-    const controls = document.createElement("div");
-    controls.className = "route-segment-controls";
-    controls.appendChild(title);
-    controls.appendChild(selectGrid);
-    controls.appendChild(pointGrid);
-
-    const mapSlot = document.createElement("div");
-    mapSlot.className = "route-inline-map-slot";
-    mapSlot.dataset.segmentIndex = String(segmentIndex);
-    mapSlot.hidden = activeMapSegmentIndex !== segmentIndex;
-
-    editorGrid.appendChild(controls);
-    editorGrid.appendChild(mapSlot);
-    card.appendChild(editorGrid);
+    card.appendChild(title);
+    card.appendChild(selectGrid);
+    card.appendChild(note);
 
     return card;
 }
@@ -690,25 +694,10 @@ function renderRouteSequence() {
     routeSequence.innerHTML = "";
 
     routeSegments.forEach((segment, segmentIndex) => {
-
         routeSequence.appendChild(
             createSegmentCard(segment, segmentIndex)
         );
-
-        if (segmentIndex < routeSegments.length - 1) {
-            routeSequence.appendChild(
-                createConnectionCard(segmentIndex)
-            );
-        }
     });
-
-    if (
-        activeMapSegmentIndex !== null &&
-        activeMapSegmentIndex >= 0 &&
-        activeMapSegmentIndex < routeSegments.length
-    ) {
-        mountSelectionMap(activeMapSegmentIndex, activeMapTitle);
-    }
 }
 
 
@@ -749,6 +738,7 @@ function parkSelectionMap() {
     if (panel && parking && panel.parentElement !== parking) {
         parking.appendChild(panel);
     }
+    activeMapSegmentIndex = null;
 }
 
 
