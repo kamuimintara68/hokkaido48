@@ -608,13 +608,13 @@
             士別 → 旭川 → 深川 → 秩父別のように、下の地図を実際に走った順にクリックします。自動推定した国道区間は青線で表示し、確認後に走行国道一覧へ反映します。
           </p>
           <div class="waypoint-actions">
-            <button id="startWaypointMode" type="button">走行ルート入力を開始</button>
+            <button id="startWaypointMode" type="button">地図入力モードを再開</button>
             <button id="inferWaypointRoutes" type="button">国道候補を自動推定</button>
             <button id="applyWaypointRoutes" type="button" disabled>候補を走行国道欄へ反映</button>
             <button id="clearWaypoints" type="button">経由地点をクリア</button>
           </div>
           <div id="waypointStatus" class="waypoint-status">
-            「走行ルート入力を開始」を押してから、地図を走行順にクリックしてください。
+            地図を実際の走行順にクリックしてください。クリックするたびに経由地点が追加されます。
           </div>
           <div id="waypointList" class="waypoint-list"></div>
           <div id="waypointCandidates" class="waypoint-candidates"></div>
@@ -627,7 +627,7 @@
             </div>
 
             <div id="mapInstruction" class="map-instruction">
-              「走行ルート入力を開始」を押し、地図を実際に走った順にクリックしてください。
+              地図を実際に走った順にクリックしてください。
             </div>
 
             <div id="routeMap" aria-label="Trip実走ルート入力地図"></div>
@@ -742,7 +742,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
   <script src="js/trip-data-v36.js?v=20260720-11"></script>
-  <script src="js/trip-v36.js?v=20260720-11"></script>
+  <script src="js/trip-v36.js?v=20260720-12"></script>
 
 </body>
 </html>

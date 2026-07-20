@@ -33,7 +33,7 @@ let selectionMode = null;
 let mapRefreshToken = 0;
 let activeMapSegmentIndex = null;
 let activeMapTitle = "";
-let waypointMode = false;
+let waypointMode = true;
 let waypoints = [];
 let waypointRouteCandidates = [];
 
@@ -2121,7 +2121,7 @@ document
 document
     .getElementById("clearWaypoints")
     .addEventListener("click", function () {
-        waypointMode = false;
+        waypointMode = true;
         waypoints = [];
         waypointRouteCandidates = [];
         waypointLayerGroup.clearLayers();
@@ -2187,6 +2187,13 @@ async function initialize() {
     } else {
         refreshRouteBuilder(true);
     }
+
+    // 1枚地図は常に走行ルート入力モードで利用する。
+    selectionMode = null;
+    waypointMode = true;
+    mountWaypointMap();
+    waypointStatus.textContent = "地図を実際の走行順にクリックしてください。クリックするたびに経由地点が追加されます。";
+    await showAllRoutesForWaypointPlanner();
 
     setTimeout(function () {
         routeMap.invalidateSize();
