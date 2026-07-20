@@ -228,21 +228,21 @@
   }
 
   function render(items, gpxCount, textLength) {
-    const visible = items.filter(item => item.confidence !== "除外").sort((a, b) => b.score - a.score);
-    const auto = visible.filter(item => item.confidence === "自動採用候補");
-    const review = visible.filter(item => item.confidence === "要確認");
+    const auto = items
+      .filter(item => item.confidence === "自動採用候補")
+      .sort((a, b) => b.score - a.score);
 
     summary.innerHTML = `<p><strong>解析結果：</strong> GPX ${gpxCount.toLocaleString("ja-JP")}点／文字起こし ${textLength.toLocaleString("ja-JP")}文字</p>` +
-      `<p><strong>自動採用候補 ${auto.length}路線</strong> ／ 要確認 ${review.length}路線。大まかな走行ルートを優先し、要確認だけ人間が見る設計です。</p>`;
+      `<p><strong>走行国道 ${auto.length}路線を自動判定しました。</strong> 大まかな実走ルートを優先し、低確信候補は通常画面には表示しません。</p>`;
 
-    if (!visible.length) {
-      results.innerHTML = "<p>走行国道候補を特定できませんでした。</p>";
+    if (!auto.length) {
+      results.innerHTML = "<p>走行国道を自動判定できませんでした。</p>";
       ensureSaveButton().disabled = true;
       return;
     }
 
-    results.innerHTML = visible.map(item => {
-      const badge = item.confidence === "自動採用候補" ? "✅ 自動採用候補" : "⚠️ 要確認";
+    results.innerHTML = auto.map(item => {
+      const badge = "✅ 自動判定";
       const textEvidence = item.explicitMentions
         ? `TXT国道番号 ${item.explicitMentions}回`
         : (item.placeHits.length ? `TXT地名 ${item.placeHits.join("・")}` : "TXT直接根拠なし");
@@ -306,8 +306,8 @@
       generatedAt: new Date().toISOString(),
       source: "GPX＋文字起こし自動走行判定",
       policy: "coarse-route-first",
-      autoAccepted: latestJudgement.filter(x => x.confidence === "自動採用候補"),
-      needsReview: latestJudgement.filter(x => x.confidence === "要確認")
+      autoAccepted: latestJudgement,
+      needsReview: []
     };
 
     read.trips[index] = {
@@ -351,9 +351,9 @@
         if (item) scored.push(item);
       }
 
-      latestJudgement = scored.filter(item => item.confidence !== "除外");
+      latestJudgement = scored.filter(item => item.confidence === "自動採用候補");
       render(scored, allPoints.length, transcriptText.length);
-      status.textContent = "自動判定が完了しました。自動採用候補と要確認だけを表示しています。";
+      status.textContent = `自動判定が完了しました。走行国道 ${latestJudgement.length}路線を表示しています。`;
     } catch (error) {
       console.error("GPX＋TXT自動走行判定エラー:", error);
       status.textContent = `自動判定に失敗しました：${error.message || error}`;
