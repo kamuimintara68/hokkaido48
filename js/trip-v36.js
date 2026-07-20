@@ -27,6 +27,8 @@ let routesMaster = [];
 let routeSegments = [];
 let selectionMode = null;
 let mapRefreshToken = 0;
+let activeMapSegmentIndex = null;
+let activeMapTitle = "";
 
 const geojsonCache = new Map();
 const connectionCache = new Map();
@@ -44,6 +46,7 @@ const routeLayerGroup = L.layerGroup().addTo(routeMap);
 const selectedSectionLayerGroup = L.layerGroup().addTo(routeMap);
 const pointLayerGroup = L.layerGroup().addTo(routeMap);
 const candidateLayerGroup = L.layerGroup().addTo(routeMap);
+const contextLabelLayerGroup = L.layerGroup().addTo(routeMap);
 
 const routeColors = [
     "#2563eb",
@@ -323,9 +326,25 @@ function createSegmentCard(segment, segmentIndex) {
         )
     );
 
-    card.appendChild(title);
-    card.appendChild(selectGrid);
-    card.appendChild(pointGrid);
+    card.dataset.segmentIndex = String(segmentIndex);
+
+    const editorGrid = document.createElement("div");
+    editorGrid.className = "route-segment-editor-grid";
+
+    const controls = document.createElement("div");
+    controls.className = "route-segment-controls";
+    controls.appendChild(title);
+    controls.appendChild(selectGrid);
+    controls.appendChild(pointGrid);
+
+    const mapSlot = document.createElement("div");
+    mapSlot.className = "route-inline-map-slot";
+    mapSlot.dataset.segmentIndex = String(segmentIndex);
+    mapSlot.hidden = activeMapSegmentIndex !== segmentIndex;
+
+    editorGrid.appendChild(controls);
+    editorGrid.appendChild(mapSlot);
+    card.appendChild(editorGrid);
 
     return card;
 }
@@ -447,6 +466,7 @@ function createConnectionCard(segmentIndex) {
 
 function renderRouteSequence() {
 
+    parkSelectionMap();
     routeSequence.innerHTML = "";
 
     routeSegments.forEach((segment, segmentIndex) => {
@@ -461,6 +481,14 @@ function renderRouteSequence() {
             );
         }
     });
+
+    if (
+        activeMapSegmentIndex !== null &&
+        activeMapSegmentIndex >= 0 &&
+        activeMapSegmentIndex < routeSegments.length
+    ) {
+        mountSelectionMap(activeMapSegmentIndex, activeMapTitle);
+    }
 }
 
 
@@ -493,20 +521,56 @@ function clearAllConnections() {
 
 
 
-function focusSelectionMap() {
+function parkSelectionMap() {
 
-    const mapElement = document.getElementById("routeMap");
+    const panel = document.getElementById("routeMapPanel");
+    const parking = document.getElementById("routeMapParking");
 
-    if (mapElement) {
-        mapElement.scrollIntoView({
+    if (panel && parking && panel.parentElement !== parking) {
+        parking.appendChild(panel);
+    }
+}
+
+
+function mountSelectionMap(segmentIndex, titleText) {
+
+    const panel = document.getElementById("routeMapPanel");
+    const slot = document.querySelector(
+        `.route-inline-map-slot[data-segment-index="${segmentIndex}"]`
+    );
+    const panelTitle = document.getElementById("routeMapPanelTitle");
+
+    if (!panel || !slot) {
+        return;
+    }
+
+    activeMapSegmentIndex = segmentIndex;
+    activeMapTitle = titleText || "";
+    panelTitle.textContent = activeMapTitle;
+    slot.hidden = false;
+    slot.appendChild(panel);
+
+    window.setTimeout(function () {
+        routeMap.invalidateSize();
+    }, 80);
+}
+
+
+function focusSelectionMap(segmentIndex, titleText) {
+
+    mountSelectionMap(segmentIndex, titleText);
+    refreshRouteMap(true);
+
+    const slot = document.querySelector(
+        `.route-inline-map-slot[data-segment-index="${segmentIndex}"]`
+    );
+
+    if (slot) {
+        slot.scrollIntoView({
             behavior: "smooth",
             block: "center"
         });
     }
-
-    window.setTimeout(function () {
-        routeMap.invalidateSize();
-    }, 250);
 }
 
 
@@ -522,13 +586,13 @@ function beginPointSelection(type, segmentIndex) {
 
     if (type === "start" && segmentIndex > 0) {
 
-        beginConnectionSelection(segmentIndex - 1);
+        beginConnectionSelection(segmentIndex - 1, segmentIndex);
         return;
     }
 
     if (type === "end" && segmentIndex < routeSegments.length - 1) {
 
-        beginConnectionSelection(segmentIndex);
+        beginConnectionSelection(segmentIndex, segmentIndex);
         return;
     }
 
@@ -541,11 +605,14 @@ function beginPointSelection(type, segmentIndex) {
         `【選択中】国道${segment.routeNumber}号の` +
         `${type === "start" ? "開始" : "終了"}地点付近を地図で選択してください。`;
 
-    focusSelectionMap();
+    focusSelectionMap(
+        segmentIndex,
+        `国道${segment.routeNumber}号 ${type === "start" ? "開始地点" : "終了地点"}を選択`
+    );
 }
 
 
-function beginConnectionSelection(segmentIndex) {
+function beginConnectionSelection(segmentIndex, displaySegmentIndex = segmentIndex) {
 
     const firstSegment = routeSegments[segmentIndex];
     const secondSegment = routeSegments[segmentIndex + 1];
@@ -559,7 +626,10 @@ function beginConnectionSelection(segmentIndex) {
         `【選択中】国道${firstSegment.routeNumber}号から国道${secondSegment.routeNumber}号へ` +
         "乗り換えた地点付近を地図で選択してください。";
 
-    focusSelectionMap();
+    focusSelectionMap(
+        displaySegmentIndex,
+        `国道${firstSegment.routeNumber}号 → 国道${secondSegment.routeNumber}号 接続地点を選択`
+    );
 }
 
 
@@ -1133,8 +1203,142 @@ async function refreshRouteMap(shouldFit) {
     routeLayerGroup.clearLayers();
     selectedSectionLayerGroup.clearLayers();
     pointLayerGroup.clearLayers();
+    contextLabelLayerGroup.clearLayers();
 
     const bounds = L.latLngBounds();
+
+    if (
+        activeMapSegmentIndex !== null &&
+        routeSegments[activeMapSegmentIndex] &&
+        routeSegments[activeMapSegmentIndex].routeNumber
+    ) {
+
+        const selectedSegment = routeSegments[activeMapSegmentIndex];
+        const selectedNumber = String(selectedSegment.routeNumber);
+
+        const loadTasks = routesMaster.map(async route => {
+
+            const routeNumber = String(route.number);
+
+            try {
+                const geojson = await loadRouteGeojson(routeNumber);
+
+                if (currentToken !== mapRefreshToken) {
+                    return;
+                }
+
+                const isSelected = routeNumber === selectedNumber;
+                const layer = L.geoJSON(
+                    geojson,
+                    {
+                        style: {
+                            color: isSelected ? "#2563eb" : "#64748b",
+                            weight: isSelected ? 9 : 3,
+                            opacity: isSelected ? 1 : 0.5
+                        },
+                        interactive: false
+                    }
+                ).addTo(routeLayerGroup);
+
+                const layerBounds = layer.getBounds();
+
+                if (layerBounds.isValid()) {
+                    const center = layerBounds.getCenter();
+
+                    L.marker(
+                        center,
+                        {
+                            interactive: false,
+                            icon: L.divIcon({
+                                className: "route-number-map-label",
+                                html: `<span>国道${routeNumber}号</span>`,
+                                iconSize: null
+                            })
+                        }
+                    ).addTo(contextLabelLayerGroup);
+
+                    if (isSelected) {
+                        bounds.extend(layerBounds);
+                    }
+                }
+
+            } catch (error) {
+                console.error(`国道${routeNumber}号の地図読込エラー:`, error);
+            }
+        });
+
+        await Promise.all(loadTasks);
+
+        if (currentToken !== mapRefreshToken) {
+            return;
+        }
+
+        if (selectedSegment.status === "complete") {
+            try {
+                const selectedGeojson = await loadRouteGeojson(selectedNumber);
+                L.geoJSON(
+                    selectedGeojson,
+                    {
+                        style: {
+                            color: "#2563eb",
+                            weight: 10,
+                            opacity: 1
+                        },
+                        interactive: false
+                    }
+                ).addTo(selectedSectionLayerGroup);
+            } catch (error) {
+                console.error("選択路線強調表示エラー:", error);
+            }
+        } else {
+            try {
+                const selectedGeojson = await loadRouteGeojson(selectedNumber);
+                const selectedSection = buildSelectedSection(
+                    selectedGeojson,
+                    selectedSegment.startPoint,
+                    selectedSegment.endPoint
+                );
+
+                if (selectedSection.length >= 2) {
+                    L.polyline(
+                        selectedSection,
+                        {
+                            color: "#06b6d4",
+                            weight: 11,
+                            opacity: 1
+                        }
+                    ).addTo(selectedSectionLayerGroup);
+                }
+            } catch (error) {
+                console.error("選択区間表示エラー:", error);
+            }
+        }
+
+        addPointMarker(
+            selectedSegment.startPoint,
+            `国道${selectedNumber}号 開始地点`,
+            "#15803d"
+        );
+        addPointMarker(
+            selectedSegment.endPoint,
+            `国道${selectedNumber}号 終了地点`,
+            "#b91c1c"
+        );
+
+        if (shouldFit && bounds.isValid()) {
+            routeMap.fitBounds(bounds, {
+                padding: [28, 28],
+                maxZoom: 11
+            });
+        }
+
+        if (selectionMode && selectionMode.type === "connection") {
+            refreshCandidateMarkers();
+        } else {
+            candidateLayerGroup.clearLayers();
+        }
+        return;
+    }
 
     const loadTasks = routeSegments.map(async (segment, segmentIndex) => {
 
