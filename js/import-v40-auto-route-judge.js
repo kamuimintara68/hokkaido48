@@ -226,6 +226,16 @@
     saveButton.className = "primary";
     saveButton.style.marginTop = "12px";
     saveButton.textContent = "この自動判定結果を対象Tripへ保存";
+    let confirmButton = document.getElementById("confirmAutoRouteJudgeButton");
+    if (!confirmButton) {
+      confirmButton = document.createElement("button");
+      confirmButton.id = "confirmAutoRouteJudgeButton";
+      confirmButton.type = "button";
+      confirmButton.textContent = "この結果で一括確定";
+      confirmButton.style.marginLeft = "8px";
+      saveButton.insertAdjacentElement("afterend", confirmButton);
+      confirmButton.addEventListener("click", confirmLatestJudgement);
+    }
     saveButton.disabled = true;
     results.parentElement.append(saveButton);
     saveButton.addEventListener("click", saveJudgementToTrip);
@@ -367,5 +377,33 @@
     }
   }
 
-  button.addEventListener("click", run);
+  
+  async function confirmLatestJudgement() {
+    if (!latestJudgement || !latestJudgement.length) {
+      status.textContent = "先にGPX＋TXTで走行国道を自動判定してください。";
+      return;
+    }
+    const tripSelect = document.getElementById("existingTripSelect") || document.getElementById("targetTripSelect");
+    const tripId = tripSelect && tripSelect.value ? tripSelect.value : "latest";
+    const payload = {
+      confirmedAt: new Date().toISOString(),
+      source: "gpx+txt-auto-route-judge",
+      status: "confirmed",
+      routes: latestJudgement.map(item => ({
+        routeNumber: String(item.routeNumber || item.number || ""),
+        score: item.score,
+        confirmedPath: item.estimatedPath || item.confirmedPath || [],
+        evidence: {
+          gpxNear: item.hard,
+          continuousMatch: item.maxRun,
+          txtRouteMentions: item.explicitMentions || 0,
+          txtPlaceHits: item.placeHits || []
+        }
+      }))
+    };
+    localStorage.setItem("hokkaido48_auto_route_confirmed_" + tripId, JSON.stringify(payload));
+    status.textContent = `自動判定 ${payload.routes.length}路線を一括確定しました。`;
+  }
+
+button.addEventListener("click", run);
 })();
