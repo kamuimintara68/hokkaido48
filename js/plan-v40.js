@@ -556,6 +556,98 @@ async function downloadPlannedGpx(plan, button) {
   }
 }
 
+function calculateTrackDistanceKm(points) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+
+  let meters = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    meters += distanceMeters(points[index - 1], points[index]);
+  }
+  return meters / 1000;
+}
+
+function thinTrackPoints(points, maxPoints = 1800) {
+  if (!Array.isArray(points) || points.length <= maxPoints) {
+    return Array.isArray(points) ? points.slice() : [];
+  }
+
+  const thinned = [];
+  for (let index = 0; index < maxPoints; index += 1) {
+    const sourceIndex = Math.round(index * (points.length - 1) / (maxPoints - 1));
+    thinned.push(points[sourceIndex]);
+  }
+  return dedupeAdjacent(thinned);
+}
+
+async function previewPlannedTrack(plan, button) {
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "予定経路を作成中…";
+
+  try {
+    const track = await buildPlannedTrack(plan);
+
+    if (!Array.isArray(track.points) || track.points.length < 2) {
+      throw new Error("予定経路の座標を作成できませんでした。");
+    }
+
+    const normalized = normalizePlanForGuidance(plan);
+    const current = readActivePlan();
+    const basePlan = current && current.id === normalized.id
+      ? current
+      : {
+          schemaVersion: 1,
+          selectedAt: new Date().toISOString(),
+          id: normalized.id,
+          planName: normalized.planName,
+          targetRoutes: normalized.routeNumbers.map(number => `国道${number}号`).join(" → "),
+          routeNumbers: normalized.routeNumbers,
+          origin: normalized.origin,
+          destination: normalized.destination,
+          waypoints: normalized.waypoints,
+          source: "data/travel_plans.xlsx"
+        };
+
+    const distanceKm = calculateTrackDistanceKm(track.points);
+    const previewPoints = thinTrackPoints(track.points).map(point => [
+      Number(point.lat.toFixed(7)),
+      Number(point.lng.toFixed(7))
+    ]);
+
+    const updated = {
+      ...basePlan,
+      selectedAt: basePlan.selectedAt || new Date().toISOString(),
+      plannedPreview: {
+        version: 1,
+        name: track.name,
+        routeNumbers: track.routeNumbers,
+        distanceKm: Number(distanceKm.toFixed(1)),
+        originalPointCount: track.points.length,
+        previewPointCount: previewPoints.length,
+        generatedAt: new Date().toISOString(),
+        points: previewPoints
+      }
+    };
+
+    localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(updated));
+    window.location.href = "index.html?planned=1";
+  } catch (error) {
+    console.error("予定経路プレビュー作成エラー:", error);
+    alert(`予定経路を作成できませんでした：${error.message || error}`);
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
+function createPreviewButton(plan, label = "予定経路を作成・確認") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "select-plan-button";
+  button.textContent = label;
+  button.addEventListener("click", () => previewPlannedTrack(plan, button));
+  return button;
+}
+
 function createGpxButton(plan, label = "OsmAnd用予定GPXを書き出す") {
   const button = document.createElement("button");
   button.type = "button";
@@ -668,18 +760,16 @@ function renderActivePlan() {
   activePlanContent.append(name, routes, section);
 
   activePlanActions.appendChild(
+    createPreviewButton(active, "予定経路を作成・確認")
+  );
+
+  activePlanActions.appendChild(
     createGpxButton(active, "OsmAnd用予定GPXを書き出す")
   );
 
   activePlanActions.appendChild(
     createGoogleMapButton(active, "Googleマップで参考表示")
   );
-
-  const systemMapLink = document.createElement("a");
-  systemMapLink.className = "action-link";
-  systemMapLink.href = "index.html";
-  systemMapLink.textContent = "システム地図で予定路線を見る";
-  activePlanActions.appendChild(systemMapLink);
 
   activePlanActions.appendChild(
     createButton("今回のプラン選択を解除", "clear-plan-button", clearActivePlan)
@@ -715,6 +805,10 @@ function createPlanCard(plan) {
 
   const actions = document.createElement("div");
   actions.className = "plan-actions";
+
+  actions.appendChild(
+    createPreviewButton(toActivePlan(plan), "予定経路を作成・確認")
+  );
 
   actions.appendChild(
     createGpxButton(toActivePlan(plan), "OsmAnd用予定GPXを書き出す")

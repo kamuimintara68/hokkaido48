@@ -19,6 +19,12 @@
     const header = document.querySelector(".header");
     if (!header || !header.parentNode) return;
 
+    const preview = plan && plan.plannedPreview;
+    const hasPreview =
+      preview &&
+      Array.isArray(preview.points) &&
+      preview.points.length >= 2;
+
     const banner = document.createElement("div");
     banner.style.cssText =
       "margin:0 18px 12px;padding:10px 14px;border:2px solid #7c3aed;" +
@@ -28,8 +34,18 @@
       ? plan.routeNumbers.map(number => `国道${number}号`).join(" → ")
       : (plan.targetRoutes || "予定路線未登録");
 
+    const distanceText =
+      hasPreview && Number.isFinite(Number(preview.distanceKm))
+        ? ` ／ 生成経路：約${Number(preview.distanceKm).toFixed(1)}km`
+        : "";
+
+    const lineText = hasPreview
+      ? "紫実線＝OsmAnd用予定経路"
+      : "紫破線＝対象国道（予定経路は未生成）";
+
     const text = document.createElement("span");
-    text.textContent = `今回の予定：${plan.planName || "名称未登録"} ／ ${routeText} ／ 紫破線＝予定路線`;
+    text.textContent =
+      `今回の予定：${plan.planName || "名称未登録"} ／ ${routeText}${distanceText} ／ ${lineText}`;
     banner.appendChild(text);
 
     const links = document.createElement("span");
@@ -37,7 +53,7 @@
 
     const change = document.createElement("a");
     change.href = "plan.html";
-    change.textContent = "プラン変更";
+    change.textContent = hasPreview ? "予定経路を作り直す" : "旅行計画へ";
     change.style.cssText = "margin-left:10px;color:#2563eb;";
     links.appendChild(change);
 
@@ -46,13 +62,42 @@
       google.href = plan.googleMapsUrl;
       google.target = "_blank";
       google.rel = "noopener";
-      google.textContent = "Googleマップ";
+      google.textContent = "Googleマップ参考表示";
       google.style.cssText = "margin-left:10px;color:#2563eb;";
       links.appendChild(google);
     }
 
     banner.appendChild(links);
     header.insertAdjacentElement("afterend", banner);
+  }
+
+  function loadPlannedPreview(plan) {
+    if (typeof map === "undefined" || !window.L) return false;
+
+    const preview = plan && plan.plannedPreview;
+    if (!preview || !Array.isArray(preview.points) || preview.points.length < 2) {
+      return false;
+    }
+
+    const latLngs = preview.points
+      .map(point => [Number(point[0]), Number(point[1])])
+      .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+
+    if (latLngs.length < 2) return false;
+
+    const line = L.polyline(latLngs, {
+      color: "#7c3aed",
+      weight: 8,
+      opacity: 0.88,
+      interactive: false
+    }).addTo(map);
+
+    const bounds = line.getBounds();
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [24, 24], maxZoom: 10 });
+    }
+
+    return true;
   }
 
   async function loadPlannedRoutes(plan) {
@@ -97,5 +142,8 @@
   if (!plan) return;
 
   addBanner(plan);
-  loadPlannedRoutes(plan);
+  const previewLoaded = loadPlannedPreview(plan);
+  if (!previewLoaded) {
+    loadPlannedRoutes(plan);
+  }
 })();
