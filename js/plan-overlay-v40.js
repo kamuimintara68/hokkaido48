@@ -34,26 +34,19 @@
       ? plan.routeNumbers.map(number => `国道${number}号`).join(" → ")
       : (plan.targetRoutes || "予定路線未登録");
 
-    const isRoutePoints = hasPreview && preview.kind === "route-points";
-    const anchorCount =
-      isRoutePoints && Array.isArray(preview.anchors)
-        ? preview.anchors.length
-        : 0;
+    const isFullTrack = hasPreview && preview.kind === "full-track";
 
-    const distanceText = isRoutePoints
-      ? ` ／ OsmAnd経由点：${anchorCount}点`
-      : (
-          hasPreview && Number.isFinite(Number(preview.distanceKm))
-            ? ` ／ 生成経路：約${Number(preview.distanceKm).toFixed(1)}km`
-            : ""
-        );
+    const distanceText =
+      hasPreview && Number.isFinite(Number(preview.distanceKm))
+        ? ` ／ 予定Track：約${Number(preview.distanceKm).toFixed(1)}km`
+        : "";
 
-    const lineText = isRoutePoints
-      ? "紫点線＝OsmAndへ渡す経由点（実道路経路はOsmAndで計算）"
+    const lineText = isFullTrack
+      ? "紫実線＝始点から終点までの予定GPX Track"
       : (
           hasPreview
-            ? "紫実線＝OsmAnd用予定経路"
-            : "紫破線＝対象国道（予定経路は未生成）"
+            ? "紫実線＝予定経路"
+            : "紫破線＝対象国道（予定Trackは未生成）"
         );
 
     const text = document.createElement("span");
@@ -70,12 +63,12 @@
     change.style.cssText = "margin-left:10px;color:#2563eb;";
     links.appendChild(change);
 
-    if (plan.osmandWebUrl) {
+    if (hasPreview) {
       const osmand = document.createElement("a");
-      osmand.href = plan.osmandWebUrl;
+      osmand.href = "https://osmand.net/map/";
       osmand.target = "_blank";
       osmand.rel = "noopener";
-      osmand.textContent = "OsmAnd Webで実経路を確認";
+      osmand.textContent = "OsmAnd Webを開く";
       osmand.style.cssText = "margin-left:10px;color:#2563eb;";
       links.appendChild(osmand);
     }

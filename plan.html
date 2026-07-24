@@ -44,7 +44,7 @@
 <body>
   <header class="page-header">
     <h1>北海道48路線ふらふらlog 旅行計画</h1>
-    <p>① 出発前計画／地名を国道上へ自動配置 → OsmAndで道路経路計算 → GPX → 実走</p>
+    <p>① 出発前計画／AIが始点から終点まで連続Trackを生成 → GPX → OsmAnd → 実走</p>
   </header>
   <main class="main">
     <a class="back-link" href="index.html">← 地図へ戻る</a>
@@ -59,7 +59,7 @@
 
     <div class="source-note">
       計画の編集元はExcelです。既存のExcelはそのまま使用できます。
-      「AI経路を作成・OsmAndで確認」で対象国道上に約22km間隔の固定通過点まで自動生成します。OsmAnd Webで確認・調整後、Cloudへ保存してiPhoneと共有する運用です。
+      「AI予定Trackを作成・確認」で全行程ルートに沿った連続GPX Trackを約250m間隔で生成します。Trackそのものをシステム地図で確認し、GPXをOsmAnd Webへ取り込んでCloud保存する運用です。
     </div>
 
     <div class="plan-summary">
@@ -71,8 +71,8 @@
     </section>
   </main>
 
-  <div class="build-badge">Version 4.0 Build 20260724-12</div>
+  <div class="build-badge">Version 4.0 Build 20260724-13</div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="js/plan-v40.js?v=20260724-12"></script>
+  <script src="js/plan-v40.js?v=20260724-13"></script>
 </body>
 </html>

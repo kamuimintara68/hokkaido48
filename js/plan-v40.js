@@ -38,6 +38,31 @@ function parseWaypoints(value) {
     .slice(0, 9);
 }
 
+
+function parseFullRouteSpec(value) {
+  return text(value)
+    .normalize("NFKC")
+    .split(/[→>\n\r]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map((item, index) => {
+      const match = item.match(/^(?:国道)?\s*(\d+)\s*号?\s*[:：]\s*(.+)$/);
+      if (!match) {
+        throw new Error(`全行程ルートの${index + 1}区間を読めません: ${item}`);
+      }
+      return {
+        routeNumber: String(Number(match[1])),
+        endPlace: text(match[2])
+      };
+    });
+}
+
+function fullRouteSpecText(legs) {
+  return legs
+    .map(leg => `国道${leg.routeNumber}号:${leg.endPlace}`)
+    .join(" → ");
+}
+
 const routeGeometryCache = new Map();
 
 function normalizePlanForGuidance(plan) {
@@ -48,7 +73,8 @@ function normalizePlanForGuidance(plan) {
       routeNumbers: plan.routeNumbers.map(value => String(Number(value))).filter(Boolean),
       origin: text(plan.origin),
       destination: text(plan.destination),
-      waypoints: Array.isArray(plan.waypoints) ? plan.waypoints.map(text).filter(Boolean) : []
+      waypoints: Array.isArray(plan.waypoints) ? plan.waypoints.map(text).filter(Boolean) : [],
+      fullRouteSpec: text(plan.fullRouteSpec)
     };
   }
 
@@ -58,7 +84,8 @@ function normalizePlanForGuidance(plan) {
     routeNumbers: parseRouteNumbers(plan["対象路線"]),
     origin: text(plan["始点"]),
     destination: text(plan["終点"]),
-    waypoints: parseWaypoints(plan["経由地"])
+    waypoints: parseWaypoints(plan["経由地"]),
+    fullRouteSpec: text(plan["全行程ルート"])
   };
 }
 
@@ -519,6 +546,312 @@ async function resolveDestinationAnchor(normalized, routeMap) {
     snapDistanceKm: Number((best.snapDistanceMeters / 1000).toFixed(2))
   };
 }
+
+
+
+function uniqueRouteNumbersFromLegs(legs) {
+  return [...new Set(legs.map(leg => leg.routeNumber))];
+}
+
+function nearestRoutePointWithIndex(route, target) {
+  let best = null;
+  route.forEach((point, index) => {
+    const distance = distanceMeters(point, target);
+    if (!best || distance < best.distanceMeters) {
+      best = {
+        index,
+        lat: point.lat,
+        lng: point.lng,
+        distanceMeters: distance
+      };
+    }
+  });
+  return best;
+}
+
+function routeCandidatesNearContext(route, contextPoint, maximum = 180) {
+  return route
+    .map((point, index) => ({
+      index,
+      lat: point.lat,
+      lng: point.lng,
+      contextDistance: distanceMeters(point, contextPoint)
+    }))
+    .sort((a, b) => a.contextDistance - b.contextDistance)
+    .slice(0, maximum);
+}
+
+function findTransitionNearContext(routeA, routeB, contextPoint) {
+  const candidatesA = routeCandidatesNearContext(routeA, contextPoint);
+  const candidatesB = routeCandidatesNearContext(routeB, contextPoint);
+
+  let best = null;
+
+  candidatesA.forEach(a => {
+    candidatesB.forEach(b => {
+      const pairDistance = distanceMeters(a, b);
+      const contextDistance =
+        (a.contextDistance + b.contextDistance) / 2;
+
+      // 国道同士の近さを最優先しつつ、指定された切替地域から
+      // 遠い「別の交差・重複区間」を選ばない。
+      const score = pairDistance * 8 + contextDistance;
+
+      if (!best || score < best.score) {
+        best = {
+          aIndex: a.index,
+          bIndex: b.index,
+          aPoint: { lat: a.lat, lng: a.lng },
+          bPoint: { lat: b.lat, lng: b.lng },
+          pairDistance,
+          contextDistance,
+          score
+        };
+      }
+    });
+  });
+
+  return best;
+}
+
+function routeSection(route, startIndex, endIndex) {
+  if (startIndex <= endIndex) {
+    return route.slice(startIndex, endIndex + 1);
+  }
+  return route.slice(endIndex, startIndex + 1).reverse();
+}
+
+function interpolatePoint(a, b, ratio) {
+  return {
+    lat: Number(a.lat) + (Number(b.lat) - Number(a.lat)) * ratio,
+    lng: Number(a.lng) + (Number(b.lng) - Number(a.lng)) * ratio
+  };
+}
+
+function resamplePolyline(points, spacingMeters = 250) {
+  if (!Array.isArray(points) || points.length < 2) return points || [];
+
+  const output = [{
+    lat: Number(points[0].lat),
+    lng: Number(points[0].lng)
+  }];
+
+  let distanceSinceLast = 0;
+
+  for (let index = 1; index < points.length; index += 1) {
+    let segmentStart = {
+      lat: Number(points[index - 1].lat),
+      lng: Number(points[index - 1].lng)
+    };
+    const segmentEnd = {
+      lat: Number(points[index].lat),
+      lng: Number(points[index].lng)
+    };
+
+    let segmentMeters = distanceMeters(segmentStart, segmentEnd);
+
+    while (
+      segmentMeters > 0 &&
+      distanceSinceLast + segmentMeters >= spacingMeters
+    ) {
+      const needed = spacingMeters - distanceSinceLast;
+      const ratio = Math.min(1, needed / segmentMeters);
+      const inserted = interpolatePoint(segmentStart, segmentEnd, ratio);
+
+      output.push(inserted);
+      segmentStart = inserted;
+      segmentMeters = distanceMeters(segmentStart, segmentEnd);
+      distanceSinceLast = 0;
+    }
+
+    distanceSinceLast += segmentMeters;
+  }
+
+  const last = points[points.length - 1];
+  const previous = output[output.length - 1];
+
+  if (distanceMeters(previous, last) > 10) {
+    output.push({
+      lat: Number(last.lat),
+      lng: Number(last.lng)
+    });
+  }
+
+  return output;
+}
+
+function appendTrackPoints(target, points) {
+  points.forEach(point => {
+    const normalized = {
+      lat: Number(point.lat),
+      lng: Number(point.lng)
+    };
+
+    const previous = target[target.length - 1];
+    if (previous && distanceMeters(previous, normalized) < 3) return;
+
+    target.push(normalized);
+  });
+}
+
+function trackDistanceKm(points) {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += distanceMeters(points[index - 1], points[index]);
+  }
+  return total / 1000;
+}
+
+async function geocodeOnePlace(place) {
+  const candidates = await geocodePlaceCandidates(place);
+  if (!candidates.length) {
+    throw new Error(`「${place}」の位置が見つかりませんでした。`);
+  }
+  return candidates[0];
+}
+
+async function buildFullTrackPlan(plan) {
+  const normalized = normalizePlanForGuidance(plan);
+  const legs = parseFullRouteSpec(normalized.fullRouteSpec);
+
+  if (!legs.length) {
+    throw new Error(
+      "全行程ルートが未登録です。始点から終点までの全行程を登録してください。"
+    );
+  }
+
+  const routeMap = new Map();
+  for (const routeNumber of uniqueRouteNumbersFromLegs(legs)) {
+    routeMap.set(routeNumber, await loadRouteGeometry(routeNumber));
+  }
+
+  const originPoint = await geocodeOnePlace(normalized.origin);
+  const destinationPoint = await geocodeOnePlace(normalized.destination);
+
+  const transitions = [];
+
+  for (let index = 0; index < legs.length - 1; index += 1) {
+    const currentLeg = legs[index];
+    const nextLeg = legs[index + 1];
+    const contextPoint = await geocodeOnePlace(currentLeg.endPlace);
+
+    const transition = findTransitionNearContext(
+      routeMap.get(currentLeg.routeNumber),
+      routeMap.get(nextLeg.routeNumber),
+      contextPoint
+    );
+
+    if (!transition) {
+      throw new Error(
+        `国道${currentLeg.routeNumber}号→国道${nextLeg.routeNumber}号の接続点を作れませんでした。`
+      );
+    }
+
+    // 離れた道路を直線で結ばない。
+    if (transition.pairDistance > 5000) {
+      throw new Error(
+        `国道${currentLeg.routeNumber}号と国道${nextLeg.routeNumber}号が` +
+        `${currentLeg.endPlace}付近で接続していません。全行程ルートを確認してください。`
+      );
+    }
+
+    transitions.push(transition);
+  }
+
+  const firstRoute = routeMap.get(legs[0].routeNumber);
+  const lastRoute = routeMap.get(legs[legs.length - 1].routeNumber);
+
+  const startSnap = nearestRoutePointWithIndex(firstRoute, originPoint);
+  const finishSnap = nearestRoutePointWithIndex(lastRoute, destinationPoint);
+
+  if (!startSnap || !finishSnap) {
+    throw new Error("始点または終点を国道上へ配置できませんでした。");
+  }
+
+  const rawTrack = [];
+  const legSummaries = [];
+
+  for (let index = 0; index < legs.length; index += 1) {
+    const leg = legs[index];
+    const route = routeMap.get(leg.routeNumber);
+
+    const startIndex = index === 0
+      ? startSnap.index
+      : transitions[index - 1].bIndex;
+
+    const endIndex = index === legs.length - 1
+      ? finishSnap.index
+      : transitions[index].aIndex;
+
+    const section = routeSection(route, startIndex, endIndex);
+    appendTrackPoints(rawTrack, section);
+
+    if (index < transitions.length) {
+      // 同一交差点データが数十mずれる場合に備え、次国道側の点も含める。
+      appendTrackPoints(rawTrack, [transitions[index].bPoint]);
+    }
+
+    legSummaries.push({
+      routeNumber: leg.routeNumber,
+      endPlace: leg.endPlace,
+      pointCount: section.length
+    });
+  }
+
+  if (rawTrack.length < 2) {
+    throw new Error("予定Trackを作成できませんでした。");
+  }
+
+  // 実道路形状を保ったまま約250m間隔へ整形。
+  const points = resamplePolyline(rawTrack, 250);
+
+  return {
+    name: normalized.planName || "北海道48路線 予定Track",
+    targetRouteNumbers: normalized.routeNumbers,
+    fullRouteLegs: legs,
+    fullRouteSpec: normalized.fullRouteSpec,
+    points,
+    rawPointCount: rawTrack.length,
+    distanceKm: trackDistanceKm(points),
+    legSummaries,
+    spacingMeters: 250
+  };
+}
+
+function buildFullTrackGpx(track) {
+  const name = escapeXml(track.name);
+  const routeText = escapeXml(fullRouteSpecText(track.fullRouteLegs));
+
+  const trkpts = track.points
+    .map(point =>
+      `      <trkpt lat="${Number(point.lat).toFixed(7)}" lon="${Number(point.lng).toFixed(7)}"></trkpt>`
+    )
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1"
+  creator="北海道48路線ふらふらlog"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${name}</name>
+    <desc>${routeText}／始点から終点までの連続予定Track</desc>
+  </metadata>
+  <trk>
+    <name>${name}</name>
+    <desc>${routeText}</desc>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`;
+}
+
+function openOsmAndWeb() {
+  window.open("https://osmand.net/map/", "_blank", "noopener");
+}
+
 
 async function buildNavigationAnchors(plan) {
   const normalized = normalizePlanForGuidance(plan);
@@ -1099,34 +1432,41 @@ function safeFileName(value) {
 async function downloadPlannedGpx(plan, button) {
   const originalLabel = button.textContent;
   button.disabled = true;
-  button.textContent = "OsmAnd用GPXを作成中…";
+  button.textContent = "予定Track GPXを作成中…";
 
   try {
     let current = readActivePlan();
-    let anchorPlan = null;
+    let track = null;
 
     if (
       current &&
-      current.plannedNavigation &&
-      Array.isArray(current.plannedNavigation.anchors) &&
-      current.plannedNavigation.anchors.length >= 2
+      current.plannedPreview &&
+      current.plannedPreview.kind === "full-track" &&
+      Array.isArray(current.plannedPreview.points) &&
+      current.plannedPreview.points.length >= 2
     ) {
-      anchorPlan = {
-        name: current.planName || "北海道48路線 予定経路",
-        routeNumbers: current.routeNumbers || [],
-        anchors: current.plannedNavigation.anchors
+      track = {
+        name: current.planName || "北海道48路線 予定Track",
+        fullRouteLegs: Array.isArray(current.fullRouteLegs)
+          ? current.fullRouteLegs
+          : parseFullRouteSpec(current.fullRouteSpec),
+        points: current.plannedPreview.points.map(point => ({
+          lat: Number(point[0]),
+          lng: Number(point[1])
+        })),
+        distanceKm: Number(current.plannedPreview.distanceKm) || 0
       };
     } else {
-      anchorPlan = await buildNavigationAnchors(plan);
+      track = await buildFullTrackPlan(plan);
     }
 
-    const gpx = buildRoutePointGpx(anchorPlan);
+    const gpx = buildFullTrackGpx(track);
     const blob = new Blob([gpx], { type: "application/gpx+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${safeFileName(anchorPlan.name)}_OsmAnd.gpx`;
+    anchor.download = `${safeFileName(track.name)}_FullTrack.gpx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -1134,19 +1474,20 @@ async function downloadPlannedGpx(plan, button) {
 
     const normalized = normalizePlanForGuidance(plan);
     current = readActivePlan();
+
     if (current && current.id === normalized.id) {
       localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({
         ...current,
         plannedGpxGeneratedAt: new Date().toISOString(),
-        plannedGpxPointCount: anchorPlan.anchors.length,
-        plannedRouteNumbers: anchorPlan.routeNumbers,
-        plannedGpxType: "osmand-route-points"
+        plannedGpxPointCount: track.points.length,
+        plannedGpxType: "full-track",
+        plannedGpxDistanceKm: Number(track.distanceKm.toFixed(1))
       }));
       renderActivePlan();
     }
   } catch (error) {
-    console.error("OsmAnd用GPX作成エラー:", error);
-    alert(`OsmAnd用GPXを作成できませんでした：${error.message || error}`);
+    console.error("予定Track GPX作成エラー:", error);
+    alert(`予定Track GPXを作成できませんでした：${error.message || error}`);
   } finally {
     button.disabled = false;
     button.textContent = originalLabel;
@@ -1156,12 +1497,10 @@ async function downloadPlannedGpx(plan, button) {
 async function previewPlannedTrack(plan, button) {
   const originalLabel = button.textContent;
   button.disabled = true;
-  button.textContent = "地名と国道を照合中…";
-
-  const osmandTab = window.open("about:blank", "_blank");
+  button.textContent = "全行程Trackを作成中…";
 
   try {
-    const anchorPlan = await buildNavigationAnchors(plan);
+    const track = await buildFullTrackPlan(plan);
     const normalized = normalizePlanForGuidance(plan);
     const current = readActivePlan();
 
@@ -1177,48 +1516,42 @@ async function previewPlannedTrack(plan, button) {
           origin: normalized.origin,
           destination: normalized.destination,
           waypoints: normalized.waypoints,
+          fullRouteSpec: normalized.fullRouteSpec,
           source: "data/travel_plans.xlsx"
         };
 
-    const osmandWebUrl = buildOsmAndWebUrl(anchorPlan);
-
     const updated = {
       ...basePlan,
+      fullRouteSpec: track.fullRouteSpec,
+      fullRouteLegs: track.fullRouteLegs,
       plannedNavigation: {
-        version: 2,
-        mode: "geocoded-route-anchors",
+        version: 3,
+        mode: "full-track",
         generatedAt: new Date().toISOString(),
-        anchors: anchorPlan.anchors
+        spacingMeters: track.spacingMeters,
+        rawPointCount: track.rawPointCount
       },
       plannedPreview: {
-        version: 2,
-        kind: "route-points",
-        name: anchorPlan.name,
-        routeNumbers: anchorPlan.routeNumbers,
+        version: 3,
+        kind: "full-track",
+        name: track.name,
         generatedAt: new Date().toISOString(),
-        points: anchorPlan.anchors.map(point => [point.lat, point.lng]),
-        anchors: anchorPlan.anchors
-      },
-      osmandWebUrl
+        distanceKm: Number(track.distanceKm.toFixed(1)),
+        points: track.points.map(point => [point.lat, point.lng])
+      }
     };
 
     localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(updated));
-
-    if (osmandTab) {
-      osmandTab.location.href = osmandWebUrl;
-    }
-
     window.location.href = "index.html?planned=1";
   } catch (error) {
-    if (osmandTab) osmandTab.close();
-    console.error("予定経路作成エラー:", error);
-    alert(`予定経路を作成できませんでした：${error.message || error}`);
+    console.error("全行程Track作成エラー:", error);
+    alert(`全行程Trackを作成できませんでした：${error.message || error}`);
     button.disabled = false;
     button.textContent = originalLabel;
   }
 }
 
-function createPreviewButton(plan, label = "予定経路を作成・確認") {
+function createPreviewButton(plan, label = "AI予定Trackを作成・確認") {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "select-plan-button";
@@ -1227,12 +1560,22 @@ function createPreviewButton(plan, label = "予定経路を作成・確認") {
   return button;
 }
 
-function createGpxButton(plan, label = "OsmAnd用予定GPXを書き出す") {
+function createGpxButton(plan, label = "予定Track GPXを書き出す") {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "action-link";
   button.textContent = label;
   button.addEventListener("click", () => downloadPlannedGpx(plan, button));
+  return button;
+}
+
+
+function createOsmAndWebButton(label = "OsmAnd Webを開く") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "action-link";
+  button.textContent = label;
+  button.addEventListener("click", openOsmAndWeb);
   return button;
 }
 
@@ -1256,6 +1599,7 @@ function toActivePlan(plan) {
     origin: text(plan["始点"]),
     destination: text(plan["終点"]),
     waypoints: parseWaypoints(plan["経由地"]),
+    fullRouteSpec: text(plan["全行程ルート"]),
     googleMapsUrl: buildGoogleMapsUrl(plan),
     source: "data/travel_plans.xlsx"
   };
@@ -1336,14 +1680,22 @@ function renderActivePlan() {
   routes.textContent = `予定路線：${routeText}`;
   const section = document.createElement("p");
   section.textContent = `予定区間：${active.origin || "未登録"} → ${active.destination || "未登録"}`;
-  activePlanContent.append(name, routes, section);
+  const fullRoute = document.createElement("p");
+  fullRoute.textContent = active.fullRouteSpec
+    ? `全行程ルート：${active.fullRouteSpec}`
+    : "全行程ルート：未登録";
+  activePlanContent.append(name, routes, section, fullRoute);
 
   activePlanActions.appendChild(
-    createPreviewButton(active, "AI経路を作成・OsmAndで確認")
+    createPreviewButton(active, "AI予定Trackを作成・確認")
   );
 
   activePlanActions.appendChild(
-    createGpxButton(active, "OsmAnd用予定GPXを書き出す")
+    createGpxButton(active, "予定Track GPXを書き出す")
+  );
+
+  activePlanActions.appendChild(
+    createOsmAndWebButton("OsmAnd Webを開く")
   );
 
   activePlanActions.appendChild(
@@ -1380,17 +1732,22 @@ function createPlanCard(plan) {
   details.appendChild(createDetail("優先度", plan["優先度"]));
   details.appendChild(createDetail("季節", plan["季節"]));
   if (text(plan["経由地"])) details.appendChild(createDetail("経由地", plan["経由地"], "plan-memo"));
+  if (text(plan["全行程ルート"])) details.appendChild(createDetail("全行程ルート", plan["全行程ルート"], "plan-memo"));
   details.appendChild(createDetail("メモ", plan["メモ"], "plan-memo"));
 
   const actions = document.createElement("div");
   actions.className = "plan-actions";
 
   actions.appendChild(
-    createPreviewButton(toActivePlan(plan), "AI経路を作成・OsmAndで確認")
+    createPreviewButton(toActivePlan(plan), "AI予定Trackを作成・確認")
   );
 
   actions.appendChild(
-    createGpxButton(toActivePlan(plan), "OsmAnd用予定GPXを書き出す")
+    createGpxButton(toActivePlan(plan), "予定Track GPXを書き出す")
+  );
+
+  actions.appendChild(
+    createOsmAndWebButton("OsmAnd Webを開く")
   );
 
   actions.appendChild(
@@ -1452,7 +1809,7 @@ async function initializePlanViewer() {
     if (missing.length) throw new Error(`旅行計画の必須項目がありません: ${missing.join(",")}`);
 
     const fields = [...requiredFields];
-    ["経由地", "GoogleマップURL"].forEach(field => {
+    ["経由地", "全行程ルート", "GoogleマップURL"].forEach(field => {
       if (headers.includes(field)) fields.push(field);
     });
 
