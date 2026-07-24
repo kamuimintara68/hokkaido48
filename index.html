@@ -3,314 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>北海道48路線ふらふらlog Version3.6</title>
-
+  <title>北海道48路線ふらふらlog Version4.0</title>
   <link rel="icon" href="data:,">
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  >
-
-  <link rel="stylesheet" href="css/style-v36.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style-v36.css?v=20260722-01">
+  <style>
+    .primary-flow-button {
+      border-color:#15803d !important;
+      color:#fff !important;
+      background:#15803d !important;
+      box-shadow:0 5px 14px rgba(21,128,61,.22);
+    }
+    .secondary-flow-button { background:#f8fafc !important; }
+    .build-badge {
+      position:fixed; right:10px; bottom:10px; z-index:9999;
+      padding:6px 10px; border:1px solid #999; border-radius:6px;
+      background:rgba(255,255,255,.92); color:#333; font-size:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,.15);
+    }
+  </style>
 </head>
-
 <body>
-
   <div class="app">
-
     <header class="header">
-
       <div>
-        <h1 class="header-title">
-          北海道48路線ふらふらlog
-        </h1>
-
-        <p class="header-subtitle">
-          Route / Status / Photo / Trip / Record
-        </p>
+        <h1 class="header-title">北海道48路線ふらふらlog</h1>
+        <p class="header-subtitle">Route / Status / Trip / Record</p>
       </div>
 
       <div class="header-actions">
+        <a href="import-v40-newtrip.html" class="trip-button primary-flow-button">
+          旅素材まとめて投入
+        </a>
 
-        <button
-          id="openRouteFinderButton"
-          class="route-finder-button"
-          type="button"
-        >
+        <a href="trip.html" class="trip-button secondary-flow-button">
+          Trip一覧・修正
+        </a>
+
+        <button id="openRouteFinderButton" class="route-finder-button" type="button">
           路線検索
         </button>
 
-        <a
-          href="trip.html"
-          class="trip-button"
-        >
-          Trip記録
-        </a>
-
-        <a
-          href="import-v40-newtrip.html"
-          class="trip-button"
-          style="border-color:#15803d;color:#ffffff;background:#15803d;"
-        >
-          帰宅後の旅データを整理する
-        </a>
-
-        <a
-          href="plan.html"
-          class="trip-button plan-button"
-        >
-          旅行計画
-        </a>
-
-        <a
-          href="backup.html"
-          class="trip-button"
-        >
-          データ管理
-        </a>
+        <a href="plan.html" class="trip-button plan-button">旅行計画</a>
+        <a href="backup.html" class="trip-button">データ管理</a>
 
         <div class="progress-summary">
-
-          <div
-            class="progress-ring"
-            id="progressDonut"
-            style="--progress: 0%;"
-          >
-            <div class="progress-ring-center">
-              <span id="progressPercent">0%</span>
-            </div>
+          <div class="progress-ring" id="progressDonut" style="--progress:0%;">
+            <div class="progress-ring-center"><span id="progressPercent">0%</span></div>
           </div>
-
           <div class="progress-text">
-
-            <span class="progress-label">
-              走破率
-            </span>
-
-            <strong>
-              <span id="completedRouteCount">0</span>
-              /
-              <span id="totalRouteCount">48</span>
-            </strong>
-
+            <span class="progress-label">走破率</span>
+            <strong><span id="completedRouteCount">0</span> / <span id="totalRouteCount">48</span></strong>
           </div>
-
         </div>
-
       </div>
-
     </header>
 
     <main class="main">
-
       <section class="map-area" aria-label="北海道の国道路線地図">
         <div id="map"></div>
       </section>
 
-      <aside
-        class="info-panel"
-        id="infoPanel"
-      >
-
-        <h2 class="info-panel-title">
-          Route Information
-        </h2>
-
-        <div
-          class="empty-panel"
-          id="emptyPanel"
-        >
-
-          <p class="empty-panel-title">
-            路線を選択してください
-          </p>
-
-          <p class="empty-panel-text">
-            地図上の国道をクリックすると、ここに情報が表示されます。
-          </p>
-
+      <aside class="info-panel" id="infoPanel">
+        <h2 class="info-panel-title">Route Information</h2>
+        <div class="empty-panel" id="emptyPanel">
+          <p class="empty-panel-title">路線を選択してください</p>
+          <p class="empty-panel-text">地図上の国道をクリックすると、ここに情報が表示されます。</p>
         </div>
 
-        <div
-          class="panel-content"
-          id="panelContent"
-          hidden
-        >
-
+        <div class="panel-content" id="panelContent" hidden>
           <section class="route-summary">
-
-            <span
-              class="route-number"
-              id="routeNumber"
-            >
-              Route
-            </span>
-
-            <h3
-              class="route-name"
-              id="routeName"
-            >
-              路線名
-            </h3>
-
+            <span class="route-number" id="routeNumber">Route</span>
+            <h3 class="route-name" id="routeName">路線名</h3>
             <div class="route-meta-grid">
-
               <div class="route-meta-item">
-
-                <span class="route-meta-label">
-                  起点
-                </span>
-
-                <span id="routeStart">
-                  未登録
-                </span>
-
+                <span class="route-meta-label">起点</span>
+                <span id="routeStart">未登録</span>
               </div>
-
               <div class="route-meta-item">
-
-                <span class="route-meta-label">
-                  終点
-                </span>
-
-                <span id="routeEnd">
-                  未登録
-                </span>
-
+                <span class="route-meta-label">終点</span>
+                <span id="routeEnd">未登録</span>
               </div>
-
             </div>
-
             <div class="status-box">
-
-              <span class="status-label">
-                走破状態
-              </span>
-
-              <span
-                class="status-value"
-                id="routeStatus"
-              >
-                未走破
-              </span>
-
+              <span class="status-label">走破状態</span>
+              <span class="status-value" id="routeStatus">未走破</span>
             </div>
-
           </section>
 
           <section class="content-grid">
-
             <article class="compact-card photo-card">
-
-              <h3 class="compact-card-title">
-                Photo
-              </h3>
-
-              <img
-                id="routePhoto"
-                src=""
-                alt="Route Photo"
-                class="route-photo"
-              >
-
-              <div
-                class="compact-card-value"
-                id="photoValue"
-              >
-                未登録
-              </div>
-
+              <h3 class="compact-card-title">Photo</h3>
+              <img id="routePhoto" src="" alt="Route Photo" class="route-photo">
+              <div class="compact-card-value" id="photoValue">未登録</div>
             </article>
-
             <article class="compact-card">
-
-              <h3 class="compact-card-title">
-                走破記録
-              </h3>
-
-              <div
-                class="compact-card-value"
-                id="publicRecordValue"
-              >
-                未登録
-              </div>
-
+              <h3 class="compact-card-title">走破記録</h3>
+              <div class="compact-card-value" id="publicRecordValue">未登録</div>
             </article>
-
             <article class="compact-card">
-
-              <h3 class="compact-card-title">
-                関連Trip
-              </h3>
-
-              <div
-                class="compact-card-value"
-                id="relatedTripsValue"
-              >
-                関連Tripなし
-              </div>
-
+              <h3 class="compact-card-title">関連Trip</h3>
+              <div class="compact-card-value" id="relatedTripsValue">関連Tripなし</div>
             </article>
-
           </section>
-
         </div>
-
       </aside>
-
     </main>
 
-    <div
-      id="routeFinderOverlay"
-      class="route-finder-overlay"
-      hidden
-    >
-
-      <aside
-        id="routeFinder"
-        class="route-finder"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="routeFinderTitle"
-      >
-
+    <div id="routeFinderOverlay" class="route-finder-overlay" hidden>
+      <aside id="routeFinder" class="route-finder" role="dialog" aria-modal="true" aria-labelledby="routeFinderTitle">
         <div class="route-finder-header">
-
           <div>
             <h2 id="routeFinderTitle">路線を探す</h2>
             <p>路線番号・始点・終点から検索できます。</p>
           </div>
-
-          <button
-            id="closeRouteFinderButton"
-            class="route-finder-close"
-            type="button"
-            aria-label="路線検索を閉じる"
-          >
-            ×
-          </button>
-
+          <button id="closeRouteFinderButton" class="route-finder-close" type="button" aria-label="路線検索を閉じる">×</button>
         </div>
-
         <div class="route-finder-controls">
-
           <label for="routeSearchInput">路線検索</label>
-
-          <input
-            id="routeSearchInput"
-            type="search"
-            placeholder="例：239、網走市、留萌市"
-            autocomplete="off"
-          >
-
+          <input id="routeSearchInput" type="search" placeholder="例：239、網走市、留萌市" autocomplete="off">
           <fieldset class="filter-group">
-
             <legend>地方</legend>
-
             <div id="regionFilterButtons" class="filter-buttons">
-
               <button type="button" data-region="all" class="active">すべて</button>
               <button type="button" data-region="道央">道央</button>
               <button type="button" data-region="道南">道南</button>
@@ -318,57 +132,33 @@
               <button type="button" data-region="オホーツク">オホーツク</button>
               <button type="button" data-region="十勝">十勝</button>
               <button type="button" data-region="釧路・根室">釧路・根室</button>
-
             </div>
-
           </fieldset>
-
           <fieldset class="filter-group">
-
             <legend>走破状態</legend>
-
             <div id="statusFilterButtons" class="filter-buttons">
-
               <button type="button" data-status="all" class="active">すべて</button>
               <button type="button" data-status="未走破">未走破</button>
               <button type="button" data-status="走破中">走破中</button>
               <button type="button" data-status="走破済">走破済</button>
-
             </div>
-
           </fieldset>
-
         </div>
-
         <div class="route-finder-result-header">
           <strong id="routeFinderResultCount">48路線</strong>
           <button id="clearRouteFiltersButton" type="button">条件をクリア</button>
         </div>
-
         <div id="routeFinderList" class="route-finder-list"></div>
-
       </aside>
-
     </div>
-
   </div>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-  ></script>
-
-  <script src="js/trip-data-v36.js?v=20260720-15"></script>
-
-  <!--
-    app.js は現在の app-v34.js と同系統の本体。
-    キャッシュを避けるためクエリを付与し、その直後に色判定パッチを適用する。
-  -->
-  <script src="js/app.js?v=20260720-8"></script>
-  <script src="js/app-v34.js?v=20260720-8"></script>
-
-  <script src="js/map-mobile-v36.js?v=20260720-8"></script>
-
-  <script src="js/travel-track-20260712.js?v=20260720-15"></script>
-
+  <div class="build-badge">Version 4.0 Build 20260722-01</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/trip-data-v36.js?v=20260722-01"></script>
+  <script src="js/app.js?v=20260722-01"></script>
+  <script src="js/app-v34.js?v=20260722-01"></script>
+  <script src="js/map-mobile-v36.js?v=20260722-01"></script>
+  <script src="js/travel-track-20260712.js?v=20260722-01"></script>
 </body>
 </html>
