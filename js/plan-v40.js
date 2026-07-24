@@ -595,11 +595,250 @@ async function buildNavigationAnchors(plan) {
     throw new Error("OsmAndへ渡す経由点を作成できませんでした。");
   }
 
+  const guidedAnchors = await addNationalRouteGuidePoints(
+    plan,
+    cleaned
+  );
+
   return {
     name: normalized.planName || "北海道48路線 予定経路",
     routeNumbers,
-    anchors: cleaned
+    anchors: guidedAnchors,
+    guideVersion: 4
   };
+}
+
+function nearestRouteIndex(route, point) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+
+  route.forEach((candidate, index) => {
+    const distance = distanceMeters(candidate, point);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+function orderedRouteSection(route, startIndex, endIndex) {
+  if (startIndex <= endIndex) {
+    return route.slice(startIndex, endIndex + 1);
+  }
+  return route.slice(endIndex, startIndex + 1).reverse();
+}
+
+function sectionDistanceMeters(points) {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += distanceMeters(points[index - 1], points[index]);
+  }
+  return total;
+}
+
+function createGuidePointsBetween(route, startPoint, endPoint, routeNumber, spacingKm = 22) {
+  const startIndex = nearestRouteIndex(route, startPoint);
+  const endIndex = nearestRouteIndex(route, endPoint);
+  const section = orderedRouteSection(route, startIndex, endIndex);
+
+  if (section.length < 3) return [];
+
+  const totalMeters = sectionDistanceMeters(section);
+  const guideCount = Math.min(
+    6,
+    Math.max(0, Math.ceil(totalMeters / (spacingKm * 1000)) - 1)
+  );
+
+  if (!guideCount) return [];
+
+  const cumulative = [0];
+  for (let index = 1; index < section.length; index += 1) {
+    cumulative[index] =
+      cumulative[index - 1] +
+      distanceMeters(section[index - 1], section[index]);
+  }
+
+  const guides = [];
+
+  for (let guideIndex = 1; guideIndex <= guideCount; guideIndex += 1) {
+    const targetMeters =
+      totalMeters * guideIndex / (guideCount + 1);
+
+    let pointIndex = 1;
+    while (
+      pointIndex < cumulative.length - 1 &&
+      cumulative[pointIndex] < targetMeters
+    ) {
+      pointIndex += 1;
+    }
+
+    const point = section[pointIndex];
+
+    guides.push({
+      kind: "guide",
+      label: `国道${routeNumber}号 固定通過点`,
+      geocodedTitle: `国道${routeNumber}号`,
+      routeNumber,
+      lat: Number(point.lat.toFixed(7)),
+      lng: Number(point.lng.toFixed(7)),
+      snapDistanceKm: 0
+    });
+  }
+
+  return guides;
+}
+
+function pushAnchor(points, point) {
+  if (!point) return;
+
+  const previous = points[points.length - 1];
+  if (
+    previous &&
+    distanceMeters(previous, point) < 100 &&
+    point.kind !== "finish"
+  ) {
+    return;
+  }
+
+  points.push(point);
+}
+
+async function findRouteTransitionPoint(routeA, routeB, routeANumber, routeBNumber) {
+  let best = null;
+
+  const stepA = Math.max(1, Math.floor(routeA.length / 450));
+  const stepB = Math.max(1, Math.floor(routeB.length / 450));
+
+  for (let aIndex = 0; aIndex < routeA.length; aIndex += stepA) {
+    for (let bIndex = 0; bIndex < routeB.length; bIndex += stepB) {
+      const distance = distanceMeters(routeA[aIndex], routeB[bIndex]);
+
+      if (!best || distance < best.distanceMeters) {
+        best = {
+          distanceMeters: distance,
+          aIndex,
+          bIndex,
+          aPoint: routeA[aIndex],
+          bPoint: routeB[bIndex]
+        };
+      }
+    }
+  }
+
+  if (!best) {
+    throw new Error(
+      `国道${routeANumber}号と国道${routeBNumber}号の接続点を作成できませんでした。`
+    );
+  }
+
+  return best;
+}
+
+async function addNationalRouteGuidePoints(plan, baseAnchors) {
+  const normalized = normalizePlanForGuidance(plan);
+  const routeNumbers = normalized.routeNumbers;
+
+  if (!routeNumbers.length || !Array.isArray(baseAnchors) || baseAnchors.length < 2) {
+    return baseAnchors;
+  }
+
+  const routeMap = new Map();
+  for (const routeNumber of routeNumbers) {
+    routeMap.set(routeNumber, await loadRouteGeometry(routeNumber));
+  }
+
+  const startAnchor =
+    baseAnchors.find(anchor => anchor.kind === "start") ||
+    baseAnchors[0];
+
+  const finishAnchor =
+    [...baseAnchors].reverse().find(anchor => anchor.kind === "finish") ||
+    baseAnchors[baseAnchors.length - 1];
+
+  const viaAnchors = baseAnchors.filter(anchor => anchor.kind === "via");
+
+  const transitions = [];
+  for (let index = 0; index < routeNumbers.length - 1; index += 1) {
+    const currentNumber = routeNumbers[index];
+    const nextNumber = routeNumbers[index + 1];
+
+    transitions.push(
+      await findRouteTransitionPoint(
+        routeMap.get(currentNumber),
+        routeMap.get(nextNumber),
+        currentNumber,
+        nextNumber
+      )
+    );
+  }
+
+  const result = [];
+  pushAnchor(result, startAnchor);
+
+  for (let routeIndex = 0; routeIndex < routeNumbers.length; routeIndex += 1) {
+    const routeNumber = routeNumbers[routeIndex];
+    const route = routeMap.get(routeNumber);
+
+    const controls = [];
+
+    if (routeIndex === 0) {
+      controls.push(startAnchor);
+    } else {
+      const entry = transitions[routeIndex - 1];
+      controls.push({
+        kind: "transition",
+        label: `国道${routeNumbers[routeIndex - 1]}号 → 国道${routeNumber}号`,
+        geocodedTitle: "国道接続点",
+        routeNumber,
+        lat: Number(entry.bPoint.lat.toFixed(7)),
+        lng: Number(entry.bPoint.lng.toFixed(7)),
+        snapDistanceKm: Number((entry.distanceMeters / 1000).toFixed(2))
+      });
+    }
+
+    viaAnchors
+      .filter(anchor => String(anchor.routeNumber) === String(routeNumber))
+      .forEach(anchor => controls.push(anchor));
+
+    if (routeIndex < routeNumbers.length - 1) {
+      const exit = transitions[routeIndex];
+      controls.push({
+        kind: "transition",
+        label: `国道${routeNumber}号 → 国道${routeNumbers[routeIndex + 1]}号`,
+        geocodedTitle: "国道接続点",
+        routeNumber,
+        lat: Number(exit.aPoint.lat.toFixed(7)),
+        lng: Number(exit.aPoint.lng.toFixed(7)),
+        snapDistanceKm: Number((exit.distanceMeters / 1000).toFixed(2))
+      });
+    }
+
+    for (let controlIndex = 0; controlIndex < controls.length; controlIndex += 1) {
+      const current = controls[controlIndex];
+
+      if (controlIndex > 0) {
+        const previous = controls[controlIndex - 1];
+
+        const guides = createGuidePointsBetween(
+          route,
+          previous,
+          current,
+          routeNumber,
+          22
+        );
+
+        guides.forEach(guide => pushAnchor(result, guide));
+      }
+
+      pushAnchor(result, current);
+    }
+  }
+
+  pushAnchor(result, finishAnchor);
+
+  return result;
 }
 
 function formatOsmAndCoordinate(point) {
