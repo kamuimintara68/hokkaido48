@@ -250,7 +250,7 @@ async function buildGuidedDirections(plan) {
 
   let finalWaypoint = "";
   if (lastPlace) {
-    finalWaypoint = `${lastPlace} 国道${lastRouteNumber}号`;
+    finalWaypoint = lastPlace;
   } else {
     const lastRoute = routes[routes.length - 1];
     const incoming = transitions[transitions.length - 1].bIndex;
@@ -272,7 +272,7 @@ async function buildGuidedDirections(plan) {
 
   const params = new URLSearchParams({
     api: "1",
-    origin: `${origin} 国道${routeNumbers[0]}号`,
+    origin,
     destination,
     travelmode: "driving",
     avoid: "highways"
