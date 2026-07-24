@@ -536,15 +536,23 @@ function buildOsmAndWebUrl(anchorPlan) {
 
   const params = new URLSearchParams();
   params.set("start", formatOsmAndCoordinate(start));
-  params.set("finish", formatOsmAndCoordinate(finish));
-  vias.forEach(via => params.append("via", formatOsmAndCoordinate(via)));
-  params.set("type", "osmand");
+  params.set("end", formatOsmAndCoordinate(finish));
+
+  // OsmAnd Web公式実装は複数の中間点を
+  // via=lat,lng;lat,lng;... の1パラメータで扱う。
+  if (vias.length) {
+    params.set(
+      "via",
+      vias.map(formatOsmAndCoordinate).join(";")
+    );
+  }
+
   params.set("profile", "car");
 
   const centerLat = anchors.reduce((sum, point) => sum + Number(point.lat), 0) / anchors.length;
   const centerLng = anchors.reduce((sum, point) => sum + Number(point.lng), 0) / anchors.length;
 
-  return `https://osmand.net/map/?${params.toString()}#8/${centerLat.toFixed(5)}/${centerLng.toFixed(5)}`;
+  return `https://osmand.net/map/navigate/?${params.toString()}#8/${centerLat.toFixed(5)}/${centerLng.toFixed(5)}`;
 }
 
 function buildRoutePointGpx(anchorPlan) {
