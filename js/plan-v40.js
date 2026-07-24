@@ -325,7 +325,7 @@ async function openGuidedGoogleMaps(plan, button) {
   }
 }
 
-const GEOCODE_CACHE_KEY = "hokkaido48GeocodeCache";
+const GEOCODE_CACHE_KEY = "hokkaido48GeocodeCandidatesV2";
 const GSI_GEOCODER_URL = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=";
 
 function readGeocodeCache() {
@@ -345,51 +345,117 @@ function writeGeocodeCache(cache) {
   }
 }
 
-async function geocodePlace(place) {
+async function geocodePlaceCandidates(place) {
   const original = text(place);
   if (!original) throw new Error("地名が空です。");
 
   const cache = readGeocodeCache();
-  if (cache[original]) return cache[original];
-
-  const query = /^北海道/.test(original) ? original : `北海道 ${original}`;
-  const response = await fetch(
-    `${GSI_GEOCODER_URL}${encodeURIComponent(query)}`,
-    { cache: "no-store" }
-  );
-
-  if (!response.ok) {
-    throw new Error(`「${original}」の位置を取得できませんでした。`);
+  if (Array.isArray(cache[original]) && cache[original].length) {
+    return cache[original];
   }
 
-  const results = await response.json();
-  if (!Array.isArray(results) || !results.length) {
+  const queryVariants = [...new Set([
+    /^北海道/.test(original) ? original : `北海道${original}`,
+    original
+  ])];
+
+  const candidates = [];
+
+  for (const query of queryVariants) {
+    try {
+      const response = await fetch(
+        `${GSI_GEOCODER_URL}${encodeURIComponent(query)}`,
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) continue;
+
+      const results = await response.json();
+      if (!Array.isArray(results)) continue;
+
+      results.forEach(item => {
+        const coordinates =
+          item &&
+          item.geometry &&
+          Array.isArray(item.geometry.coordinates)
+            ? item.geometry.coordinates
+            : null;
+
+        if (!coordinates || coordinates.length < 2) return;
+
+        const lat = Number(coordinates[1]);
+        const lng = Number(coordinates[0]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const title = text(item.properties && item.properties.title) || original;
+        const key = `${lat.toFixed(7)},${lng.toFixed(7)}`;
+
+        if (!candidates.some(candidate => candidate.key === key)) {
+          candidates.push({
+            key,
+            query: original,
+            searchedAs: query,
+            title,
+            lat,
+            lng
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(`「${query}」の地名検索に失敗しました。`, error);
+    }
+  }
+
+  if (!candidates.length) {
     throw new Error(`「${original}」の位置が見つかりませんでした。`);
   }
 
-  const first = results[0];
-  const coordinates = first && first.geometry && Array.isArray(first.geometry.coordinates)
-    ? first.geometry.coordinates
-    : null;
-
-  if (!coordinates || coordinates.length < 2) {
-    throw new Error(`「${original}」の位置情報が不正です。`);
-  }
-
-  const result = {
-    query: original,
-    title: text(first.properties && first.properties.title) || original,
-    lat: Number(coordinates[1]),
-    lng: Number(coordinates[0])
-  };
-
-  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng)) {
-    throw new Error(`「${original}」の緯度経度を取得できませんでした。`);
-  }
-
-  cache[original] = result;
+  cache[original] = candidates;
   writeGeocodeCache(cache);
-  return result;
+  return candidates;
+}
+
+function chooseCandidateForRoute(candidates, route) {
+  let best = null;
+
+  candidates.forEach(candidate => {
+    const snapped = nearestRoutePoint(route, candidate);
+    if (!snapped) return;
+
+    if (!best || snapped.distanceMeters < best.snapDistanceMeters) {
+      best = {
+        placePoint: candidate,
+        snapped,
+        snapDistanceMeters: snapped.distanceMeters
+      };
+    }
+  });
+
+  return best;
+}
+
+async function resolvePlaceOnRoute(place, routeNumber, routeMap) {
+  const route = routeMap.get(routeNumber);
+  if (!route) {
+    throw new Error(`国道${routeNumber}号の座標データがありません。`);
+  }
+
+  const candidates = await geocodePlaceCandidates(place);
+  const best = chooseCandidateForRoute(candidates, route);
+
+  if (!best) {
+    throw new Error(`「${place}」を国道${routeNumber}号へ合わせられませんでした。`);
+  }
+
+  return {
+    label: place,
+    routeNumber,
+    geocodedTitle: best.placePoint.title,
+    searchedAs: best.placePoint.searchedAs,
+    lat: Number(best.snapped.lat.toFixed(7)),
+    lng: Number(best.snapped.lng.toFixed(7)),
+    snapDistanceKm: Number((best.snapDistanceMeters / 1000).toFixed(2))
+  };
 }
 
 function nearestRoutePoint(route, target) {
@@ -410,24 +476,48 @@ function nearestRoutePoint(route, target) {
   return best;
 }
 
-async function resolveDestinationRouteNumber(normalized, destinationPoint, routeMap) {
+async function resolveDestinationAnchor(normalized, routeMap) {
   if (
     normalized.origin &&
     normalized.destination &&
     normalized.origin.trim() === normalized.destination.trim()
   ) {
-    return normalized.routeNumbers[0];
+    return resolvePlaceOnRoute(
+      normalized.destination,
+      normalized.routeNumbers[0],
+      routeMap
+    );
   }
 
+  const candidates = await geocodePlaceCandidates(normalized.destination);
   let best = null;
+
   for (const routeNumber of normalized.routeNumbers) {
-    const snapped = nearestRoutePoint(routeMap.get(routeNumber), destinationPoint);
-    if (!best || snapped.distanceMeters < best.distanceMeters) {
-      best = { routeNumber, distanceMeters: snapped.distanceMeters };
+    const route = routeMap.get(routeNumber);
+    const selected = chooseCandidateForRoute(candidates, route);
+    if (!selected) continue;
+
+    if (!best || selected.snapDistanceMeters < best.snapDistanceMeters) {
+      best = {
+        routeNumber,
+        ...selected
+      };
     }
   }
 
-  return best ? best.routeNumber : normalized.routeNumbers[normalized.routeNumbers.length - 1];
+  if (!best) {
+    throw new Error(`「${normalized.destination}」の到着国道を決定できませんでした。`);
+  }
+
+  return {
+    label: normalized.destination,
+    routeNumber: best.routeNumber,
+    geocodedTitle: best.placePoint.title,
+    searchedAs: best.placePoint.searchedAs,
+    lat: Number(best.snapped.lat.toFixed(7)),
+    lng: Number(best.snapped.lng.toFixed(7)),
+    snapDistanceKm: Number((best.snapDistanceMeters / 1000).toFixed(2))
+  };
 }
 
 async function buildNavigationAnchors(plan) {
@@ -446,70 +536,58 @@ async function buildNavigationAnchors(plan) {
     routeMap.set(routeNumber, await loadRouteGeometry(routeNumber));
   }
 
-  const placeNames = [origin, ...waypoints, destination];
-  const placePoints = [];
-  for (const placeName of placeNames) {
-    placePoints.push(await geocodePlace(placeName));
-  }
+  const anchors = [];
 
-  const specs = [];
-
-  specs.push({
-    kind: "start",
-    label: origin,
-    routeNumber: routeNumbers[0],
-    placePoint: placePoints[0]
-  });
-
-  // 経由地は次に走る対象国道へ吸着する。
-  // 7/12例: 深川→12、沼田→233、雨竜→275、滝川→451、留萌/増毛→231。
-  waypoints.forEach((waypoint, index) => {
-    const routeIndex = Math.min(index + 1, routeNumbers.length - 1);
-    specs.push({
-      kind: "via",
-      label: waypoint,
-      routeNumber: routeNumbers[routeIndex],
-      placePoint: placePoints[index + 1]
-    });
-  });
-
-  const destinationPoint = placePoints[placePoints.length - 1];
-  const destinationRouteNumber = await resolveDestinationRouteNumber(
-    normalized,
-    destinationPoint,
+  const startAnchor = await resolvePlaceOnRoute(
+    origin,
+    routeNumbers[0],
     routeMap
   );
-
-  specs.push({
-    kind: "finish",
-    label: destination,
-    routeNumber: destinationRouteNumber,
-    placePoint: destinationPoint
+  anchors.push({
+    kind: "start",
+    ...startAnchor
   });
 
-  const anchors = specs.map(spec => {
-    const snapped = nearestRoutePoint(routeMap.get(spec.routeNumber), spec.placePoint);
-    if (!snapped) {
-      throw new Error(`「${spec.label}」を国道${spec.routeNumber}号へ合わせられませんでした。`);
-    }
+  // 経由地は「次に走る対象国道」へ合わせる。
+  // 深川→12、沼田→233、雨竜→275、滝川→451、留萌/増毛→231。
+  for (let index = 0; index < waypoints.length; index += 1) {
+    const waypoint = waypoints[index];
+    const routeIndex = Math.min(index + 1, routeNumbers.length - 1);
+    const routeNumber = routeNumbers[routeIndex];
 
-    return {
-      kind: spec.kind,
-      label: spec.label,
-      geocodedTitle: spec.placePoint.title,
-      routeNumber: spec.routeNumber,
-      lat: Number(snapped.lat.toFixed(7)),
-      lng: Number(snapped.lng.toFixed(7)),
-      snapDistanceKm: Number((snapped.distanceMeters / 1000).toFixed(2))
-    };
+    const viaAnchor = await resolvePlaceOnRoute(
+      waypoint,
+      routeNumber,
+      routeMap
+    );
+
+    anchors.push({
+      kind: "via",
+      ...viaAnchor
+    });
+  }
+
+  const destinationAnchor = await resolveDestinationAnchor(
+    normalized,
+    routeMap
+  );
+  anchors.push({
+    kind: "finish",
+    ...destinationAnchor
   });
 
   const cleaned = [];
   anchors.forEach(anchor => {
     const previous = cleaned[cleaned.length - 1];
-    if (previous && distanceMeters(previous, anchor) < 50 && anchor.kind !== "finish") {
+
+    if (
+      previous &&
+      distanceMeters(previous, anchor) < 50 &&
+      anchor.kind !== "finish"
+    ) {
       return;
     }
+
     cleaned.push(anchor);
   });
 
