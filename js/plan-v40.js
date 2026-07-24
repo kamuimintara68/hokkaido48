@@ -42,9 +42,27 @@ function buildGoogleMapsUrl(plan) {
   const savedUrl = text(plan["GoogleマップURL"]);
   if (/^https?:\/\//i.test(savedUrl)) return savedUrl;
 
-  const origin = text(plan["始点"]);
+  const routeNumbers = parseRouteNumbers(plan["対象路線"]);
+  const originPlace = text(plan["始点"]);
   const destination = text(plan["終点"]);
-  if (!origin || !destination) return "";
+  if (!originPlace || !destination) return "";
+
+  // Google Mapsへ単なる地名だけを渡すと、最短の一般道へ逃げることがある。
+  // そこで「地名＋国道番号」の形で経由地を渡し、予定国道上へ寄せる。
+  const origin = routeNumbers.length
+    ? `${originPlace} 国道${routeNumbers[0]}号`
+    : originPlace;
+
+  const rawWaypoints = parseWaypoints(plan["経由地"]);
+  const guidedWaypoints = rawWaypoints.map((place, index) => {
+    if (!routeNumbers.length) return place;
+
+    // 1つ目の経由地は2本目の国道、2つ目は3本目…を基本とする。
+    // 経由地が路線数より多い場合は最後の国道を継続して使う。
+    const routeIndex = Math.min(index + 1, routeNumbers.length - 1);
+    const routeNumber = routeNumbers[routeIndex];
+    return `${place} 国道${routeNumber}号`;
+  });
 
   const params = new URLSearchParams({
     api: "1",
@@ -54,9 +72,8 @@ function buildGoogleMapsUrl(plan) {
     avoid: "highways"
   });
 
-  const waypoints = parseWaypoints(plan["経由地"]);
-  if (waypoints.length) {
-    params.set("waypoints", waypoints.join("|"));
+  if (guidedWaypoints.length) {
+    params.set("waypoints", guidedWaypoints.slice(0, 9).join("|"));
   }
 
   return `https://www.google.com/maps/dir/?${params.toString()}`;
