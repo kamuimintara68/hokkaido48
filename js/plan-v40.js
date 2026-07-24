@@ -1813,98 +1813,56 @@ function showLoadError(error) {
   planList.innerHTML = '<p class="error-message">旅行計画Excelを読み込めませんでした。</p>';
 }
 
-async function loadPlansFromExcel() {
-  if (!window.XLSX) {
-    throw new Error("Excel読込機能を読み込めませんでした。");
+
+async function loadRuntimePlans() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(
+      `data/travel_plans-v40.json?v=20260724-16`,
+      {
+        cache: "no-store",
+        signal: controller.signal
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`旅行計画データ HTTP ${response.status}`);
+    }
+
+    const payload = await response.json();
+
+    if (!payload || !Array.isArray(payload.plans)) {
+      throw new Error("旅行計画データの形式が正しくありません。");
+    }
+
+    return payload.plans;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const response = await fetch("data/travel_plans.xlsx", { cache: "no-store" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-  const workbook = window.XLSX.read(await response.arrayBuffer(), { type: "array" });
-  const worksheet = workbook.Sheets["旅行計画"];
-  if (!worksheet) throw new Error("旅行計画シートがありません。");
-
-  const rows = window.XLSX.utils.sheet_to_json(worksheet, {
-    header: 1, defval: "", raw: false
-  });
-
-  const headers = rows[3] || [];
-  const missing = requiredFields.filter(field => headers.indexOf(field) < 0);
-  if (missing.length) {
-    throw new Error(`旅行計画の必須項目がありません: ${missing.join(",")}`);
-  }
-
-  const fields = [...requiredFields];
-  ["経由地", "全行程ルート", "GoogleマップURL"].forEach(field => {
-    if (headers.includes(field)) fields.push(field);
-  });
-
-  const indexes = Object.fromEntries(
-    fields.map(field => [field, headers.indexOf(field)])
-  );
-
-  return rows
-    .slice(4)
-    .filter(row => row.some(value => text(value)))
-    .map(row => {
-      const plan = {};
-      fields.forEach(field => {
-        plan[field] = row[indexes[field]] ?? "";
-      });
-      return plan;
-    });
-}
-
-async function loadPlansFromFallbackJson() {
-  const response = await fetch("data/travel_plans-v40.json", { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`予備計画データ HTTP ${response.status}`);
-  }
-
-  const payload = await response.json();
-  if (!payload || !Array.isArray(payload.plans)) {
-    throw new Error("予備計画データの形式が正しくありません。");
-  }
-
-  return payload.plans;
 }
 
 async function initializePlanViewer() {
-  // 読込完了前の旧localStorageプランを操作できないようにする。
   activePlanContent.textContent = "最新の旅行計画を読み込んでいます。";
   activePlanActions.innerHTML = "";
   planCount.textContent = "読込中";
 
-  let plans = null;
-  let excelError = null;
-
   try {
-    plans = await loadPlansFromExcel();
+    const plans = await loadRuntimePlans();
+
+    syncActivePlanFromPlans(plans);
+    renderPlans(plans);
+    renderActivePlan();
   } catch (error) {
-    excelError = error;
-    console.warn(
-      "旅行計画Excelを読み込めなかったため、予備計画データへ切り替えます。",
-      error
-    );
+    console.error("旅行計画データ読込エラー:", error);
+    planCount.textContent = "読込失敗";
+    planList.innerHTML =
+      '<p class="error-message">旅行計画データを読み込めませんでした。</p>';
+    activePlanContent.textContent = "旅行計画データを読み込めませんでした。";
+    activePlanActions.innerHTML = "";
   }
-
-  if (!plans) {
-    try {
-      plans = await loadPlansFromFallbackJson();
-    } catch (fallbackError) {
-      console.error("旅行計画予備データ読込エラー:", fallbackError);
-      showLoadError(excelError || fallbackError);
-      activePlanContent.textContent = "旅行計画を読み込めませんでした。";
-      activePlanActions.innerHTML = "";
-      return;
-    }
-  }
-
-  // 最新データで旧選択プランを更新してから初めて操作ボタンを表示する。
-  syncActivePlanFromPlans(plans);
-  renderPlans(plans);
-  renderActivePlan();
 }
 
 initializePlanViewer();
+
