@@ -1100,7 +1100,7 @@ function renderActivePlan() {
   activePlanContent.append(name, routes, section);
 
   activePlanActions.appendChild(
-    createPreviewButton(active, "予定経路を作成・確認")
+    createPreviewButton(active, "AI経路を作成・OsmAndで確認")
   );
 
   activePlanActions.appendChild(
@@ -1147,7 +1147,7 @@ function createPlanCard(plan) {
   actions.className = "plan-actions";
 
   actions.appendChild(
-    createPreviewButton(toActivePlan(plan), "予定経路を作成・確認")
+    createPreviewButton(toActivePlan(plan), "AI経路を作成・OsmAndで確認")
   );
 
   actions.appendChild(
