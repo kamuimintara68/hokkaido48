@@ -1871,7 +1871,10 @@ async function loadPlansFromFallbackJson() {
 }
 
 async function initializePlanViewer() {
-  renderActivePlan();
+  // 読込完了前の旧localStorageプランを操作できないようにする。
+  activePlanContent.textContent = "最新の旅行計画を読み込んでいます。";
+  activePlanActions.innerHTML = "";
+  planCount.textContent = "読込中";
 
   let plans = null;
   let excelError = null;
@@ -1892,13 +1895,16 @@ async function initializePlanViewer() {
     } catch (fallbackError) {
       console.error("旅行計画予備データ読込エラー:", fallbackError);
       showLoadError(excelError || fallbackError);
+      activePlanContent.textContent = "旅行計画を読み込めませんでした。";
+      activePlanActions.innerHTML = "";
       return;
     }
   }
 
+  // 最新データで旧選択プランを更新してから初めて操作ボタンを表示する。
   syncActivePlanFromPlans(plans);
-  renderActivePlan();
   renderPlans(plans);
+  renderActivePlan();
 }
 
 initializePlanViewer();
