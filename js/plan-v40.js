@@ -50,7 +50,8 @@ function buildGoogleMapsUrl(plan) {
     api: "1",
     origin,
     destination,
-    travelmode: "driving"
+    travelmode: "driving",
+    avoid: "highways"
   });
 
   const waypoints = parseWaypoints(plan["経由地"]);
