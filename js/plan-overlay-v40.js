@@ -34,14 +34,27 @@
       ? plan.routeNumbers.map(number => `国道${number}号`).join(" → ")
       : (plan.targetRoutes || "予定路線未登録");
 
-    const distanceText =
-      hasPreview && Number.isFinite(Number(preview.distanceKm))
-        ? ` ／ 生成経路：約${Number(preview.distanceKm).toFixed(1)}km`
-        : "";
+    const isRoutePoints = hasPreview && preview.kind === "route-points";
+    const anchorCount =
+      isRoutePoints && Array.isArray(preview.anchors)
+        ? preview.anchors.length
+        : 0;
 
-    const lineText = hasPreview
-      ? "紫実線＝OsmAnd用予定経路"
-      : "紫破線＝対象国道（予定経路は未生成）";
+    const distanceText = isRoutePoints
+      ? ` ／ OsmAnd経由点：${anchorCount}点`
+      : (
+          hasPreview && Number.isFinite(Number(preview.distanceKm))
+            ? ` ／ 生成経路：約${Number(preview.distanceKm).toFixed(1)}km`
+            : ""
+        );
+
+    const lineText = isRoutePoints
+      ? "紫点線＝OsmAndへ渡す経由点（実道路経路はOsmAndで計算）"
+      : (
+          hasPreview
+            ? "紫実線＝OsmAnd用予定経路"
+            : "紫破線＝対象国道（予定経路は未生成）"
+        );
 
     const text = document.createElement("span");
     text.textContent =
@@ -56,6 +69,16 @@
     change.textContent = hasPreview ? "予定経路を作り直す" : "旅行計画へ";
     change.style.cssText = "margin-left:10px;color:#2563eb;";
     links.appendChild(change);
+
+    if (plan.osmandWebUrl) {
+      const osmand = document.createElement("a");
+      osmand.href = plan.osmandWebUrl;
+      osmand.target = "_blank";
+      osmand.rel = "noopener";
+      osmand.textContent = "OsmAnd Webで実経路を確認";
+      osmand.style.cssText = "margin-left:10px;color:#2563eb;";
+      links.appendChild(osmand);
+    }
 
     if (plan.googleMapsUrl) {
       const google = document.createElement("a");
@@ -85,6 +108,39 @@
 
     if (latLngs.length < 2) return false;
 
+    if (preview.kind === "route-points") {
+      const line = L.polyline(latLngs, {
+        color: "#7c3aed",
+        weight: 5,
+        opacity: 0.75,
+        dashArray: "10 10",
+        interactive: false
+      }).addTo(map);
+
+      const anchors = Array.isArray(preview.anchors) ? preview.anchors : [];
+      latLngs.forEach((latLng, index) => {
+        const anchor = anchors[index] || {};
+        const marker = L.circleMarker(latLng, {
+          radius: 7,
+          color: "#5b21b6",
+          weight: 3,
+          fillColor: "#ffffff",
+          fillOpacity: 1
+        }).addTo(map);
+
+        const label = anchor.label
+          ? `${index + 1}. ${anchor.label}／国道${anchor.routeNumber || "?"}号`
+          : `${index + 1}. OsmAnd経由点`;
+        marker.bindTooltip(label, { direction: "top" });
+      });
+
+      const bounds = line.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [24, 24], maxZoom: 10 });
+      }
+      return true;
+    }
+
     const line = L.polyline(latLngs, {
       color: "#7c3aed",
       weight: 8,
@@ -96,7 +152,6 @@
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [24, 24], maxZoom: 10 });
     }
-
     return true;
   }
 

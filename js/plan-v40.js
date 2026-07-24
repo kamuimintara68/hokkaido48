@@ -325,6 +325,267 @@ async function openGuidedGoogleMaps(plan, button) {
   }
 }
 
+const GEOCODE_CACHE_KEY = "hokkaido48GeocodeCache";
+const GSI_GEOCODER_URL = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=";
+
+function readGeocodeCache() {
+  try {
+    const value = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeGeocodeCache(cache) {
+  try {
+    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn("地名座標キャッシュを保存できませんでした。", error);
+  }
+}
+
+async function geocodePlace(place) {
+  const original = text(place);
+  if (!original) throw new Error("地名が空です。");
+
+  const cache = readGeocodeCache();
+  if (cache[original]) return cache[original];
+
+  const query = /^北海道/.test(original) ? original : `北海道 ${original}`;
+  const response = await fetch(
+    `${GSI_GEOCODER_URL}${encodeURIComponent(query)}`,
+    { cache: "no-store" }
+  );
+
+  if (!response.ok) {
+    throw new Error(`「${original}」の位置を取得できませんでした。`);
+  }
+
+  const results = await response.json();
+  if (!Array.isArray(results) || !results.length) {
+    throw new Error(`「${original}」の位置が見つかりませんでした。`);
+  }
+
+  const first = results[0];
+  const coordinates = first && first.geometry && Array.isArray(first.geometry.coordinates)
+    ? first.geometry.coordinates
+    : null;
+
+  if (!coordinates || coordinates.length < 2) {
+    throw new Error(`「${original}」の位置情報が不正です。`);
+  }
+
+  const result = {
+    query: original,
+    title: text(first.properties && first.properties.title) || original,
+    lat: Number(coordinates[1]),
+    lng: Number(coordinates[0])
+  };
+
+  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng)) {
+    throw new Error(`「${original}」の緯度経度を取得できませんでした。`);
+  }
+
+  cache[original] = result;
+  writeGeocodeCache(cache);
+  return result;
+}
+
+function nearestRoutePoint(route, target) {
+  let best = null;
+
+  route.forEach((point, index) => {
+    const distance = distanceMeters(point, target);
+    if (!best || distance < best.distanceMeters) {
+      best = {
+        index,
+        lat: point.lat,
+        lng: point.lng,
+        distanceMeters: distance
+      };
+    }
+  });
+
+  return best;
+}
+
+async function resolveDestinationRouteNumber(normalized, destinationPoint, routeMap) {
+  if (
+    normalized.origin &&
+    normalized.destination &&
+    normalized.origin.trim() === normalized.destination.trim()
+  ) {
+    return normalized.routeNumbers[0];
+  }
+
+  let best = null;
+  for (const routeNumber of normalized.routeNumbers) {
+    const snapped = nearestRoutePoint(routeMap.get(routeNumber), destinationPoint);
+    if (!best || snapped.distanceMeters < best.distanceMeters) {
+      best = { routeNumber, distanceMeters: snapped.distanceMeters };
+    }
+  }
+
+  return best ? best.routeNumber : normalized.routeNumbers[normalized.routeNumbers.length - 1];
+}
+
+async function buildNavigationAnchors(plan) {
+  const normalized = normalizePlanForGuidance(plan);
+  const { routeNumbers, origin, destination, waypoints } = normalized;
+
+  if (!origin || !destination) {
+    throw new Error("始点または終点が未登録です。");
+  }
+  if (!routeNumbers.length) {
+    throw new Error("対象路線が登録されていません。");
+  }
+
+  const routeMap = new Map();
+  for (const routeNumber of routeNumbers) {
+    routeMap.set(routeNumber, await loadRouteGeometry(routeNumber));
+  }
+
+  const placeNames = [origin, ...waypoints, destination];
+  const placePoints = [];
+  for (const placeName of placeNames) {
+    placePoints.push(await geocodePlace(placeName));
+  }
+
+  const specs = [];
+
+  specs.push({
+    kind: "start",
+    label: origin,
+    routeNumber: routeNumbers[0],
+    placePoint: placePoints[0]
+  });
+
+  // 経由地は次に走る対象国道へ吸着する。
+  // 7/12例: 深川→12、沼田→233、雨竜→275、滝川→451、留萌/増毛→231。
+  waypoints.forEach((waypoint, index) => {
+    const routeIndex = Math.min(index + 1, routeNumbers.length - 1);
+    specs.push({
+      kind: "via",
+      label: waypoint,
+      routeNumber: routeNumbers[routeIndex],
+      placePoint: placePoints[index + 1]
+    });
+  });
+
+  const destinationPoint = placePoints[placePoints.length - 1];
+  const destinationRouteNumber = await resolveDestinationRouteNumber(
+    normalized,
+    destinationPoint,
+    routeMap
+  );
+
+  specs.push({
+    kind: "finish",
+    label: destination,
+    routeNumber: destinationRouteNumber,
+    placePoint: destinationPoint
+  });
+
+  const anchors = specs.map(spec => {
+    const snapped = nearestRoutePoint(routeMap.get(spec.routeNumber), spec.placePoint);
+    if (!snapped) {
+      throw new Error(`「${spec.label}」を国道${spec.routeNumber}号へ合わせられませんでした。`);
+    }
+
+    return {
+      kind: spec.kind,
+      label: spec.label,
+      geocodedTitle: spec.placePoint.title,
+      routeNumber: spec.routeNumber,
+      lat: Number(snapped.lat.toFixed(7)),
+      lng: Number(snapped.lng.toFixed(7)),
+      snapDistanceKm: Number((snapped.distanceMeters / 1000).toFixed(2))
+    };
+  });
+
+  const cleaned = [];
+  anchors.forEach(anchor => {
+    const previous = cleaned[cleaned.length - 1];
+    if (previous && distanceMeters(previous, anchor) < 50 && anchor.kind !== "finish") {
+      return;
+    }
+    cleaned.push(anchor);
+  });
+
+  if (cleaned.length < 2) {
+    throw new Error("OsmAndへ渡す経由点を作成できませんでした。");
+  }
+
+  return {
+    name: normalized.planName || "北海道48路線 予定経路",
+    routeNumbers,
+    anchors: cleaned
+  };
+}
+
+function formatOsmAndCoordinate(point) {
+  return `${Number(point.lat).toFixed(6)},${Number(point.lng).toFixed(6)}`;
+}
+
+function buildOsmAndWebUrl(anchorPlan) {
+  const anchors = anchorPlan.anchors;
+  const start = anchors[0];
+  const finish = anchors[anchors.length - 1];
+  const vias = anchors.slice(1, -1);
+
+  const params = new URLSearchParams();
+  params.set("start", formatOsmAndCoordinate(start));
+  params.set("finish", formatOsmAndCoordinate(finish));
+  vias.forEach(via => params.append("via", formatOsmAndCoordinate(via)));
+  params.set("type", "osmand");
+  params.set("profile", "car");
+
+  const centerLat = anchors.reduce((sum, point) => sum + Number(point.lat), 0) / anchors.length;
+  const centerLng = anchors.reduce((sum, point) => sum + Number(point.lng), 0) / anchors.length;
+
+  return `https://osmand.net/map/?${params.toString()}#8/${centerLat.toFixed(5)}/${centerLng.toFixed(5)}`;
+}
+
+function buildRoutePointGpx(anchorPlan) {
+  const name = escapeXml(anchorPlan.name);
+  const routeText = escapeXml(
+    anchorPlan.routeNumbers.map(number => `国道${number}号`).join(" → ")
+  );
+
+  const rtepts = anchorPlan.anchors.map((point, index) => {
+    const role = point.kind === "start"
+      ? "出発"
+      : point.kind === "finish"
+        ? "到着"
+        : `経由${index}`;
+
+    return [
+      `    <rtept lat="${Number(point.lat).toFixed(7)}" lon="${Number(point.lng).toFixed(7)}">`,
+      `      <name>${escapeXml(`${role} ${point.label}`)}</name>`,
+      `      <desc>${escapeXml(`国道${point.routeNumber}号上／${point.geocodedTitle}`)}</desc>`,
+      "    </rtept>"
+    ].join("\n");
+  }).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1"
+  creator="北海道48路線ふらふらlog"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${name}</name>
+    <desc>${routeText}／OsmAnd用Routeポイント</desc>
+  </metadata>
+  <rte>
+    <name>${name}</name>
+    <desc>${routeText}</desc>
+${rtepts}
+  </rte>
+</gpx>`;
+}
+
 function escapeXml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -513,86 +774,72 @@ function safeFileName(value) {
 async function downloadPlannedGpx(plan, button) {
   const originalLabel = button.textContent;
   button.disabled = true;
-  button.textContent = "予定GPXを作成中…";
+  button.textContent = "OsmAnd用GPXを作成中…";
 
   try {
-    const track = await buildPlannedTrack(plan);
+    let current = readActivePlan();
+    let anchorPlan = null;
 
-    if (!Array.isArray(track.points) || track.points.length < 2) {
-      throw new Error("予定経路の座標を作成できませんでした。");
+    if (
+      current &&
+      current.plannedNavigation &&
+      Array.isArray(current.plannedNavigation.anchors) &&
+      current.plannedNavigation.anchors.length >= 2
+    ) {
+      anchorPlan = {
+        name: current.planName || "北海道48路線 予定経路",
+        routeNumbers: current.routeNumbers || [],
+        anchors: current.plannedNavigation.anchors
+      };
+    } else {
+      anchorPlan = await buildNavigationAnchors(plan);
     }
 
-    const gpx = buildGpxText(track);
+    const gpx = buildRoutePointGpx(anchorPlan);
     const blob = new Blob([gpx], { type: "application/gpx+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${safeFileName(track.name)}.gpx`;
+    anchor.download = `${safeFileName(anchorPlan.name)}_OsmAnd.gpx`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-
     setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-    const current = readActivePlan();
     const normalized = normalizePlanForGuidance(plan);
-
+    current = readActivePlan();
     if (current && current.id === normalized.id) {
       localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({
         ...current,
         plannedGpxGeneratedAt: new Date().toISOString(),
-        plannedGpxPointCount: track.points.length,
-        plannedRouteNumbers: track.routeNumbers
+        plannedGpxPointCount: anchorPlan.anchors.length,
+        plannedRouteNumbers: anchorPlan.routeNumbers,
+        plannedGpxType: "osmand-route-points"
       }));
       renderActivePlan();
     }
   } catch (error) {
-    console.error("予定GPX作成エラー:", error);
-    alert(`予定GPXを作成できませんでした：${error.message || error}`);
+    console.error("OsmAnd用GPX作成エラー:", error);
+    alert(`OsmAnd用GPXを作成できませんでした：${error.message || error}`);
   } finally {
     button.disabled = false;
     button.textContent = originalLabel;
   }
 }
 
-function calculateTrackDistanceKm(points) {
-  if (!Array.isArray(points) || points.length < 2) return 0;
-
-  let meters = 0;
-  for (let index = 1; index < points.length; index += 1) {
-    meters += distanceMeters(points[index - 1], points[index]);
-  }
-  return meters / 1000;
-}
-
-function thinTrackPoints(points, maxPoints = 1800) {
-  if (!Array.isArray(points) || points.length <= maxPoints) {
-    return Array.isArray(points) ? points.slice() : [];
-  }
-
-  const thinned = [];
-  for (let index = 0; index < maxPoints; index += 1) {
-    const sourceIndex = Math.round(index * (points.length - 1) / (maxPoints - 1));
-    thinned.push(points[sourceIndex]);
-  }
-  return dedupeAdjacent(thinned);
-}
-
 async function previewPlannedTrack(plan, button) {
   const originalLabel = button.textContent;
   button.disabled = true;
-  button.textContent = "予定経路を作成中…";
+  button.textContent = "地名と国道を照合中…";
+
+  const osmandTab = window.open("about:blank", "_blank");
 
   try {
-    const track = await buildPlannedTrack(plan);
-
-    if (!Array.isArray(track.points) || track.points.length < 2) {
-      throw new Error("予定経路の座標を作成できませんでした。");
-    }
-
+    const anchorPlan = await buildNavigationAnchors(plan);
     const normalized = normalizePlanForGuidance(plan);
     const current = readActivePlan();
+
     const basePlan = current && current.id === normalized.id
       ? current
       : {
@@ -608,31 +855,38 @@ async function previewPlannedTrack(plan, button) {
           source: "data/travel_plans.xlsx"
         };
 
-    const distanceKm = calculateTrackDistanceKm(track.points);
-    const previewPoints = thinTrackPoints(track.points).map(point => [
-      Number(point.lat.toFixed(7)),
-      Number(point.lng.toFixed(7))
-    ]);
+    const osmandWebUrl = buildOsmAndWebUrl(anchorPlan);
 
     const updated = {
       ...basePlan,
-      selectedAt: basePlan.selectedAt || new Date().toISOString(),
-      plannedPreview: {
-        version: 1,
-        name: track.name,
-        routeNumbers: track.routeNumbers,
-        distanceKm: Number(distanceKm.toFixed(1)),
-        originalPointCount: track.points.length,
-        previewPointCount: previewPoints.length,
+      plannedNavigation: {
+        version: 2,
+        mode: "geocoded-route-anchors",
         generatedAt: new Date().toISOString(),
-        points: previewPoints
-      }
+        anchors: anchorPlan.anchors
+      },
+      plannedPreview: {
+        version: 2,
+        kind: "route-points",
+        name: anchorPlan.name,
+        routeNumbers: anchorPlan.routeNumbers,
+        generatedAt: new Date().toISOString(),
+        points: anchorPlan.anchors.map(point => [point.lat, point.lng]),
+        anchors: anchorPlan.anchors
+      },
+      osmandWebUrl
     };
 
     localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(updated));
+
+    if (osmandTab) {
+      osmandTab.location.href = osmandWebUrl;
+    }
+
     window.location.href = "index.html?planned=1";
   } catch (error) {
-    console.error("予定経路プレビュー作成エラー:", error);
+    if (osmandTab) osmandTab.close();
+    console.error("予定経路作成エラー:", error);
     alert(`予定経路を作成できませんでした：${error.message || error}`);
     button.disabled = false;
     button.textContent = originalLabel;
