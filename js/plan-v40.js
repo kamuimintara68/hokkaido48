@@ -38,45 +38,291 @@ function parseWaypoints(value) {
     .slice(0, 9);
 }
 
-function buildGoogleMapsUrl(plan) {
-  const savedUrl = text(plan["GoogleマップURL"]);
-  if (/^https?:\/\//i.test(savedUrl)) return savedUrl;
+const routeGeometryCache = new Map();
 
-  const routeNumbers = parseRouteNumbers(plan["対象路線"]);
-  const originPlace = text(plan["始点"]);
-  const destination = text(plan["終点"]);
-  if (!originPlace || !destination) return "";
+function normalizePlanForGuidance(plan) {
+  if (plan && Array.isArray(plan.routeNumbers)) {
+    return {
+      id: text(plan.id),
+      planName: text(plan.planName),
+      routeNumbers: plan.routeNumbers.map(value => String(Number(value))).filter(Boolean),
+      origin: text(plan.origin),
+      destination: text(plan.destination),
+      waypoints: Array.isArray(plan.waypoints) ? plan.waypoints.map(text).filter(Boolean) : []
+    };
+  }
 
-  // Google Mapsへ単なる地名だけを渡すと、最短の一般道へ逃げることがある。
-  // そこで「地名＋国道番号」の形で経由地を渡し、予定国道上へ寄せる。
-  const origin = routeNumbers.length
-    ? `${originPlace} 国道${routeNumbers[0]}号`
-    : originPlace;
+  return {
+    id: planIdentity(plan),
+    planName: text(plan["計画名"]),
+    routeNumbers: parseRouteNumbers(plan["対象路線"]),
+    origin: text(plan["始点"]),
+    destination: text(plan["終点"]),
+    waypoints: parseWaypoints(plan["経由地"])
+  };
+}
 
-  const rawWaypoints = parseWaypoints(plan["経由地"]);
-  const guidedWaypoints = rawWaypoints.map((place, index) => {
-    if (!routeNumbers.length) return place;
+function collectLineStrings(geojson) {
+  const lines = [];
 
-    // 1つ目の経由地は2本目の国道、2つ目は3本目…を基本とする。
-    // 経由地が路線数より多い場合は最後の国道を継続して使う。
-    const routeIndex = Math.min(index + 1, routeNumbers.length - 1);
-    const routeNumber = routeNumbers[routeIndex];
-    return `${place} 国道${routeNumber}号`;
+  function walkGeometry(geometry) {
+    if (!geometry || !geometry.type) return;
+
+    if (geometry.type === "LineString" && Array.isArray(geometry.coordinates)) {
+      lines.push(geometry.coordinates);
+      return;
+    }
+
+    if (geometry.type === "MultiLineString" && Array.isArray(geometry.coordinates)) {
+      geometry.coordinates.forEach(line => lines.push(line));
+      return;
+    }
+
+    if (geometry.type === "GeometryCollection" && Array.isArray(geometry.geometries)) {
+      geometry.geometries.forEach(walkGeometry);
+    }
+  }
+
+  if (geojson && Array.isArray(geojson.features)) {
+    geojson.features.forEach(feature => walkGeometry(feature && feature.geometry));
+  } else if (geojson && geojson.geometry) {
+    walkGeometry(geojson.geometry);
+  }
+
+  return lines;
+}
+
+async function loadRouteGeometry(routeNumber) {
+  const number = String(Number(routeNumber));
+  if (routeGeometryCache.has(number)) return routeGeometryCache.get(number);
+
+  const path = `data/geojson/route_${number.padStart(3, "0")}.geojson`;
+  const response = await fetch(path, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`国道${number}号の路線データを読み込めませんでした。`);
+  }
+
+  const geojson = await response.json();
+  const lines = collectLineStrings(geojson)
+    .map(line => line
+      .map(point => ({
+        lng: Number(point[0]),
+        lat: Number(point[1])
+      }))
+      .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+    )
+    .filter(line => line.length >= 2);
+
+  if (!lines.length) {
+    throw new Error(`国道${number}号の座標データがありません。`);
+  }
+
+  // 現在の北海道48路線データでは本線が最長ラインとして保持されるため、
+  // Googleマップ経路作成には最長ラインを使用する。
+  const coords = lines.sort((a, b) => b.length - a.length)[0];
+  routeGeometryCache.set(number, coords);
+  return coords;
+}
+
+function sampleIndexedRoute(coords, maxCount = 420) {
+  if (coords.length <= maxCount) {
+    return coords.map((point, index) => ({ ...point, routeIndex: index }));
+  }
+
+  const sampled = [];
+  for (let index = 0; index < maxCount; index += 1) {
+    const routeIndex = Math.round(index * (coords.length - 1) / (maxCount - 1));
+    sampled.push({ ...coords[routeIndex], routeIndex });
+  }
+  return sampled;
+}
+
+function distanceMeters(a, b) {
+  const rad = Math.PI / 180;
+  const lat1 = a.lat * rad;
+  const lat2 = b.lat * rad;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function closestRoutePair(routeA, routeB) {
+  const sampleA = sampleIndexedRoute(routeA);
+  const sampleB = sampleIndexedRoute(routeB);
+
+  let best = null;
+
+  sampleA.forEach(a => {
+    sampleB.forEach(b => {
+      const distance = distanceMeters(a, b);
+      if (!best || distance < best.distance) {
+        best = {
+          distance,
+          aIndex: a.routeIndex,
+          bIndex: b.routeIndex,
+          aPoint: { lat: a.lat, lng: a.lng },
+          bPoint: { lat: b.lat, lng: b.lng }
+        };
+      }
+    });
   });
+
+  return best;
+}
+
+function pointAtMiddle(route, startIndex, endIndex) {
+  const low = Math.max(0, Math.min(startIndex, endIndex));
+  const high = Math.min(route.length - 1, Math.max(startIndex, endIndex));
+  return route[Math.round((low + high) / 2)];
+}
+
+function coordinateText(point) {
+  return `${Number(point.lat).toFixed(6)},${Number(point.lng).toFixed(6)}`;
+}
+
+async function buildGuidedDirections(plan) {
+  const normalized = normalizePlanForGuidance(plan);
+  const { routeNumbers, origin, destination, waypoints } = normalized;
+
+  if (!origin || !destination) {
+    throw new Error("始点または終点が未登録です。");
+  }
+
+  if (routeNumbers.length < 2) {
+    const params = new URLSearchParams({
+      api: "1",
+      origin,
+      destination,
+      travelmode: "driving",
+      avoid: "highways"
+    });
+    if (waypoints.length) params.set("waypoints", waypoints.slice(0, 9).join("|"));
+    return { url: `https://www.google.com/maps/dir/?${params.toString()}`, controlPoints: [] };
+  }
+
+  const routes = [];
+  for (const number of routeNumbers) {
+    routes.push(await loadRouteGeometry(number));
+  }
+
+  const transitions = [];
+  for (let index = 0; index < routes.length - 1; index += 1) {
+    const pair = closestRoutePair(routes[index], routes[index + 1]);
+    if (!pair) {
+      throw new Error(`国道${routeNumbers[index]}号と国道${routeNumbers[index + 1]}号の接続点を作れませんでした。`);
+    }
+    transitions.push(pair);
+  }
+
+  const controlPoints = [];
+
+  // 最初の国道から2本目へ移る地点を明示。
+  controlPoints.push({
+    kind: "transition",
+    routeNumber: routeNumbers[0],
+    nextRouteNumber: routeNumbers[1],
+    ...transitions[0].aPoint
+  });
+
+  // 各中間国道について、前後の接続点の中間にある「その国道上の点」を通過させる。
+  // これによりGoogleマップが近道の道道などへ逃げにくくする。
+  for (let index = 1; index < routes.length - 1; index += 1) {
+    const incomingIndex = transitions[index - 1].bIndex;
+    const outgoingIndex = transitions[index].aIndex;
+    const middle = pointAtMiddle(routes[index], incomingIndex, outgoingIndex);
+
+    controlPoints.push({
+      kind: "route-midpoint",
+      routeNumber: routeNumbers[index],
+      lat: middle.lat,
+      lng: middle.lng
+    });
+  }
+
+  // 最終国道は、ユーザーが入力した最後の経由地を優先して方向を決める。
+  // 経由地が無い場合は、最後の接続点から本線上を少し進んだ点を使う。
+  const lastPlace = waypoints.length ? waypoints[waypoints.length - 1] : "";
+  const lastRouteNumber = routeNumbers[routeNumbers.length - 1];
+
+  let finalWaypoint = "";
+  if (lastPlace) {
+    finalWaypoint = `${lastPlace} 国道${lastRouteNumber}号`;
+  } else {
+    const lastRoute = routes[routes.length - 1];
+    const incoming = transitions[transitions.length - 1].bIndex;
+    const step = Math.max(1, Math.round(lastRoute.length * 0.08));
+    const candidateA = lastRoute[Math.min(lastRoute.length - 1, incoming + step)];
+    const candidateB = lastRoute[Math.max(0, incoming - step)];
+    const candidate = candidateA || candidateB;
+    finalWaypoint = coordinateText(candidate);
+    controlPoints.push({
+      kind: "last-route",
+      routeNumber: lastRouteNumber,
+      lat: candidate.lat,
+      lng: candidate.lng
+    });
+  }
+
+  const waypointValues = controlPoints.map(coordinateText);
+  if (finalWaypoint) waypointValues.push(finalWaypoint);
 
   const params = new URLSearchParams({
     api: "1",
-    origin,
+    origin: `${origin} 国道${routeNumbers[0]}号`,
     destination,
     travelmode: "driving",
     avoid: "highways"
   });
 
-  if (guidedWaypoints.length) {
-    params.set("waypoints", guidedWaypoints.slice(0, 9).join("|"));
-  }
+  params.set("waypoints", waypointValues.slice(0, 9).join("|"));
 
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
+  return {
+    url: `https://www.google.com/maps/dir/?${params.toString()}`,
+    controlPoints
+  };
+}
+
+async function openGuidedGoogleMaps(plan, button) {
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "国道上の経由点を作成中…";
+
+  // ユーザー操作の直後に空タブを作り、非同期処理後でもポップアップ扱いされにくくする。
+  const targetTab = window.open("about:blank", "_blank");
+
+  try {
+    const normalized = normalizePlanForGuidance(plan);
+    const result = await buildGuidedDirections(normalized);
+
+    const current = readActivePlan();
+    if (current && current.id === normalized.id) {
+      localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({
+        ...current,
+        googleMapsUrl: result.url,
+        plannedControlPoints: result.controlPoints,
+        guidanceVersion: 2,
+        guidanceGeneratedAt: new Date().toISOString()
+      }));
+      renderActivePlan();
+    }
+
+    if (targetTab) {
+      targetTab.location.href = result.url;
+    } else {
+      window.location.href = result.url;
+    }
+  } catch (error) {
+    if (targetTab) targetTab.close();
+    console.error("Googleマップ経路作成エラー:", error);
+    alert(`Googleマップ経路を作成できませんでした：${error.message || error}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
 }
 
 function planIdentity(plan) {
@@ -150,14 +396,13 @@ function createButton(label, className, handler) {
   return button;
 }
 
-function createMapLink(url, label = "Googleマップ経路を開く") {
-  const link = document.createElement("a");
-  link.className = "action-link google-map-link";
-  link.textContent = label;
-  link.target = "_blank";
-  link.rel = "noopener";
-  link.href = url;
-  return link;
+function createGoogleMapButton(plan, label = "Googleマップ経路を作成して開く") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "action-link google-map-link";
+  button.textContent = label;
+  button.addEventListener("click", () => openGuidedGoogleMaps(plan, button));
+  return button;
 }
 
 function renderActivePlan() {
@@ -182,9 +427,9 @@ function renderActivePlan() {
   section.textContent = `予定区間：${active.origin || "未登録"} → ${active.destination || "未登録"}`;
   activePlanContent.append(name, routes, section);
 
-  if (active.googleMapsUrl) {
-    activePlanActions.appendChild(createMapLink(active.googleMapsUrl));
-  }
+  activePlanActions.appendChild(
+    createGoogleMapButton(active, "Googleマップ経路を作成して開く")
+  );
 
   const systemMapLink = document.createElement("a");
   systemMapLink.className = "action-link";
@@ -227,8 +472,9 @@ function createPlanCard(plan) {
   const actions = document.createElement("div");
   actions.className = "plan-actions";
 
-  const googleUrl = buildGoogleMapsUrl(plan);
-  if (googleUrl) actions.appendChild(createMapLink(googleUrl));
+  actions.appendChild(
+    createGoogleMapButton(toActivePlan(plan), "Googleマップ経路を作成して開く")
+  );
 
   const selectLabel = activeId && activeId === planIdentity(plan)
     ? "今回のプランに選択中"
