@@ -1814,33 +1814,26 @@ function showLoadError(error) {
 }
 
 
-async function loadRuntimePlans() {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-  try {
-    const response = await fetch(
-      `data/travel_plans-v40.json?v=20260724-16`,
-      {
-        cache: "no-store",
-        signal: controller.signal
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`旅行計画データ HTTP ${response.status}`);
-    }
-
-    const payload = await response.json();
-
-    if (!payload || !Array.isArray(payload.plans)) {
-      throw new Error("旅行計画データの形式が正しくありません。");
-    }
-
-    return payload.plans;
-  } finally {
-    clearTimeout(timeoutId);
+const EMBEDDED_TRAVEL_PLANS = [
+  {
+    "計画名": "7/12実走再現テスト",
+    "対象路線": "40→12→233→275→451→231",
+    "始点": "士別市",
+    "終点": "士別市",
+    "距離(km)": "385.9",
+    "所要時間": "",
+    "宿泊": "日帰り",
+    "優先度": "テスト",
+    "季節": "夏",
+    "メモ": "Version 4.0 全行程Track方式の検証用。7/12実走済みルートを始点から終点まで再現する。",
+    "経由地": "深川市→沼田町→雨竜町→滝川市→留萌市→増毛町",
+    "全行程ルート": "40:旭川市→12:深川市→233:沼田町→275:滝川市→451:石狩市浜益区→231:留萌市→233:深川市→12:旭川市→40:士別市",
+    "GoogleマップURL": ""
   }
+];
+
+async function loadRuntimePlans() {
+  return EMBEDDED_TRAVEL_PLANS.map(plan => ({ ...plan }));
 }
 
 async function initializePlanViewer() {
