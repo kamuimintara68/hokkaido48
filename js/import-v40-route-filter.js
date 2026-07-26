@@ -44,17 +44,41 @@
       if (!raw) return new Set();
 
       const plan = JSON.parse(raw);
-      const routeNumbers = Array.isArray(plan.routeNumbers)
-        ? plan.routeNumbers
-        : String(plan.routes || "").split(/[,\s、，・→>]+/);
 
-      return normalizedNumbers(routeNumbers);
-    } catch {
+      const candidates = [];
+
+      if (Array.isArray(plan.routeNumbers)) {
+        candidates.push(...plan.routeNumbers);
+      }
+
+      if (plan.routeNumber) {
+        candidates.push(plan.routeNumber);
+      }
+
+      if (plan.routes) {
+        candidates.push(...String(plan.routes).split(/[,\s、，・→>]+/));
+      }
+
+      if (plan.targetRoutes) {
+        candidates.push(...String(plan.targetRoutes).split(/[,\s、，・→>]+/));
+      }
+
+      if (plan.fullRouteSpec) {
+        const matches = String(plan.fullRouteSpec).match(/(?:^|→)(\d+):/g) || [];
+        matches.forEach(match => {
+          const m = match.match(/(\d+):/);
+          if (m) candidates.push(m[1]);
+        });
+      }
+
+      return normalizedNumbers(candidates);
+    } catch (error) {
+      console.warn("Active Plan読込失敗:", error);
       return new Set();
     }
   }
 
-  function tripExpectedNumbersBeforeSave() {
+  function tripNumbers() {
     const trip = readSelectedTrip();
     if (!trip) return new Set();
 
@@ -66,25 +90,19 @@
   }
 
   function lockExpectedNumbers() {
-    // 既存Tripに予定路線が登録済みならそれを優先。
-    // 自動作成Tripで路線未登録なら、出発前のActive Planを使う。
-    const fromTrip = tripExpectedNumbersBeforeSave();
-
-    if (fromTrip.size) {
-      lockedExpectedNumbers = new Set(fromTrip);
+    // 重要：出発前プランがある場合は必ずそちらを正本とする。
+    const fromPlan = activePlanExpectedNumbers();
+    if (fromPlan.size) {
+      lockedExpectedNumbers = new Set(fromPlan);
       return;
     }
 
-    const fromPlan = activePlanExpectedNumbers();
-    lockedExpectedNumbers = new Set(fromPlan);
+    // プランが無い場合のみ、既存Tripをフォールバックに使う。
+    lockedExpectedNumbers = new Set(tripNumbers());
   }
 
   function expectedNumbers() {
-    if (lockedExpectedNumbers.size) {
-      return new Set(lockedExpectedNumbers);
-    }
-
-    lockExpectedNumbers();
+    if (!lockedExpectedNumbers.size) lockExpectedNumbers();
     return new Set(lockedExpectedNumbers);
   }
 
@@ -97,8 +115,8 @@
     const expected = expectedNumbers();
     if (!expected.size) return;
 
-    const cards = [...results.children].filter(node =>
-      node.nodeType === Node.ELEMENT_NODE
+    const cards = [...results.children].filter(
+      node => node.nodeType === Node.ELEMENT_NODE
     );
 
     let visibleCount = 0;
@@ -108,10 +126,8 @@
 
       if (number && !expected.has(number)) {
         card.style.display = "none";
-        card.dataset.filteredByPlan = "1";
       } else if (number) {
         card.style.display = "";
-        delete card.dataset.filteredByPlan;
         visibleCount += 1;
       }
     });
@@ -122,9 +138,9 @@
         .join("、");
 
       if (summary) {
-        const paragraphs = summary.querySelectorAll("p");
-        if (paragraphs.length >= 2) {
-          paragraphs[1].innerHTML =
+        const ps = summary.querySelectorAll("p");
+        if (ps.length >= 2) {
+          ps[1].innerHTML =
             `<strong>予定路線と一致した ${visibleCount}路線を採用します。</strong> ` +
             `今回の予定：${routeText}。重複・近接する別国道は自動除外しました。`;
         }
@@ -137,7 +153,7 @@
     }
   }
 
-  function cleanupSavedTrip() {
+  function cleanupSelectedTrip() {
     const expected = expectedNumbers();
     if (!expected.size) return;
 
@@ -153,7 +169,6 @@
     if (index < 0) return;
 
     const current = read.trips[index];
-
     const segments = Array.isArray(current.routeSegments)
       ? current.routeSegments.filter(segment =>
           expected.has(String(Number(segment.routeNumber || "")))
@@ -200,32 +215,8 @@
     }
   }
 
-  function repairCurrentTripIfNeeded() {
-    // 今回すでに誤保存されたTripも、ページ再読込時に
-    // 「保存前の予定路線」がActive Planに残っていれば修復可能。
-    const fromPlan = activePlanExpectedNumbers();
-    if (!fromPlan.size) return;
-
-    const trip = readSelectedTrip();
-    if (!trip) return;
-
-    const currentNumbers = normalizedNumbers(
-      Array.isArray(trip.routeSegments)
-        ? trip.routeSegments.map(segment => segment.routeNumber)
-        : []
-    );
-
-    const hasExtra = [...currentNumbers].some(number => !fromPlan.has(number));
-    if (!hasExtra) return;
-
-    lockedExpectedNumbers = new Set(fromPlan);
-  }
-
   const observer = new MutationObserver(() => {
-    window.setTimeout(() => {
-      repairCurrentTripIfNeeded();
-      filterVisibleResults();
-    }, 0);
+    window.setTimeout(filterVisibleResults, 0);
   });
 
   observer.observe(results, {
@@ -236,24 +227,21 @@
 
   tripSelect.addEventListener("change", () => {
     lockedExpectedNumbers = new Set();
-    window.setTimeout(() => {
-      repairCurrentTripIfNeeded();
-      lockExpectedNumbers();
-      filterVisibleResults();
-    }, 0);
+    lockExpectedNumbers();
+    window.setTimeout(filterVisibleResults, 0);
   });
 
   saveButton.addEventListener("click", () => {
-    // 重要：旧保存処理が走る前に予定路線を固定する。
+    // 旧保存処理より先にActive Planを固定。
+    lockedExpectedNumbers = new Set();
     lockExpectedNumbers();
 
-    // 旧保存処理の完了後に、予定路線以外を除去する。
-    window.setTimeout(cleanupSavedTrip, 50);
+    // 旧保存完了後に余計な路線を削除。
+    window.setTimeout(cleanupSelectedTrip, 80);
   }, true);
 
   lockExpectedNumbers();
-  repairCurrentTripIfNeeded();
   filterVisibleResults();
 
-  console.log("北海道48路線 Version4.0 予定路線固定フィルタ Ready");
+  console.log("北海道48路線 Version4.0 Active Plan優先フィルタ Ready");
 })();
