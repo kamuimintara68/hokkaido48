@@ -83,8 +83,8 @@
       throw new Error("Guru Maps用の全行程ルートが登録されていません。");
     }
 
-    // Version4.0既存の予定Track生成をそのまま正本として利用。
-    // 複数国道・同一路線の再登場・往復も buildFullTrackPlan() の走行順を保持する。
+    // Version 4.0既存の予定Track生成を利用。
+    // 複数国道、同一路線の再登場、往復、周回も走行順を保持する。
     const track = await buildFullTrackPlan(plan);
 
     if (!track || !Array.isArray(track.points) || track.points.length < 2) {
@@ -128,7 +128,7 @@
             guruRouteDistanceKm: Number(result.distanceKm.toFixed(1)),
             guruTrackPointCount: result.trackPointCount,
             guruFullRouteSpec: result.fullRouteSpec,
-            guruGuidanceVersion: 2,
+            guruGuidanceVersion: 3,
             guruGuidanceGeneratedAt: new Date().toISOString()
           })
         );
@@ -143,8 +143,42 @@
     }
   }
 
+  function removeObsoleteOsmAndButton() {
+    [...activePlanActions.querySelectorAll("button")].forEach(button => {
+      if (button.textContent.trim() === "OsmAnd Webを開く") {
+        button.remove();
+      }
+    });
+  }
+
+  function markGpxAsOptional() {
+    [...activePlanActions.querySelectorAll("button")].forEach(button => {
+      if (button.textContent.trim() === "予定Track GPXを書き出す") {
+        button.textContent = "予定Track GPXを書き出す（予備）";
+      }
+    });
+  }
+
+  function updateOldR40Memo() {
+    document.querySelectorAll(".plan-card").forEach(card => {
+      const title = card.querySelector("h3");
+      if (!title || !title.textContent.includes("R40北上2時間 実走総合テスト")) return;
+
+      card.querySelectorAll("dd").forEach(dd => {
+        if (dd.textContent.includes("OsmAndナビ＋実走GPX記録")) {
+          dd.textContent =
+            "Guru Mapsナビ＋ナビ中の実走GPS自動記録＋帰宅後の国道40号判定を確認する実走総合テスト。時間に応じて折返し地点は前倒し可。";
+        }
+      });
+    });
+  }
+
   function installGuruButton() {
     const active = readActivePlan();
+
+    removeObsoleteOsmAndButton();
+    markGpxAsOptional();
+    updateOldR40Memo();
 
     const existing = activePlanActions.querySelector(".guru-v40-button");
     if (existing) {
@@ -165,8 +199,9 @@
 
   const observer = new MutationObserver(() => installGuruButton());
   observer.observe(activePlanActions, { childList: true });
+  observer.observe(planList, { childList: true, subtree: true });
 
   installGuruButton();
 
-  console.log("北海道48路線 Version4.0 Guru Maps multi-route test Ready");
+  console.log("北海道48路線 Version4.0 Guru Maps official guidance Ready");
 })();
