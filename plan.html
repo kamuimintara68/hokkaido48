@@ -44,7 +44,7 @@
 <body>
   <header class="page-header">
     <h1>北海道48路線ふらふらlog 旅行計画</h1>
-    <p>① 出発前計画／AIが始点から終点まで連続Trackを生成 → GPX → OsmAnd → 実走</p>
+    <p>① 出発前計画／プラン → 国道上の固定通過点 → Guru Maps → 音声ナビ＋実走GPS記録</p>
   </header>
   <main class="main">
     <a class="back-link" href="index.html">← 地図へ戻る</a>
@@ -58,8 +58,9 @@
     </section>
 
     <div class="source-note">
-      計画の編集元はExcelです。現在の検証用計画は画面側へ直接同期して使用します。
-      「AI予定Trackを作成・確認」で全行程ルートに沿った連続GPX Trackを約250m間隔で生成します。Trackそのものをシステム地図で確認し、GPXをOsmAnd Webへ取り込んでCloud保存する運用です。
+      Guru Maps連携は現在「R40北上2時間 実走総合テスト」で仮実装中です。
+      国道40号GeoJSON上の実座標を走行順のまま約10km間隔で抽出し、「Guru Mapsでナビ」から直接起動します。
+      既存の予定Track確認・GPX書き出し機能は検証用として残しています。
     </div>
 
     <div class="plan-summary">
@@ -71,8 +72,9 @@
     </section>
   </main>
 
-  <div class="build-badge">Version 4.0 Build 20260724-18</div>
+  <div class="build-badge">Version 4.0 Build 20260726-01 Guru R40</div>
   <script src="js/plan-v40-preload.js?v=20260724-18"></script>
   <script src="js/plan-v40.js?v=20260724-17"></script>
+  <script src="js/guru-v40-r40.js?v=20260726-01"></script>
 </body>
 </html>
