@@ -27,6 +27,64 @@
       background:rgba(255,255,255,.92); color:#333; font-size:12px;
       box-shadow:0 1px 4px rgba(0,0,0,.15);
     }
+
+    .plan-selector-panel{display:block}
+    .home-plan-section{margin-bottom:18px}
+    .home-plan-section h3,.home-selected-plan h3{margin:0 0 10px;color:#173b63;font-size:1rem}
+    .home-area-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .home-area-buttons button{min-height:44px;padding:9px 10px;border:1px solid #bfd0e0;border-radius:9px;background:#fff;color:#173b63;font:inherit;font-weight:800;cursor:pointer}
+    .home-area-buttons button.active{border-color:#2563eb;background:#2563eb;color:#fff}
+    .home-plan-list{display:grid;gap:9px}
+    .home-plan-card{padding:12px;border:1px solid #d5e0e9;border-radius:10px;background:#fff;cursor:pointer;text-align:left}
+    .home-plan-card:hover{border-color:#7c3aed}
+    .home-plan-card.active{border:2px solid #7c3aed;background:#f5f3ff}
+    .home-plan-card strong{display:block;margin-bottom:5px;color:#172033}
+    .home-plan-card span{display:block;color:#526579;font-size:13px;line-height:1.45}
+    .home-plan-empty{margin:0;padding:12px;border-radius:9px;background:#f8fafc;color:#64748b}
+    .home-selected-plan{margin-top:16px;padding:14px;border:2px solid #7c3aed;border-radius:11px;background:#f5f3ff}
+    .home-selected-plan p{margin:5px 0}
+    .home-next-step{margin:12px 0 8px;padding:10px 12px;border-left:5px solid #16a34a;border-radius:7px;background:#ecfdf5;color:#166534;font-weight:800}
+    .home-nav-button{display:flex;align-items:center;justify-content:center;min-height:48px;padding:10px 14px;border-radius:9px;background:#15803d;color:#fff!important;text-decoration:none;font-weight:800}
+    .home-route-compat{position:absolute!important;left:-100000px!important;top:0!important;width:1px!important;height:1px!important;overflow:hidden!important}
+    @media(max-width:900px){.home-area-buttons{grid-template-columns:repeat(4,1fr)}}
+    @media(max-width:620px){.home-area-buttons{grid-template-columns:1fr 1fr}}
+
+
+    .home-panel-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;padding:4px;border-radius:10px;background:#e8eef5}
+    .home-panel-tab{min-height:42px;border:0;border-radius:8px;background:transparent;color:#526579;font:inherit;font-weight:800;cursor:pointer}
+    .home-panel-tab.active{background:#fff;color:#173b63;box-shadow:0 2px 8px rgba(15,23,42,.10)}
+    .route-status-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px}
+    .route-summary-chip{padding:9px 5px;border-radius:9px;text-align:center;font-size:12px;font-weight:800}
+    .route-summary-chip strong{display:block;font-size:18px}
+    .route-summary-chip.complete{background:#dcfce7;color:#166534}
+    .route-summary-chip.partial{background:#ffedd5;color:#9a3412}
+    .route-summary-chip.untraveled{background:#f1f5f9;color:#475569}
+    .route-status-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .route-status-filter button{min-height:34px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#475569;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+    .route-status-filter button.active{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
+    .route-status-note{margin:0 0 10px;color:#64748b;font-size:12px;line-height:1.45}
+    .route-status-list{display:grid;gap:7px;max-height:560px;overflow:auto;padding-right:2px}
+    .route-status-card{width:100%;padding:10px 11px;border:1px solid #d8e2ec;border-radius:9px;background:#fff;text-align:left;cursor:pointer}
+    .route-status-card:hover{border-color:#2563eb}
+    .route-status-card-title{display:flex;justify-content:space-between;gap:8px;align-items:center;font-weight:800}
+    .route-status-card-detail{margin-top:4px;color:#64748b;font-size:12px}
+    .status-badge{flex:0 0 auto;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:800}
+    .status-badge.complete{background:#dcfce7;color:#166534}
+    .status-badge.partial{background:#ffedd5;color:#9a3412}
+    .status-badge.untraveled{background:#f1f5f9;color:#475569}
+
+
+    .status-route-number-icon{background:transparent;border:0;pointer-events:none}
+    .status-route-number-label{
+      display:flex;align-items:center;justify-content:center;
+      min-width:38px;height:24px;padding:0 7px;
+      border:2px solid #1d4ed8;border-radius:7px;
+      background:rgba(255,255,255,.96);color:#1d4ed8;
+      font:800 13px/1 Arial,sans-serif;
+      box-shadow:0 2px 6px rgba(15,23,42,.2);
+      transform:translate(-50%,-50%);
+      white-space:nowrap;
+    }
   </style>
 </head>
 <body>
@@ -69,51 +127,69 @@
         <div id="map"></div>
       </section>
 
-      <aside class="info-panel" id="infoPanel">
-        <h2 class="info-panel-title">Route Information</h2>
-        <div class="empty-panel" id="emptyPanel">
-          <p class="empty-panel-title">路線を選択してください</p>
-          <p class="empty-panel-text">地図上の国道をクリックすると、ここに情報が表示されます。</p>
+      <aside class="info-panel plan-selector-panel" id="homePlanPanel">
+        <div class="home-panel-tabs" role="tablist" aria-label="トップ画面表示切替">
+          <button id="homePlanTab" class="home-panel-tab active" type="button" role="tab" aria-selected="true">次の旅</button>
+          <button id="homeStatusTab" class="home-panel-tab" type="button" role="tab" aria-selected="false">48路線走破状況</button>
         </div>
 
-        <div class="panel-content" id="panelContent" hidden>
-          <section class="route-summary">
-            <span class="route-number" id="routeNumber">Route</span>
-            <h3 class="route-name" id="routeName">路線名</h3>
-            <div class="route-meta-grid">
-              <div class="route-meta-item">
-                <span class="route-meta-label">起点</span>
-                <span id="routeStart">未登録</span>
-              </div>
-              <div class="route-meta-item">
-                <span class="route-meta-label">終点</span>
-                <span id="routeEnd">未登録</span>
-              </div>
-            </div>
-            <div class="status-box">
-              <span class="status-label">走破状態</span>
-              <span class="status-value" id="routeStatus">未走破</span>
+        <section id="homePlanMode">
+          <h2 class="info-panel-title">次の旅を選ぶ</h2>
+
+          <section class="home-plan-section">
+            <h3>1. エリアを選ぶ</h3>
+            <div id="homeAreaButtons" class="home-area-buttons" aria-label="旅行エリア">
+              <button type="button" data-area="道北">道北</button>
+              <button type="button" data-area="道東">道東</button>
+              <button type="button" data-area="道央">道央</button>
+              <button type="button" data-area="道南">道南</button>
             </div>
           </section>
 
-          <section class="content-grid">
-            <article class="compact-card photo-card">
-              <h3 class="compact-card-title">Photo</h3>
-              <img id="routePhoto" src="" alt="Route Photo" class="route-photo">
-              <div class="compact-card-value" id="photoValue">未登録</div>
-            </article>
-            <article class="compact-card">
-              <h3 class="compact-card-title">走破記録</h3>
-              <div class="compact-card-value" id="publicRecordValue">未登録</div>
-            </article>
-            <article class="compact-card">
-              <h3 class="compact-card-title">関連Trip</h3>
-              <div class="compact-card-value" id="relatedTripsValue">関連Tripなし</div>
-            </article>
+          <section class="home-plan-section">
+            <h3>2. 詳細プランを選ぶ</h3>
+            <div id="homePlanList" class="home-plan-list">
+              <p class="home-plan-empty">まずエリアを選んでください。</p>
+            </div>
           </section>
-        </div>
+
+          <section id="homeSelectedPlan" class="home-selected-plan" hidden>
+            <div id="homeSelectedPlanContent"></div>
+            <div class="home-next-step">次は：左地図で予定区間を確認して、ナビ準備へ</div>
+            <a href="plan.html" class="home-nav-button">このプランでナビ準備へ</a>
+          </section>
+        </section>
+
+        <section id="homeStatusMode" hidden>
+          <h2 class="info-panel-title">48路線走破状況</h2>
+          <div id="routeStatusSummary" class="route-status-summary">集計中です。</div>
+          <div class="route-status-filter">
+            <button type="button" data-status-filter="all" class="active">すべて</button>
+            <button type="button" data-status-filter="partial">一部走破</button>
+            <button type="button" data-status-filter="complete">全線走破</button>
+            <button type="button" data-status-filter="untraveled">未走破</button>
+          </div>
+          <p class="route-status-note">一部走破の「残り」は実走GPXと国道路線データからの概算です。</p>
+          <div id="routeStatusList" class="route-status-list">
+            <p class="home-plan-empty">走破状況を読み込んでいます。</p>
+          </div>
+        </section>
       </aside>
     </main>
+
+
+    <div class="home-route-compat" aria-hidden="true">
+      <aside id="infoPanel">
+        <div id="emptyPanel"></div>
+        <div id="panelContent" hidden>
+          <span id="routeNumber"></span><span id="routeName"></span>
+          <span id="routeStart"></span><span id="routeEnd"></span>
+          <span id="routeStatus"></span><img id="routePhoto" alt="">
+          <div id="photoValue"></div><div id="publicRecordValue"></div>
+          <div id="relatedTripsValue"></div>
+        </div>
+      </aside>
+    </div>
 
     <div id="routeFinderOverlay" class="route-finder-overlay" hidden>
       <aside id="routeFinder" class="route-finder" role="dialog" aria-modal="true" aria-labelledby="routeFinderTitle">
@@ -158,13 +234,13 @@
     </div>
   </div>
 
-  <div class="build-badge">Version 4.0 Build 20260727-19 Final Cleanup</div>
+  <div class="build-badge">Version 4.0 Build 20260727-29 Route233 Master</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/trip-data-v36.js?v=20260727-19"></script>
   <script src="js/app.js?v=20260727-19"></script>
   <script src="js/app-v34.js?v=20260727-19"></script>
   <script src="js/map-mobile-v36.js?v=20260727-19"></script>
   <script src="js/travel-track-20260712.js?v=20260727-19"></script>
-  <script src="js/plan-overlay-v40.js?v=20260727-19"></script>
+  <script src="js/home-plan-selector-v40.js?v=20260727-29"></script>
 </body>
 </html>
