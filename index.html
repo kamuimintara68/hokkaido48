@@ -6,7 +6,7 @@
   <title>北海道48路線ふらふらlog Version4.0</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/style-v36.css?v=20260724-17">
+  <link rel="stylesheet" href="css/style-v36.css?v=20260727-19">
   <style>
     .primary-flow-button {
       border-color:#15803d !important;
@@ -15,6 +15,12 @@
       box-shadow:0 5px 14px rgba(21,128,61,.22);
     }
     .secondary-flow-button { background:#f8fafc !important; }
+    .flow-guide {
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+      margin:0 0 14px; padding:10px 14px;
+      border-radius:10px; background:#eef6ff; color:#173b63; font-weight:800;
+    }
+    .flow-guide span { white-space:nowrap; }
     .build-badge {
       position:fixed; right:10px; bottom:10px; z-index:9999;
       padding:6px 10px; border:1px solid #999; border-radius:6px;
@@ -28,24 +34,16 @@
     <header class="header">
       <div>
         <h1 class="header-title">北海道48路線ふらふらlog</h1>
-        <p class="header-subtitle">Route / Status / Trip / Record</p>
+        <p class="header-subtitle">プラン → 実走 → 記録</p>
       </div>
 
       <div class="header-actions">
-        <a href="import-v40-newtrip.html" class="trip-button primary-flow-button">
-          旅素材まとめて投入
-        </a>
+        <a href="plan.html" class="trip-button primary-flow-button">旅行計画</a>
+        <a href="import-v40-newtrip.html" class="trip-button primary-flow-button">旅素材まとめて投入</a>
+        <a href="trip.html" class="trip-button secondary-flow-button">記録を見る・修正</a>
+        <a href="backup.html" class="trip-button secondary-flow-button">データ管理</a>
 
-        <a href="trip.html" class="trip-button secondary-flow-button">
-          Trip一覧・修正
-        </a>
-
-        <button id="openRouteFinderButton" class="route-finder-button" type="button">
-          路線検索
-        </button>
-
-        <a href="plan.html" class="trip-button plan-button">旅行計画</a>
-        <a href="backup.html" class="trip-button">データ管理</a>
+        <button id="openRouteFinderButton" class="route-finder-button" type="button">路線検索</button>
 
         <div class="progress-summary">
           <div class="progress-ring" id="progressDonut" style="--progress:0%;">
@@ -58,6 +56,13 @@
         </div>
       </div>
     </header>
+
+    <div class="flow-guide" aria-label="基本の使い方">
+      <span>① 旅行計画</span><span>→</span>
+      <span>② iPhoneでGuru Mapsナビ</span><span>→</span>
+      <span>③ 帰宅後「旅素材まとめて投入」</span><span>→</span>
+      <span>④ 記録確認</span>
+    </div>
 
     <main class="main">
       <section class="map-area" aria-label="北海道の国道路線地図">
@@ -153,13 +158,13 @@
     </div>
   </div>
 
-  <div class="build-badge">Version 4.0 Build 20260724-17</div>
+  <div class="build-badge">Version 4.0 Build 20260727-19 Final Cleanup</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/trip-data-v36.js?v=20260724-17"></script>
-  <script src="js/app.js?v=20260724-17"></script>
-  <script src="js/app-v34.js?v=20260724-17"></script>
-  <script src="js/map-mobile-v36.js?v=20260724-17"></script>
-  <script src="js/travel-track-20260712.js?v=20260724-17"></script>
-  <script src="js/plan-overlay-v40.js?v=20260724-17"></script>
+  <script src="js/trip-data-v36.js?v=20260727-19"></script>
+  <script src="js/app.js?v=20260727-19"></script>
+  <script src="js/app-v34.js?v=20260727-19"></script>
+  <script src="js/map-mobile-v36.js?v=20260727-19"></script>
+  <script src="js/travel-track-20260712.js?v=20260727-19"></script>
+  <script src="js/plan-overlay-v40.js?v=20260727-19"></script>
 </body>
 </html>

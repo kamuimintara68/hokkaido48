@@ -8,9 +8,9 @@
   </style>
 </head>
 <body><div class="page">
-  <header class="page-header"><h1>データ管理</h1><p>④ システムアップデート／Version 4.0</p></header>
-  <nav class="navigation"><a class="back-link" href="index.html">← 地図へ戻る</a><a class="back-link" href="import-v40-newtrip.html">旅素材まとめて投入</a><a class="back-link" href="trip.html">Trip一覧・修正</a><a class="back-link" href="plan.html">旅行計画</a></nav>
+  <header class="page-header"><h1>データ管理</h1><p>Version 4.0／バックアップ・復元</p></header>
+  <nav class="navigation"><a class="back-link" href="index.html">← 地図へ戻る</a><a class="back-link" href="plan.html">旅行計画</a><a class="back-link" href="import-v40-newtrip.html">旅素材まとめて投入</a><a class="back-link" href="trip.html">記録を見る・修正</a></nav>
   <section class="card"><h2>現在の保存データ</h2><div id="currentSummary" class="summary">確認中です。</div><div id="currentWarning" class="notice" hidden></div><p>TripとRecordは、この画面を開いている端末・ブラウザに保存されています。</p></section>
   <section class="card"><h2>バックアップを書き出す</h2><p>TripとRouteごとのRecordを、1つのJSONファイルへ保存します。</p><div class="actions"><button id="exportButton" type="button">Trip・Recordをバックアップ</button><button id="excelBackupButton" class="secondary" type="button">公開中のExcel旅行計画を保存</button></div><div class="notice">Excelボタンで保存されるのは、GitHub Pagesで公開中の data/travel_plans.xlsx です。Windows側で編集中・未Pushの内容は含まれません。</div><p id="exportMessage" class="message" aria-live="polite"></p></section>
   <section class="card"><h2>バックアップから復元する</h2><ol class="steps"><li>バックアップファイルを選び、内容を確認します。</li><li>復元直前のデータを別ファイルへ書き出します。</li><li>確認画面の後に復元を実行します。</li></ol><div class="actions"><label class="file-label" for="backupFileInput">バックアップファイルを選ぶ</label><input id="backupFileInput" type="file" accept=".json,application/json"></div><div id="importPreview" class="summary">バックアップファイルはまだ選ばれていません。</div><div class="actions"><button id="preRestoreButton" class="secondary" type="button" disabled>復元前バックアップを書き出す</button><button id="restoreButton" class="danger" type="button" disabled>バックアップから復元</button></div><div class="notice">復元を実行するまでは、現在のデータは変更されません。復元時に変更するのは hokkaido48Trips と route***Record だけです。</div><p id="restoreMessage" class="message" aria-live="polite"></p></section>
-</div><div class="build-badge">Version 4.0 Build 20260722-01</div><script src="js/backup-v40.js?v=20260722-01"></script></body></html>
+</div><div class="build-badge">Version 4.0 Build 20260727-19 Final Cleanup</div><script src="js/backup-v40.js?v=20260727-19"></script></body></html>
