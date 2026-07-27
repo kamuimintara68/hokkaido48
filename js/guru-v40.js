@@ -48,15 +48,21 @@
   }
 
   function withTimeout(promise, milliseconds) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        window.setTimeout(
-          () => reject(new Error("予定ルート作成が時間内に完了しませんでした。もう一度押してください。")),
-          milliseconds
-        );
-      })
-    ]);
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        reject(new Error("予定ルート作成が20秒以内に完了しませんでした。"));
+      }, milliseconds);
+
+      Promise.resolve(promise)
+        .then(value => {
+          window.clearTimeout(timer);
+          resolve(value);
+        })
+        .catch(error => {
+          window.clearTimeout(timer);
+          reject(error);
+        });
+    });
   }
 
   function sampleTrackPoints(points, spacingMeters = GUIDE_SPACING_METERS) {
@@ -119,23 +125,23 @@
   async function getTrack(plan) {
     const stored = readStoredPlan();
 
-    if (
-      stored &&
-      stored.id === plan.id &&
-      validPreview(stored)
-    ) {
+    if (stored && stored.id === plan.id && validPreview(stored)) {
       return previewToTrack(stored);
     }
 
     return withTimeout(buildFullTrackPlan(plan), BUILD_TIMEOUT_MS);
   }
 
-  async function openGuruMaps(plan, button) {
-    const originalLabel = "Guru Mapsでナビ";
+  async function openGuruMaps(button) {
+    const plan = readStoredPlan();
     button.disabled = true;
     button.textContent = "予定ルートを準備中…";
 
     try {
+      if (!canUseGuru(plan)) {
+        throw new Error("今回のプラン情報が不足しています。");
+      }
+
       const track = await getTrack(plan);
 
       if (!track || !Array.isArray(track.points) || track.points.length < 2) {
@@ -143,53 +149,49 @@
       }
 
       const guidePoints = sampleTrackPoints(track.points);
+
       if (guidePoints.length < 2) {
         throw new Error("Guru Mapsへ渡す通過点を作成できませんでした。");
       }
 
       const url = buildGuruUrl(guidePoints);
       const current = readStoredPlan();
-      const normalized = normalizePlanForGuidance(plan);
 
-      if (current && current.id === normalized.id) {
-        localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({
-          ...current,
-          fullRouteSpec: track.fullRouteSpec || current.fullRouteSpec,
-          fullRouteLegs: Array.isArray(track.fullRouteLegs)
-            ? track.fullRouteLegs
-            : (current.fullRouteLegs || []),
-          plannedPreview: {
-            version: 5,
-            kind: "full-track",
-            name: track.name || current.planName || "北海道48路線 予定Track",
-            generatedAt: new Date().toISOString(),
-            distanceKm: Number(Number(track.distanceKm || 0).toFixed(1)),
-            points: track.points.map(point => [
-              Number(point.lat),
-              Number(point.lng)
-            ])
-          },
-          guruMapsUrl: url,
-          guruGuidePoints: guidePoints,
-          guruGuidePointCount: guidePoints.length,
-          guruGuideSpacingMeters: GUIDE_SPACING_METERS,
-          guruRouteDistanceKm: Number(Number(track.distanceKm || 0).toFixed(1)),
-          guruGuidanceVersion: 5,
-          guruGuidanceGeneratedAt: new Date().toISOString()
-        }));
-      }
+      localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify({
+        ...current,
+        plannedPreview: {
+          version: 5,
+          kind: "full-track",
+          name: track.name || current.planName || "北海道48路線 予定Track",
+          generatedAt: new Date().toISOString(),
+          distanceKm: Number(Number(track.distanceKm || 0).toFixed(1)),
+          points: track.points.map(point => [
+            Number(point.lat),
+            Number(point.lng)
+          ])
+        },
+        fullRouteLegs: Array.isArray(track.fullRouteLegs)
+          ? track.fullRouteLegs
+          : (current.fullRouteLegs || []),
+        guruMapsUrl: url,
+        guruGuidePoints: guidePoints,
+        guruGuidePointCount: guidePoints.length,
+        guruGuideSpacingMeters: GUIDE_SPACING_METERS,
+        guruRouteDistanceKm: Number(Number(track.distanceKm || 0).toFixed(1)),
+        guruGuidanceVersion: 5,
+        guruGuidanceGeneratedAt: new Date().toISOString()
+      }));
 
       window.location.href = url;
     } catch (error) {
       console.error("Guru Maps経路作成エラー:", error);
-      alert(error.message || "Guru Maps経路を作成できませんでした。");
       button.disabled = false;
-      button.textContent = originalLabel;
+      button.textContent = "Guru Mapsでナビ";
+      alert(error.message || "Guru Maps経路を作成できませんでした。");
     }
   }
 
-  function isUtilityButton(button) {
-    const label = button.textContent.trim();
+  function utilityLabel(label) {
     return (
       label.includes("AI予定Track") ||
       label.includes("予定Track GPX") ||
@@ -198,76 +200,79 @@
     );
   }
 
-  function simplifyActions(container, activePlanOnly) {
+  function cleanContainer(container) {
     [...container.querySelectorAll("button, a")].forEach(element => {
-      if (isUtilityButton(element)) element.remove();
-    });
-
-    if (activePlanOnly) {
-      [...container.querySelectorAll(".guru-v40-button")].forEach((button, index) => {
-        if (index > 0) button.remove();
-      });
-    }
-  }
-
-  function updatePlanCards() {
-    const active = readStoredPlan();
-
-    document.querySelectorAll(".plan-card").forEach(card => {
-      const isActive = card.classList.contains("active");
-      const actions = card.querySelector(".plan-actions");
-      if (!actions) return;
-
-      simplifyActions(actions, false);
-
-      const selectButton = actions.querySelector(".select-plan-button");
-      if (selectButton) {
-        if (isActive) {
-          selectButton.textContent = "✓ 今回のプランに選択中";
-          selectButton.disabled = true;
-          selectButton.setAttribute("aria-disabled", "true");
-        } else {
-          selectButton.textContent = "このプランを今回の予定にする";
-          selectButton.disabled = false;
-          selectButton.removeAttribute("aria-disabled");
-        }
+      if (utilityLabel(element.textContent.trim())) {
+        element.remove();
       }
     });
   }
 
-  function installGuruButton() {
+  function refreshUiOnce() {
     const active = readStoredPlan();
 
-    simplifyActions(activePlanActions, true);
+    cleanContainer(activePlanActions);
 
-    let button = activePlanActions.querySelector(".guru-v40-button");
-
-    if (!canUseGuru(active)) {
-      if (button) button.remove();
-      updatePlanCards();
-      return;
-    }
-
-    if (!button) {
-      button = document.createElement("button");
+    if (canUseGuru(active) && !activePlanActions.querySelector(".guru-v40-button")) {
+      const button = document.createElement("button");
       button.type = "button";
       button.className = "select-plan-button guru-v40-button";
       button.textContent = "Guru Mapsでナビ";
-      button.addEventListener("click", () => openGuruMaps(readStoredPlan(), button));
+      button.addEventListener("click", () => openGuruMaps(button));
       activePlanActions.prepend(button);
     }
 
-    updatePlanCards();
+    document.querySelectorAll(".plan-card").forEach(card => {
+      const actions = card.querySelector(".plan-actions");
+      if (!actions) return;
+
+      cleanContainer(actions);
+
+      const selectButton = actions.querySelector(".select-plan-button");
+      if (!selectButton) return;
+
+      if (card.classList.contains("active")) {
+        if (selectButton.textContent !== "✓ 今回のプランに選択中") {
+          selectButton.textContent = "✓ 今回のプランに選択中";
+        }
+        selectButton.disabled = true;
+      } else {
+        if (selectButton.textContent !== "このプランを今回の予定にする") {
+          selectButton.textContent = "このプランを今回の予定にする";
+        }
+        selectButton.disabled = false;
+      }
+    });
   }
 
+  // 初期描画直後と、計画データ読込後だけ実行。
+  refreshUiOnce();
+
+  let scheduled = false;
   const observer = new MutationObserver(() => {
-    window.setTimeout(installGuruButton, 0);
+    if (scheduled) return;
+    scheduled = true;
+
+    window.setTimeout(() => {
+      scheduled = false;
+      observer.disconnect();
+      refreshUiOnce();
+
+      observer.observe(planList, {
+        childList: true
+      });
+      observer.observe(activePlanActions, {
+        childList: true
+      });
+    }, 0);
   });
 
-  observer.observe(activePlanActions, { childList: true, subtree: true });
-  observer.observe(planList, { childList: true, subtree: true });
+  observer.observe(planList, {
+    childList: true
+  });
+  observer.observe(activePlanActions, {
+    childList: true
+  });
 
-  installGuruButton();
-
-  console.log("北海道48路線 Version4.0 Simple Guru UI Ready");
+  console.log("北海道48路線 Version4.0 Guru Loop Fix Ready");
 })();
