@@ -10,6 +10,8 @@
   const saveButton = document.getElementById("saveAutoRouteJudgeButton");
   const saveStatus = document.getElementById("autoRouteSaveStatus");
   const simpleSaveResult = document.getElementById("simpleSaveResult");
+  const savedTripActions = document.getElementById("savedTripActions");
+  const savedTripLink = document.getElementById("savedTripLink");
 
   if (!TripData || !tripSelect || !results || !saveButton) return;
 
@@ -211,6 +213,11 @@
       simpleSaveResult.className = "success-box";
       simpleSaveResult.textContent =
         `保存完了。予定 ${routeText} と実走区間を同じTripへ保存しました。`;
+    }
+
+    if (savedTripLink && savedTripActions) {
+      savedTripLink.href = `trip.html?trip=${encodeURIComponent(current.id)}`;
+      savedTripActions.style.display = "flex";
     }
 
     if (saveStatus) {
