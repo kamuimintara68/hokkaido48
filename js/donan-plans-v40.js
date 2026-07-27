@@ -2,7 +2,7 @@
 
 /*
  * 北海道48路線ふらふらlog Version 4.0
- * Build 20260727-32 Donan Map + Detour
+ * Build 20260727-33 Inline Nav
  *
  * 元データ:
  *   北海道48路線_道南制覇3泊4日_Plan.xlsx
@@ -438,13 +438,15 @@
 
   async function selectAndDrawHomePlan(plan) {
     const selectedBox = document.getElementById("homeSelectedPlan");
-    const selectedContent = document.getElementById("homeSelectedPlanContent");
 
     try {
-      if (selectedContent) {
-        selectedContent.innerHTML = `<p><strong>${plan.planName}</strong></p><p>予定走行ルートを作成しています…</p>`;
-      }
-      if (selectedBox) selectedBox.hidden = false;
+      // 道南プランでは下の別欄を使わず、選択カード内に操作を集約する。
+      if (selectedBox) selectedBox.hidden = true;
+
+      const preparing = toActivePlan(plan);
+      preparing.homePreparingTrack = true;
+      localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(preparing));
+      renderHomeDonanPlans();
 
       const active = toActivePlan(plan);
       const track = await buildHomePlanTrack(plan);
@@ -459,22 +461,21 @@
         points: track.points.map(point => [point.lat, point.lng])
       };
 
+      active.homePreparingTrack = false;
+      active.homeTrackError = "";
       localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(active));
       drawHomePlanTrack(plan, track);
       renderHomeDonanPlans();
-      renderHomeSelected(plan);
-
-      const detail = document.createElement("p");
-      detail.textContent = `予定Track：約${track.distanceKm.toFixed(1)}km`;
-      if (selectedContent) selectedContent.appendChild(detail);
+      if (selectedBox) selectedBox.hidden = true;
     } catch (error) {
       console.error("道南プラン トップ地図Track作成エラー:", error);
-      if (selectedContent) {
-        selectedContent.innerHTML =
-          `<p><strong>${plan.planName}</strong></p>` +
-          `<p style="color:#b91c1c;font-weight:800">予定ルートを表示できませんでした：${error.message || error}</p>`;
-      }
-      if (selectedBox) selectedBox.hidden = false;
+
+      const failed = toActivePlan(plan);
+      failed.homePreparingTrack = false;
+      failed.homeTrackError = String(error.message || error);
+      localStorage.setItem(ACTIVE_PLAN_KEY, JSON.stringify(failed));
+      renderHomeDonanPlans();
+      if (selectedBox) selectedBox.hidden = true;
     }
   }
 
@@ -668,68 +669,31 @@
   }
 
   function renderHomeSelected(plan) {
+    // Build 33: 道南プランはカード内にナビ操作を表示する。
     const selectedBox = document.getElementById("homeSelectedPlan");
-    const selectedContent = document.getElementById("homeSelectedPlanContent");
-    if (!selectedBox || !selectedContent) return;
-
-    selectedContent.innerHTML = "";
-
-    const summary = document.createElement("p");
-    summary.innerHTML =
-      `<strong>${plan.planName}</strong><br>` +
-      `${plan.origin} → ${plan.destination}<br>` +
-      `主対象：${plan.routeNumbers.map(number => `国道${number}号`).join(" → ")}`;
-    selectedContent.appendChild(summary);
-
-    const goal = document.createElement("p");
-    goal.textContent = `走破目標：${plan.goal}`;
-    selectedContent.appendChild(goal);
-
-    if (plan.warning) {
-      const warning = document.createElement("p");
-      warning.textContent = `注意：${plan.warning}`;
-      warning.style.color = "#b45309";
-      warning.style.fontWeight = "800";
-      selectedContent.appendChild(warning);
-    }
-
-    const nextStep = selectedBox.querySelector(".home-next-step");
-    const navButton = selectedBox.querySelector(".home-nav-button");
-
-    if (nextStep) {
-      nextStep.textContent = plan.detourMode
-        ? "次は：ナビ準備へ（規制区間は迂回して実走）"
-        : "次は：ナビ準備で予定Trackを作成・確認";
-      nextStep.removeAttribute("style");
-    }
-    if (navButton) {
-      navButton.textContent = plan.detourMode
-        ? "このプランで迂回前提のナビ準備へ"
-        : "このプランでナビ準備へ";
-      navButton.href = "plan.html";
-      navButton.removeAttribute("aria-disabled");
-      navButton.style.opacity = "";
-      navButton.style.pointerEvents = "";
-    }
-
-    selectedBox.hidden = false;
+    if (selectedBox) selectedBox.hidden = true;
   }
 
   function renderHomeDonanPlans() {
     const areaButtons = document.getElementById("homeAreaButtons");
     const planList = document.getElementById("homePlanList");
+    const selectedBox = document.getElementById("homeSelectedPlan");
     if (!areaButtons || !planList) return;
 
     setHomeAreaButtonState(areaButtons);
+    if (selectedBox) selectedBox.hidden = true;
     planList.innerHTML = "";
 
     const active = readActivePlan();
 
     DONAN_PLANS.forEach(plan => {
-      const card = document.createElement("button");
-      card.type = "button";
+      const isActive = !!(active && active.id === identity(plan));
+      const card = document.createElement("div");
       card.className = "home-plan-card";
-      if (active && active.id === identity(plan)) card.classList.add("active");
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.setAttribute("aria-pressed", isActive ? "true" : "false");
+      if (isActive) card.classList.add("active");
 
       const name = document.createElement("strong");
       name.textContent = plan.planName;
@@ -748,8 +712,73 @@
 
       card.append(name, route, summary);
 
-      card.addEventListener("click", () => {
-        selectAndDrawHomePlan(plan);
+      if (isActive) {
+        const action = document.createElement("div");
+        action.className = "home-plan-inline-action";
+
+        const status = document.createElement("span");
+        status.className = "home-plan-inline-status";
+
+        const nav = document.createElement("a");
+        nav.className = "home-plan-inline-nav";
+
+        if (active.homePreparingTrack) {
+          status.textContent = "予定走行ルートを作成しています…";
+          nav.textContent = "ナビ準備まで少し待ってください";
+          nav.removeAttribute("href");
+          nav.setAttribute("aria-disabled", "true");
+        } else if (active.homeTrackError) {
+          status.textContent = `予定ルート作成エラー：${active.homeTrackError}`;
+          status.style.color = "#b91c1c";
+          nav.textContent = "もう一度このプランを選択";
+          nav.href = "#";
+          nav.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            selectAndDrawHomePlan(plan);
+          });
+        } else if (
+          active.plannedPreview &&
+          Array.isArray(active.plannedPreview.points) &&
+          active.plannedPreview.points.length >= 2
+        ) {
+          const km = Number(active.plannedPreview.distanceKm);
+          status.textContent = Number.isFinite(km)
+            ? `選択中 ／ 予定Track 約${km.toFixed(1)}km`
+            : "選択中 ／ 予定Track作成済み";
+
+          nav.textContent = plan.detourMode
+            ? "このプランで迂回前提のナビ準備へ"
+            : "このプランでナビ準備へ";
+          nav.href = "plan.html";
+          nav.addEventListener("click", event => event.stopPropagation());
+        } else {
+          status.textContent = "このプランを選択中";
+          nav.textContent = "予定走行ルートを作成";
+          nav.href = "#";
+          nav.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            selectAndDrawHomePlan(plan);
+          });
+        }
+
+        action.append(status, nav);
+        card.appendChild(action);
+      }
+
+      const choose = () => {
+        if (!isActive || active?.homeTrackError) {
+          selectAndDrawHomePlan(plan);
+        }
+      };
+
+      card.addEventListener("click", choose);
+      card.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          choose();
+        }
       });
 
       planList.appendChild(card);
@@ -775,7 +804,9 @@
     const activePlan = findDonanPlanFromActive(active);
     if (activePlan) {
       renderHomeDonanPlans();
-      renderHomeSelected(activePlan);
+      if (document.getElementById("homeSelectedPlan")) {
+        document.getElementById("homeSelectedPlan").hidden = true;
+      }
       if (!restoreHomePlanTrackFromActive(activePlan, active)) {
         window.setTimeout(() => selectAndDrawHomePlan(activePlan), 0);
       }
