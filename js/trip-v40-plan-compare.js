@@ -10,57 +10,61 @@
   let comparisonMode = true;
   let drawToken = 0;
 
-  function currentTrip() {
-    const id = String(tripId.value || "");
-    if (!id) return null;
-    return TripData.getTrips().find(trip => String(trip.id || "") === id) || null;
-  }
-
-  function readActivePlanFallback() {
+  function readActivePlan() {
     try {
       const raw = localStorage.getItem(ACTIVE_PLAN_KEY);
       if (!raw) return null;
-      const plan = JSON.parse(raw);
-      if (!plan || typeof plan !== "object") return null;
-
-      const routeNumbers = Array.isArray(plan.routeNumbers)
-        ? [...new Set(plan.routeNumbers.map(value => String(Number(value))).filter(Boolean))]
-        : [];
-
-      const plannedTrack =
-        plan.plannedPreview &&
-        Array.isArray(plan.plannedPreview.points)
-          ? plan.plannedPreview.points
-              .filter(point => Array.isArray(point) && point.length >= 2)
-              .map(point => [Number(point[0]), Number(point[1])])
-              .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
-          : [];
-
-      const guidePoints = Array.isArray(plan.guruGuidePoints)
-        ? plan.guruGuidePoints
-            .map(point => [Number(point.lat), Number(point.lng)])
-            .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
-        : [];
-
-      return routeNumbers.length ? {
-        version: 0,
-        planName: String(plan.planName || ""),
-        routeNumbers,
-        origin: String(plan.origin || ""),
-        destination: String(plan.destination || ""),
-        fullRouteSpec: String(plan.fullRouteSpec || ""),
-        distanceKm: Number(
-          (plan.plannedPreview && plan.plannedPreview.distanceKm) ||
-          plan.guruRouteDistanceKm ||
-          0
-        ),
-        plannedTrack,
-        guidePoints,
-        source: "active-plan-fallback"
-      } : null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : null;
     } catch {
       return null;
     }
+  }
+
+  function currentTrip() {
+    const id = String(tripId.value || "");
+    if (!id) return null;
+
+    const trips = TripData.getTrips();
+    return trips.find(trip => String(trip.id || "") === id) || null;
+  }
+
+  function normalizeNumbers(values) {
+    return [...new Set(
+      (values || [])
+        .map(value => String(Number(value)))
+        .filter(value => value && value !== "NaN" && value !== "0")
+    )];
+  }
+
+  function snapshotFromActivePlan() {
+    const plan = readActivePlan();
+    if (!plan) return null;
+
+    const routeNumbers = normalizeNumbers(
+      Array.isArray(plan.routeNumbers)
+        ? plan.routeNumbers
+        : String(plan.targetRoutes || "").split(/[,\s、，・→>]+/)
+    );
+
+    const plannedTrack =
+      plan.plannedPreview &&
+      Array.isArray(plan.plannedPreview.points)
+        ? plan.plannedPreview.points
+            .filter(point => Array.isArray(point) && point.length >= 2)
+            .map(point => [Number(point[0]), Number(point[1])])
+            .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+        : [];
+
+    if (!routeNumbers.length || plannedTrack.length < 2) return null;
+
+    return {
+      source: "active-plan",
+      planName: String(plan.planName || "今回の予定"),
+      routeNumbers,
+      plannedTrack,
+      distanceKm: Number(plan.plannedPreview.distanceKm || 0)
+    };
   }
 
   function snapshotForTrip(trip) {
@@ -70,66 +74,30 @@
       Array.isArray(trip.planSnapshot.routeNumbers) &&
       trip.planSnapshot.routeNumbers.length
     ) {
-      return trip.planSnapshot;
+      return {
+        source: "trip",
+        planName: String(trip.planSnapshot.planName || "今回の予定"),
+        routeNumbers: normalizeNumbers(trip.planSnapshot.routeNumbers),
+        plannedTrack: Array.isArray(trip.planSnapshot.plannedTrack)
+          ? trip.planSnapshot.plannedTrack
+          : [],
+        distanceKm: Number(trip.planSnapshot.distanceKm || 0)
+      };
     }
 
-    // 旧Tripの補完は、現在のActive Planの予定路線とTrip路線に共通項がある場合のみ。
-    const fallback = readActivePlanFallback();
-    if (!fallback || !trip) return null;
+    const active = snapshotFromActivePlan();
+    if (!active || !trip) return active;
 
     const tripNumbers = new Set(
-      (trip.routeSegments || [])
-        .map(segment => String(Number(segment.routeNumber || "")))
-        .filter(Boolean)
+      normalizeNumbers(
+        Array.isArray(trip.routeSegments)
+          ? trip.routeSegments.map(segment => segment.routeNumber)
+          : []
+      )
     );
 
-    const overlaps = fallback.routeNumbers.some(number => tripNumbers.has(String(number)));
-    return overlaps ? fallback : null;
-  }
-
-  function insertLegend() {
-    if (document.getElementById("tripCompareLegend")) return;
-
-    const mapElement = document.getElementById("routeMap");
-    if (!mapElement) return;
-
-    const legend = document.createElement("div");
-    legend.id = "tripCompareLegend";
-    legend.style.display = "flex";
-    legend.style.flexWrap = "wrap";
-    legend.style.gap = "12px";
-    legend.style.margin = "10px 0 0";
-    legend.style.padding = "10px 12px";
-    legend.style.borderRadius = "8px";
-    legend.style.background = "#ffffff";
-    legend.style.fontSize = "13px";
-    legend.style.fontWeight = "700";
-
-    const items = [
-      ["#94a3b8", "国道全線"],
-      ["#7c3aed", "走破予定"],
-      ["#0284c7", "実走確定"],
-      ["#16a34a", "全線走破"]
-    ];
-
-    items.forEach(([color, label]) => {
-      const item = document.createElement("span");
-      item.style.display = "inline-flex";
-      item.style.alignItems = "center";
-      item.style.gap = "6px";
-
-      const line = document.createElement("span");
-      line.style.display = "inline-block";
-      line.style.width = "28px";
-      line.style.height = "5px";
-      line.style.borderRadius = "999px";
-      line.style.background = color;
-
-      item.append(line, document.createTextNode(label));
-      legend.appendChild(item);
-    });
-
-    mapElement.insertAdjacentElement("afterend", legend);
+    const overlaps = active.routeNumbers.some(number => tripNumbers.has(number));
+    return overlaps ? active : null;
   }
 
   function normalizePath(path) {
@@ -151,8 +119,51 @@
         .filter(path => path.length >= 2);
     }
 
-    const fallback = normalizePath(segment.confirmedPath);
-    return fallback.length >= 2 ? [fallback] : [];
+    const one = normalizePath(segment.confirmedPath);
+    return one.length >= 2 ? [one] : [];
+  }
+
+  function ensureLegend() {
+    if (document.getElementById("tripCompareLegend")) return;
+
+    const mapElement = document.getElementById("routeMap");
+    if (!mapElement) return;
+
+    const legend = document.createElement("div");
+    legend.id = "tripCompareLegend";
+    legend.style.display = "flex";
+    legend.style.flexWrap = "wrap";
+    legend.style.gap = "12px";
+    legend.style.marginTop = "10px";
+    legend.style.padding = "10px 12px";
+    legend.style.borderRadius = "8px";
+    legend.style.background = "#fff";
+    legend.style.fontSize = "13px";
+    legend.style.fontWeight = "700";
+
+    [
+      ["#94a3b8", "国道全線"],
+      ["#7c3aed", "走破予定"],
+      ["#0284c7", "実走確定"],
+      ["#16a34a", "全線走破"]
+    ].forEach(([color, label]) => {
+      const item = document.createElement("span");
+      item.style.display = "inline-flex";
+      item.style.alignItems = "center";
+      item.style.gap = "6px";
+
+      const line = document.createElement("span");
+      line.style.display = "inline-block";
+      line.style.width = "28px";
+      line.style.height = "5px";
+      line.style.borderRadius = "999px";
+      line.style.background = color;
+
+      item.append(line, document.createTextNode(label));
+      legend.appendChild(item);
+    });
+
+    mapElement.insertAdjacentElement("afterend", legend);
   }
 
   async function drawComparison(shouldFit = true) {
@@ -160,16 +171,7 @@
 
     const token = ++drawToken;
     const trip = currentTrip();
-    if (!trip) return;
-
     const snapshot = snapshotForTrip(trip);
-    const plannedNumbers = snapshot && Array.isArray(snapshot.routeNumbers)
-      ? [...new Set(snapshot.routeNumbers.map(value => String(Number(value))).filter(Boolean))]
-      : [...new Set(
-          (trip.routeSegments || [])
-            .map(segment => String(Number(segment.routeNumber || "")))
-            .filter(Boolean)
-        )];
 
     routeLayerGroup.clearLayers();
     selectedSectionLayerGroup.clearLayers();
@@ -180,9 +182,18 @@
     plannedLayer.clearLayers();
     actualLayer.clearLayers();
 
+    const routeNumbers = snapshot
+      ? snapshot.routeNumbers
+      : normalizeNumbers(
+          trip && Array.isArray(trip.routeSegments)
+            ? trip.routeSegments.map(segment => segment.routeNumber)
+            : []
+        );
+
     const bounds = L.latLngBounds();
 
-    for (const routeNumber of plannedNumbers) {
+    // 1. 国道全線
+    for (const routeNumber of routeNumbers) {
       try {
         const geojson = await loadRouteGeojson(routeNumber);
         if (token !== drawToken) return;
@@ -190,8 +201,8 @@
         const layer = L.geoJSON(geojson, {
           style: {
             color: "#94a3b8",
-            weight: 6,
-            opacity: 0.72
+            weight: 7,
+            opacity: 0.70
           },
           interactive: false
         }).addTo(fullRouteLayer);
@@ -202,70 +213,69 @@
       }
     }
 
+    // 2. 走破予定
     if (snapshot) {
-      const plannedTrack = normalizePath(snapshot.plannedTrack);
-
-      if (plannedTrack.length >= 2) {
-        L.polyline(plannedTrack, {
+      const planned = normalizePath(snapshot.plannedTrack);
+      if (planned.length >= 2) {
+        const plannedLine = L.polyline(planned, {
           color: "#7c3aed",
           weight: 8,
-          opacity: 0.88
+          opacity: 0.90
         }).addTo(plannedLayer);
-      } else {
-        const guides = normalizePath(snapshot.guidePoints);
-        if (guides.length >= 2) {
-          // 旧データの暫定表示。今後はGuru起動時にplannedTrackが必ず保存される。
-          L.polyline(guides, {
-            color: "#7c3aed",
-            weight: 7,
-            opacity: 0.8,
-            dashArray: "10 8"
-          }).addTo(plannedLayer);
-        }
+        bounds.extend(plannedLine.getBounds());
       }
     }
 
-    (trip.routeSegments || []).forEach(segment => {
-      const number = String(Number(segment.routeNumber || ""));
-      if (plannedNumbers.length && !plannedNumbers.includes(number)) return;
+    // 3. 実走
+    if (trip && Array.isArray(trip.routeSegments)) {
+      for (const segment of trip.routeSegments) {
+        const routeNumber = String(Number(segment.routeNumber || ""));
+        if (routeNumbers.length && !routeNumbers.includes(routeNumber)) continue;
 
-      if (segment.status === "complete") {
-        loadRouteGeojson(number)
-          .then(geojson => {
+        if (segment.status === "complete") {
+          try {
+            const geojson = await loadRouteGeojson(routeNumber);
             if (token !== drawToken) return;
-            L.geoJSON(geojson, {
+
+            const completeLayer = L.geoJSON(geojson, {
               style: {
                 color: "#16a34a",
-                weight: 8,
+                weight: 9,
                 opacity: 0.92
               },
               interactive: false
             }).addTo(actualLayer);
-          })
-          .catch(error => {
-            console.error(`国道${number}号 全線走破表示エラー:`, error);
+            bounds.extend(completeLayer.getBounds());
+          } catch (error) {
+            console.error(`国道${routeNumber}号 全線走破表示エラー:`, error);
+          }
+        } else {
+          actualPaths(segment).forEach(path => {
+            const line = L.polyline(path, {
+              color: "#0284c7",
+              weight: 9,
+              opacity: 0.95
+            }).addTo(actualLayer);
+            bounds.extend(line.getBounds());
           });
-        return;
+        }
       }
+    }
 
-      actualPaths(segment).forEach(path => {
-        L.polyline(path, {
-          color: "#0284c7",
-          weight: 8,
-          opacity: 0.95
-        }).addTo(actualLayer);
-      });
-    });
+    ensureLegend();
 
-    insertLegend();
-
-    if (snapshot) {
-      const planName = snapshot.planName || "今回の予定";
+    if (snapshot && trip) {
       mapInstruction.textContent =
-        `${planName}：国道全線の上に、走破予定（紫）と実走確定（青）を重ねています。`;
+        `${snapshot.planName}：灰＝国道全線／紫＝走破予定／青＝実走確定。予定と実走を同じ地図で比較しています。`;
+    } else if (snapshot) {
+      mapInstruction.textContent =
+        `${snapshot.planName}：灰＝国道全線／紫＝走破予定。実走Tripを開くと青線を重ねます。`;
+    } else if (trip) {
+      mapInstruction.textContent =
+        "灰＝国道全線／青＝実走確定。予定TrackはこのTripにまだ保存されていません。";
     } else {
       mapInstruction.textContent =
-        "国道全線と実走確定区間を表示しています。予定TrackはこのTripに未保存です。";
+        "Tripを開くと、国道全線・走破予定・実走確定を重ねて表示します。";
     }
 
     if (shouldFit && bounds.isValid()) {
@@ -278,11 +288,9 @@
 
   const baseRefreshRouteMap = refreshRouteMap;
   refreshRouteMap = async function (shouldFit) {
-    if (!comparisonMode || !tripId.value) {
+    if (!comparisonMode) {
       return baseRefreshRouteMap(shouldFit);
     }
-
-    // 旧レイヤーを一度作らせず、比較地図を正本として表示する。
     await drawComparison(shouldFit);
   };
 
@@ -308,14 +316,19 @@
         actualLayer.clearLayers();
         baseRefreshRouteMap(true);
         mapInstruction.textContent =
-          "手動修正モードです。修正を終えて閉じると予定／実走比較へ戻ります。";
+          "手動修正モードです。閉じると予定／実走比較へ戻ります。";
       } else {
         drawComparison(true);
       }
     });
   }
 
-  insertLegend();
+  ensureLegend();
 
-  console.log("北海道48路線 Version4.0 Trip Plan/Actual Compare Map Ready");
+  // Trip未選択でも、Active Planだけで予定線を確認できる。
+  window.setTimeout(() => {
+    if (!tripId.value) drawComparison(true);
+  }, 150);
+
+  console.log("北海道48路線 Version4.0 Trip Compare Ready");
 })();
