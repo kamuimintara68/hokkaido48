@@ -12,10 +12,64 @@
   const simpleSaveResult = document.getElementById("simpleSaveResult");
   const savedTripActions = document.getElementById("savedTripActions");
   const savedTripLink = document.getElementById("savedTripLink");
+  const importNextStep = document.getElementById("importNextStep");
 
   if (!TripData || !tripSelect || !results || !saveButton) return;
 
   let lockedSnapshot = null;
+
+  function setImportNextStep(message, done = false) {
+    if (!importNextStep) return;
+    importNextStep.textContent = message;
+    importNextStep.classList.toggle("done", done);
+  }
+
+  function plannedSectionLabel() {
+    const plan = readActivePlan();
+    if (!plan) return "";
+
+    const places = [];
+    const pushPlace = value => {
+      const text = String(value || "").trim();
+      if (text && !places.includes(text)) places.push(text);
+    };
+
+    pushPlace(plan.origin);
+
+    String(plan.fullRouteSpec || "")
+      .split("→")
+      .forEach(part => {
+        const match = part.match(/^\s*\d+\s*:\s*(.+?)\s*$/);
+        if (match) pushPlace(match[1]);
+      });
+
+    if (places.length >= 2) {
+      return `${places[0]}－${places[1]}`;
+    }
+
+    return "";
+  }
+
+  function showActualSectionLabel(card) {
+    if (!card || card.querySelector(".actual-section-label")) return;
+
+    const section = plannedSectionLabel();
+    if (!section) return;
+
+    const line = document.createElement("div");
+    line.className = "actual-section-label";
+    line.style.marginTop = "5px";
+    line.style.fontWeight = "800";
+    line.style.color = "#166534";
+    line.textContent = `今回の実走区間：${section}`;
+
+    const firstLine = card.firstElementChild;
+    if (firstLine) {
+      firstLine.insertAdjacentElement("afterend", line);
+    } else {
+      card.prepend(line);
+    }
+  }
 
   function normalizedNumbers(values) {
     return [...new Set(
@@ -134,6 +188,7 @@
         card.style.display = "none";
       } else if (number) {
         card.style.display = "";
+        showActualSectionLabel(card);
         visibleCount += 1;
       }
     });
@@ -152,6 +207,7 @@
         status.textContent =
           `自動判定が完了しました。予定路線と一致した ${visibleCount}路線を表示しています。`;
       }
+      setImportNextStep("次は：この内容でTripに保存");
     }
   }
 
@@ -218,6 +274,7 @@
     if (savedTripLink && savedTripActions) {
       savedTripLink.href = `trip.html?trip=${encodeURIComponent(current.id)}`;
       savedTripActions.style.display = "flex";
+      setImportNextStep("次は：保存したTripを見る");
     }
 
     if (saveStatus) {

@@ -4,6 +4,7 @@
   const ACTIVE_PLAN_KEY = "hokkaido48ActivePlan";
   const GUIDE_SPACING_METERS = 10000;
   const navStatus = document.getElementById("guruNavStatus");
+  const planNextStep = document.getElementById("planNextStep");
 
   let prepareGeneration = 0;
   let preparingPromise = null;
@@ -26,6 +27,12 @@
       navStatus.style.background = "#f8fafc";
       navStatus.style.color = "#475569";
     }
+  }
+
+  function setNextStep(message, done = false) {
+    if (!planNextStep) return;
+    planNextStep.textContent = message;
+    planNextStep.classList.toggle("done", done);
   }
 
   function readActive() {
@@ -185,6 +192,7 @@
 
     if (!canPrepare(active)) {
       setStatus("今回のプランを選択してください。");
+      setNextStep("次は：今回のプランを選択");
       return null;
     }
 
@@ -210,6 +218,7 @@
         `ナビ準備済み：予定Track ${Number(active.plannedPreview.distanceKm).toFixed(1)}km／Guru通過点 ${guidePoints.length}点`,
         "success"
       );
+      setNextStep("次は：Guru Mapsでナビ");
       return readActive();
     }
 
@@ -288,11 +297,13 @@
           `ナビ準備済み：予定Track ${distanceKm.toFixed(1)}km／Guru通過点 ${guidePoints.length}点`,
           "success"
         );
+        setNextStep("次は：Guru Mapsでナビ");
 
         return readActive();
       } catch (error) {
         console.error("ナビ準備エラー:", error);
         setStatus(`ナビ準備エラー：${error.message || error}`, "error");
+      setNextStep("次は：表示されたエラー内容を確認");
         return null;
       } finally {
         preparingPromise = null;
@@ -322,6 +333,7 @@
           `ローカル確認成功：Guru URL生成済み／予定Track ${Number(active.plannedPreview.distanceKm).toFixed(1)}km／通過点 ${active.guruGuidePointCount || 0}点。iPhone公開版ではこのURLでGuru Mapsを起動します。`,
           "success"
         );
+        setNextStep("ナビ準備は完了です。iPhoneでナビ、帰宅後「旅素材をまとめて投入」してください。", true);
         return;
       }
 
@@ -334,10 +346,12 @@
       }
 
       setStatus("Guru Mapsを起動します。", "success");
+      setNextStep("ナビ準備は完了です。iPhoneでナビ、帰宅後「旅素材をまとめて投入」してください。", true);
       window.location.href = active.guruMapsUrl;
     } catch (error) {
       console.error("Guru Maps起動エラー:", error);
       setStatus(`Guru Maps起動エラー：${error.message || error}`, "error");
+      setNextStep("次は：表示されたエラー内容を確認");
     } finally {
       button.disabled = false;
       button.textContent = "Guru Mapsでナビ";
@@ -354,6 +368,7 @@
     if (!canPrepare(active)) {
       if (guruButton) guruButton.remove();
       setStatus("今回のプランを選択してください。");
+      setNextStep("次は：今回のプランを選択");
       updatePlanCardButtons();
       return;
     }
@@ -377,8 +392,10 @@
         `ナビ準備済み：予定Track ${Number(active.plannedPreview.distanceKm).toFixed(1)}km／Guru通過点 ${points}点`,
         "success"
       );
+      setNextStep("次は：Guru Mapsでナビ");
     } else if (!preparingPromise) {
       setStatus("今回のプランを選択済み。ナビ準備を開始します。", "working");
+      setNextStep("次は：ナビ準備の完了を待つ");
       window.setTimeout(() => prepareActivePlan(false), 0);
     }
   }

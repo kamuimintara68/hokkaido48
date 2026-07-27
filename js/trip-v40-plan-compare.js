@@ -2,6 +2,7 @@
 
 (function () {
   const ACTIVE_PLAN_KEY = "hokkaido48ActivePlan";
+  const tripNextStep = document.getElementById("tripNextStep");
 
   const fullRouteLayer = L.layerGroup().addTo(routeMap);
   const plannedLayer = L.layerGroup().addTo(routeMap);
@@ -9,6 +10,12 @@
 
   let comparisonMode = true;
   let drawToken = 0;
+
+  function setTripNextStep(message, done = false) {
+    if (!tripNextStep) return;
+    tripNextStep.textContent = message;
+    tripNextStep.classList.toggle("done", done);
+  }
 
   function readActivePlan() {
     try {
@@ -265,15 +272,19 @@
     ensureLegend();
 
     if (snapshot && trip) {
+      setTripNextStep("このTripの確認は完了です。予定と実走の違いがないか確認してください。", true);
       mapInstruction.textContent =
         `${snapshot.planName}：灰＝国道全線／紫＝走破予定／青＝実走確定。予定と実走を同じ地図で比較しています。`;
     } else if (snapshot) {
+      setTripNextStep("次は：実走Tripを開いて比較");
       mapInstruction.textContent =
         `${snapshot.planName}：灰＝国道全線／紫＝走破予定。実走Tripを開くと青線を重ねます。`;
     } else if (trip) {
+      setTripNextStep("次は：走行経路を確認");
       mapInstruction.textContent =
         "灰＝国道全線／青＝実走確定。予定TrackはこのTripにまだ保存されていません。";
     } else {
+      setTripNextStep("次は：Tripを開く");
       mapInstruction.textContent =
         "Tripを開くと、国道全線・走破予定・実走確定を重ねて表示します。";
     }
