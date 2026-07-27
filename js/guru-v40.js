@@ -83,22 +83,19 @@
       throw new Error("Guru Maps用の全行程ルートが登録されていません。");
     }
 
-    // Version 4.0既存の予定Track生成を利用。
-    // 複数国道、同一路線の再登場、往復、周回も走行順を保持する。
     const track = await buildFullTrackPlan(plan);
 
     if (!track || !Array.isArray(track.points) || track.points.length < 2) {
       throw new Error("予定TrackからGuru Maps経路を作成できませんでした。");
     }
 
-    const guidePoints = sampleTrackPoints(
-      track.points,
-      GUIDE_SPACING_METERS
-    );
+    const guidePoints = sampleTrackPoints(track.points, GUIDE_SPACING_METERS);
 
     return {
       url: buildGuruUrl(guidePoints),
       guidePoints,
+      plannedTrackPoints: track.points,
+      fullRouteLegs: Array.isArray(track.fullRouteLegs) ? track.fullRouteLegs : [],
       trackPointCount: track.points.length,
       distanceKm: Number(track.distanceKm) || trackDistanceKm(track.points),
       spacingMeters: GUIDE_SPACING_METERS,
@@ -121,6 +118,26 @@
           ACTIVE_PLAN_KEY,
           JSON.stringify({
             ...current,
+            fullRouteSpec: result.fullRouteSpec,
+            fullRouteLegs: result.fullRouteLegs,
+            plannedNavigation: {
+              version: 4,
+              mode: "guru-direct",
+              generatedAt: new Date().toISOString(),
+              spacingMeters: 250,
+              rawPointCount: result.trackPointCount
+            },
+            plannedPreview: {
+              version: 4,
+              kind: "full-track",
+              name: current.planName || "北海道48路線 予定Track",
+              generatedAt: new Date().toISOString(),
+              distanceKm: Number(result.distanceKm.toFixed(1)),
+              points: result.plannedTrackPoints.map(point => [
+                Number(point.lat),
+                Number(point.lng)
+              ])
+            },
             guruMapsUrl: result.url,
             guruGuidePoints: result.guidePoints,
             guruGuidePointCount: result.guidePoints.length,
@@ -128,7 +145,7 @@
             guruRouteDistanceKm: Number(result.distanceKm.toFixed(1)),
             guruTrackPointCount: result.trackPointCount,
             guruFullRouteSpec: result.fullRouteSpec,
-            guruGuidanceVersion: 3,
+            guruGuidanceVersion: 4,
             guruGuidanceGeneratedAt: new Date().toISOString()
           })
         );
@@ -145,9 +162,7 @@
 
   function removeObsoleteOsmAndButton() {
     [...activePlanActions.querySelectorAll("button")].forEach(button => {
-      if (button.textContent.trim() === "OsmAnd Webを開く") {
-        button.remove();
-      }
+      if (button.textContent.trim() === "OsmAnd Webを開く") button.remove();
     });
   }
 
@@ -167,7 +182,7 @@
       card.querySelectorAll("dd").forEach(dd => {
         if (dd.textContent.includes("OsmAndナビ＋実走GPX記録")) {
           dd.textContent =
-            "Guru Mapsナビ＋ナビ中の実走GPS自動記録＋帰宅後の国道40号判定を確認する実走総合テスト。時間に応じて折返し地点は前倒し可。";
+            "Guru Mapsナビ＋実走GPS記録＋帰宅後の予定／実走比較を確認する総合テスト。時間に応じて折返し地点は前倒し可。";
         }
       });
     });
@@ -203,5 +218,5 @@
 
   installGuruButton();
 
-  console.log("北海道48路線 Version4.0 Guru Maps official guidance Ready");
+  console.log("北海道48路線 Version4.0 Guru Maps + Planned Track Snapshot Ready");
 })();
