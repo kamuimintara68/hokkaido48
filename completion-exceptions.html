@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北海道48路線ふらふらlog 走破判定特例</title>
+  <link rel="icon" href="data:,">
+  <style>
+    *{box-sizing:border-box}
+    body{max-width:980px;margin:0 auto;padding:18px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Yu Gothic",sans-serif;line-height:1.65;background:#f3f4f6;color:#1f2937}
+    a{color:#2563eb}.nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}.nav a{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;text-decoration:none;font-weight:700}
+    .hero{padding:22px;border-radius:16px;background:#173b63;color:#fff;margin-bottom:18px}.hero h1{margin:0 0 6px;font-size:clamp(26px,5vw,38px)}.hero p{margin:0}
+    .rule,.card{margin-bottom:16px;padding:18px;border:1px solid #dbe3ea;border-radius:13px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.06)}
+    .rule h2,.card h2{margin-top:0}.rule ul{padding-left:22px}.note{padding:12px;border-left:5px solid #f59e0b;border-radius:8px;background:#fffbeb;color:#92400e;font-weight:700}
+    .route-list{display:grid;gap:14px}.route-card{padding:16px;border:1px solid #cbd5e1;border-radius:11px;background:#fff}.route-card.complete{border-color:#86efac;background:#f0fdf4}
+    .route-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.badge{flex:0 0 auto;padding:3px 8px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:12px;font-weight:800}.badge.complete{background:#dcfce7;color:#166534}
+    .trip-name{margin:5px 0;color:#64748b;font-size:14px}.eligibility{margin:10px 0;padding:10px;border-radius:8px;background:#f8fafc}
+    .option{margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:9px}.option label{display:flex;gap:9px;align-items:flex-start;font-weight:700}.option input{width:20px;height:20px;margin-top:3px}
+    button{width:100%;min-height:48px;margin-top:10px;padding:10px 14px;border:0;border-radius:9px;background:#15803d;color:#fff;font:inherit;font-weight:800;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+    .revert{background:#64748b}.message{min-height:24px;margin-top:8px;font-weight:800;color:#166534}.empty{padding:18px;border-radius:10px;background:#fff;color:#64748b}
+    .build-badge{position:fixed;right:10px;bottom:10px;padding:6px 10px;border:1px solid #999;border-radius:6px;background:rgba(255,255,255,.92);font-size:12px}
+    @media(max-width:620px){body{padding:10px}.rule,.card{padding:14px}.route-title{display:block}.badge{display:inline-block;margin-top:5px}}
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html">← 地図へ戻る</a>
+    <a href="trip.html">Trip確認・修正</a>
+    <a href="backup.html">データ管理</a>
+  </nav>
+
+  <header class="hero">
+    <h1>走破判定特例</h1>
+    <p>通常判定で一部走破になった路線に、正式ルールを確認して全線走破を適用します。</p>
+  </header>
+
+  <section class="rule">
+    <h2>正式ルール</h2>
+    <ul>
+      <li><strong>長期規制特例：</strong>冬季以外の通行止め・長期規制区間は、規制区間の前後まで実走していれば走破扱い。</li>
+      <li><strong>札幌・函館市街地特例：</strong>札幌市内または函館市内を起点・終点とする国道は、公式地点を厳密に通過しなくても、市街地まで実走していれば走破扱い。</li>
+    </ul>
+    <div class="note">自動で推測せず、実走事実と規制内容を確認したうえで適用します。冬季閉鎖は長期規制特例の対象外です。</div>
+  </section>
+
+  <section class="card">
+    <h2>一部走破の路線</h2>
+    <div id="routeList" class="route-list"><p class="empty">読み込み中です。</p></div>
+  </section>
+
+  <div class="build-badge">Version 4.0 Build 20260804-34 Completion Rules</div>
+
+<script>
+"use strict";
+(function () {
+  const TRIP_KEY = "hokkaido48Trips";
+  const routeList = document.getElementById("routeList");
+  let routeMaster = [];
+
+  function parseStoredTrips() {
+    try {
+      const raw = localStorage.getItem(TRIP_KEY);
+      if (!raw) return { trips: [], wrapper: null };
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return { trips: parsed, wrapper: null };
+      if (parsed && Array.isArray(parsed.trips)) return { trips: parsed.trips, wrapper: parsed };
+      return { trips: [], wrapper: null };
+    } catch (error) {
+      console.error(error);
+      return { trips: [], wrapper: null };
+    }
+  }
+
+  function saveTrips(trips, wrapper) {
+    if (wrapper) {
+      localStorage.setItem(TRIP_KEY, JSON.stringify({ ...wrapper, trips }));
+    } else {
+      localStorage.setItem(TRIP_KEY, JSON.stringify(trips));
+    }
+  }
+
+  function normalizeNumber(value) {
+    const number = String(Number(value || ""));
+    return number === "NaN" || number === "0" ? "" : number;
+  }
+
+  function routeInfo(number) {
+    return routeMaster.find(route => String(Number(route.number)) === number) || {
+      number, name: `一般国道${number}号`, start: "", end: ""
+    };
+  }
+
+  function cityExceptionEligible(route) {
+    return ["札幌市", "函館市"].some(city =>
+      String(route.start || "").includes(city) ||
+      String(route.end || "").includes(city)
+    );
+  }
+
+  function readRecord(number) {
+    const key = `route${number.padStart(3, "0")}Record`;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRecord(number, basis, trip) {
+    const key = `route${number.padStart(3, "0")}Record`;
+    const now = new Date().toISOString();
+    const previous = readRecord(number);
+    localStorage.setItem(key, JSON.stringify({
+      ...previous,
+      routeNumber: number,
+      status: "complete",
+      completionBasis: basis,
+      completionRuleVersion: 1,
+      completionAppliedAt: now,
+      completionTripId: String(trip.id || ""),
+      completionTripName: String(trip.tripName || ""),
+      updatedAt: now
+    }));
+  }
+
+  function applyException(tripIndex, segmentIndex, basis) {
+    const stored = parseStoredTrips();
+    const trip = stored.trips[tripIndex];
+    const segment = trip && Array.isArray(trip.routeSegments)
+      ? trip.routeSegments[segmentIndex]
+      : null;
+    if (!trip || !segment) return;
+
+    const number = normalizeNumber(segment.routeNumber);
+    const now = new Date().toISOString();
+    segment.status = "complete";
+    segment.completionBasis = basis;
+    segment.completionRuleVersion = 1;
+    segment.completionAppliedAt = now;
+    segment.completionNote = basis === "long-term-closure"
+      ? "冬季以外の通行止め・長期規制区間の前後まで実走したため、走破判定特例を適用。"
+      : "札幌市内または函館市内の公式起終点を厳密に通過していないが、市街地まで実走したため、走破判定特例を適用。";
+
+    trip.updatedAt = now;
+    trip.completionExceptions = Array.isArray(trip.completionExceptions)
+      ? trip.completionExceptions.filter(item => String(item.routeNumber) !== number)
+      : [];
+    trip.completionExceptions.push({
+      routeNumber: number,
+      basis,
+      appliedAt: now,
+      note: segment.completionNote
+    });
+
+    saveTrips(stored.trips, stored.wrapper);
+    saveRecord(number, basis, trip);
+    render();
+  }
+
+  function exceptionLabel(basis) {
+    if (basis === "long-term-closure") return "長期規制特例";
+    if (basis === "city-terminal") return "札幌・函館市街地特例";
+    return "";
+  }
+
+  function render() {
+    const stored = parseStoredTrips();
+    const rows = [];
+
+    stored.trips.forEach((trip, tripIndex) => {
+      (Array.isArray(trip.routeSegments) ? trip.routeSegments : []).forEach((segment, segmentIndex) => {
+        const number = normalizeNumber(segment.routeNumber);
+        if (!number) return;
+        const basis = String(segment.completionBasis || "");
+        if (segment.status === "partial" || basis) {
+          rows.push({ trip, tripIndex, segment, segmentIndex, number, basis });
+        }
+      });
+    });
+
+    if (!rows.length) {
+      routeList.innerHTML = '<p class="empty">特例確認が必要な一部走破路線はありません。</p>';
+      return;
+    }
+
+    routeList.replaceChildren();
+
+    rows.forEach(row => {
+      const route = routeInfo(row.number);
+      const isCompleteByException = row.segment.status === "complete" && !!row.basis;
+      const card = document.createElement("article");
+      card.className = `route-card${isCompleteByException ? " complete" : ""}`;
+
+      const title = document.createElement("div");
+      title.className = "route-title";
+      title.innerHTML =
+        `<div><strong>国道${row.number}号</strong>　${route.start || "起点不明"}－${route.end || "終点不明"}</div>` +
+        `<span class="badge${isCompleteByException ? " complete" : ""}">${isCompleteByException ? "特例で全線走破" : "一部走破"}</span>`;
+      card.appendChild(title);
+
+      const tripName = document.createElement("p");
+      tripName.className = "trip-name";
+      tripName.textContent = `Trip：${row.trip.tripName || "名称未登録"}`;
+      card.appendChild(tripName);
+
+      if (isCompleteByException) {
+        const eligibility = document.createElement("div");
+        eligibility.className = "eligibility";
+        eligibility.textContent = `適用済み：${exceptionLabel(row.basis)} ／ ${row.segment.completionNote || ""}`;
+        card.appendChild(eligibility);
+        routeList.appendChild(card);
+        return;
+      }
+
+      const closure = document.createElement("div");
+      closure.className = "option";
+      closure.innerHTML =
+        `<label><input type="checkbox">` +
+        `<span><strong>長期規制特例を適用</strong><br>` +
+        `冬季閉鎖ではなく、通行止め・長期規制区間の両側まで実走したことを確認しました。</span></label>`;
+      const closureCheck = closure.querySelector("input");
+      const closureButton = document.createElement("button");
+      closureButton.type = "button";
+      closureButton.textContent = "長期規制特例で全線走破にする";
+      closureButton.disabled = true;
+      closureCheck.addEventListener("change", () => {
+        closureButton.disabled = !closureCheck.checked;
+      });
+      closureButton.addEventListener("click", () => {
+        if (confirm(`国道${row.number}号を長期規制特例で全線走破にします。よろしいですか？`)) {
+          applyException(row.tripIndex, row.segmentIndex, "long-term-closure");
+        }
+      });
+      closure.appendChild(closureButton);
+      card.appendChild(closure);
+
+      if (cityExceptionEligible(route)) {
+        const city = document.createElement("div");
+        city.className = "option";
+        city.innerHTML =
+          `<label><input type="checkbox">` +
+          `<span><strong>札幌・函館市街地特例を適用</strong><br>` +
+          `公式の起終点を厳密に通過していませんが、${route.start.includes("札幌") || route.end.includes("札幌") ? "札幌" : "函館"}市街地まで実走したことを確認しました。</span></label>`;
+        const cityCheck = city.querySelector("input");
+        const cityButton = document.createElement("button");
+        cityButton.type = "button";
+        cityButton.textContent = "市街地特例で全線走破にする";
+        cityButton.disabled = true;
+        cityCheck.addEventListener("change", () => {
+          cityButton.disabled = !cityCheck.checked;
+        });
+        cityButton.addEventListener("click", () => {
+          if (confirm(`国道${row.number}号を札幌・函館市街地特例で全線走破にします。よろしいですか？`)) {
+            applyException(row.tripIndex, row.segmentIndex, "city-terminal");
+          }
+        });
+        city.appendChild(cityButton);
+        card.appendChild(city);
+      }
+
+      routeList.appendChild(card);
+    });
+  }
+
+  fetch("data/routes.json", { cache: "no-store" })
+    .then(response => {
+      if (!response.ok) throw new Error("routes.jsonを読み込めません。");
+      return response.json();
+    })
+    .then(routes => {
+      routeMaster = Array.isArray(routes) ? routes : [];
+      render();
+    })
+    .catch(error => {
+      console.error(error);
+      routeList.innerHTML = `<p class="empty">路線データを読み込めませんでした：${error.message}</p>`;
+    });
+})();
+</script>
+</body>
+</html>
