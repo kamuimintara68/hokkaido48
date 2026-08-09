@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>今回の旅 | 北海道48路線ふらふらlog Version 5.0</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+</head>
+<body class="journey-plan-page">
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>今回の旅</h1>
+      <p>選択した攻略路線を、自宅発着のざっくり走行予定として地図で確認します。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a class="is-active" href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a href="route-status.html">全線・例外確認</a>
+      <a href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+  <div class="page-flow" aria-label="旅を計画する工程">
+    <span class="is-done"><b>1</b> 路線選択</span><i>→</i><span class="is-active"><b>2</b> 走行予定</span><i>→</i><span><b>3</b> 保存</span>
+  </div>
+
+  <main class="journey-plan-layout">
+    <section class="panel journey-plan-details">
+      <div class="section-heading">
+        <div><span class="step">旅</span><h2>走行前予定</h2></div>
+      </div>
+
+      <div class="journey-fields journey-plan-fields">
+        <label>旅名<input id="journeyPlanName" type="text" maxlength="80" placeholder="例：道北・残り区間をつなぐ旅"></label>
+        <label>実施予定日<input id="journeyPlanDate" type="date"></label>
+        <label class="journey-memo-label">メモ<textarea id="journeyPlanMemo" rows="3" maxlength="500" placeholder="出発時刻、立ち寄り候補、注意点など"></textarea></label>
+      </div>
+
+      <div class="journey-plan-route-box">
+        <div class="rough-plan-head">
+          <div><strong>攻略対象</strong><span>地図上の番号と対応します</span></div>
+          <a class="text-button" href="route-select.html">路線を変更</a>
+        </div>
+        <ol id="journeyPlanRoutes" class="journey-plan-routes"></ol>
+      </div>
+
+      <section class="rough-plan-panel journey-rough-plan" aria-live="polite">
+        <div class="rough-plan-head">
+          <div>
+            <strong>ざっくり走行予定</strong>
+            <span>士別市（自宅）発着・国道GeoJSONから自動作成</span>
+          </div>
+          <div class="journey-plan-actions"><button id="journeyPlanRebuild" class="text-button" type="button">ルート再計算</button><button id="journeyPlanReverse" class="text-button" type="button">逆ルート再計算</button></div>
+        </div>
+        <div id="journeyPlanStatus" class="rough-plan-status">読み込み中…</div>
+        <ol id="journeyPlanSteps" class="rough-plan-steps"></ol>
+        <p id="journeyPlanDistance" class="rough-plan-distance"></p>
+        <p class="rough-plan-note">紫の実線＝今回の計画で使う攻略対象国道の主線、灰色の破線＝接続区間の目安です。</p>
+      </section>
+
+      <div class="journey-plan-actions">
+        <button id="journeyPlanSave" class="primary-button" type="button">今回の旅として保存</button>
+        <p id="journeyPlanMessage" class="save-message" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="panel journey-plan-map-panel">
+      <div class="section-heading">
+        <div><span class="step map-step">地図</span><h2>ざっくり走行予定</h2></div>
+        <button id="journeyPlanFit" class="text-button" type="button">全体表示</button>
+      </div>
+      <div class="journey-plan-map-legend">
+        <span><i class="journey-route-key"></i>攻略対象国道</span>
+        <span><i class="journey-connector-key"></i>接続区間の目安</span>
+        <span><i class="journey-home-key"></i>自宅</span>
+      </div>
+      <div id="journeyPlanMap" class="journey-plan-map"></div>
+      <p class="map-message">地図には今回の走行計画で使う国道の主線だけを表示します。灰色の接続区間はまだ直線の目安です。</p>
+    </section>
+  </main>
+
+  <div id="journeyPlanConfirm" class="confirm-overlay" hidden>
+    <section class="confirm-dialog" role="dialog" aria-modal="true">
+      <h2>この内容で旅を保存しますか？</h2>
+      <p>既存の旅は変更せず、新しい計画を1件追加します。</p>
+      <dl class="confirm-summary">
+        <div><dt>旅名</dt><dd id="journeyConfirmName"></dd></div>
+        <div><dt>予定日</dt><dd id="journeyConfirmDate"></dd></div>
+        <div><dt>攻略路線</dt><dd id="journeyConfirmRoutes"></dd></div>
+        <div><dt>概算距離</dt><dd id="journeyConfirmDistance"></dd></div>
+      </dl>
+      <div class="confirm-actions">
+        <button id="journeyCancelSave" class="secondary-button" type="button">戻る</button>
+        <button id="journeyConfirmSave" class="primary-button" type="button">旅を追加保存</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/v5-journey-plan.js?v=20260809-52"></script>
+</body>
+</html>

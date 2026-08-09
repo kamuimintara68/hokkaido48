@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全線走破・例外を確認 | 北海道48路線ふらふらlog</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+</head>
+<body>
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>全線走破・例外を確認</h1>
+      <p>通常の一部走破はGPX保存時に自動反映します。この画面は、全線走破候補や状態の矛盾など、追加判断が必要な場合だけ使います。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a class="is-active" href="route-status.html">全線・例外確認</a>
+      <a href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+  <div class="page-flow" aria-label="例外確認工程">
+    <span class="is-done"><b>1</b> GPX読込</span><i>→</i><span class="is-done"><b>2</b> 国道を1回確認・保存</span><i>→</i><span class="is-active"><b>補助</b> 全線・例外確認</span>
+  </div>
+
+  <main class="route-status-layout">
+    <section class="panel route-status-control">
+      <div class="section-heading"><div><span class="step">1</span><h2>実走した旅を選ぶ</h2></div></div>
+      <label class="gpx-file-label">対象の旅<select id="rsTripSelect"></select></label>
+      <div id="rsTripSummary" class="rule-note"><strong>旅を選択してください</strong><p>GPXで確定した国道がある実走記録を選びます。</p></div>
+      <div class="rule-note">
+        <strong>判定の考え方</strong>
+        <p>GPX画面で人間が確認して保存した実走区間を正本とします。一部走破は再確認しません。複数Tripの累積で全線走破候補になった場合、または実走記録と手動状態が矛盾する場合だけ、この画面で追加確認します。</p>
+      </div>
+      <p id="rsMessage" class="save-message" aria-live="polite"></p>
+    </section>
+
+    <section class="panel route-status-list-panel">
+      <div class="section-heading"><div><span class="step">2</span><h2>追加確認が必要な路線</h2></div><p id="rsCount">0路線</p></div>
+      <div id="rsRouteList" class="route-status-list"><div class="empty-box">旅を選択すると、全線走破候補や矛盾がある路線だけを表示します。</div></div>
+      <div class="route-status-save-panel">
+        <p>通常の一部走破はGPX確認時点で反映済みです。ここでは追加判断が必要な路線だけを変更します。既存の「手動・全線走破」は自動的に下げません。</p>
+        <button id="rsSave" class="primary-button" type="button" disabled>この例外だけ確定</button>
+      </div>
+    </section>
+
+    <section class="panel route-status-map-panel">
+      <div class="section-heading"><div><span class="step map-step">地図</span><h2>実走区間を確認</h2></div><button id="rsFit" class="text-button" type="button">全体表示</button></div>
+      <div class="map-legend"><span><i class="legend-line untraveled"></i>国道全体</span><span><i class="legend-line actual"></i>確定した実走区間</span></div>
+      <div id="rsMap" class="route-status-map" aria-label="走破状態確認地図"></div>
+      <p id="rsMapMessage" class="map-message">左の路線をクリックすると、その国道へ地図が移動します。国道番号は地図上にも表示します。</p>
+    </section>
+  </main>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/v5-route-status.js?v=20260809-52"></script>
+</body>
+</html>

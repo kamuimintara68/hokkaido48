@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>北海道48路線ふらふらlog Version 5.0 正式版候補</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+</head>
+<body>
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>北海道48路線ふらふらlog</h1>
+      <p>出発前の計画：攻略路線を選び、今回の旅を組み立てます。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a class="is-active" href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a href="#savedJourneys">保存済みの旅</a>
+      <a href="route-status.html">全線・例外確認</a>
+      <a href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+  <div class="page-flow" aria-label="旅を計画する工程">
+    <span class="is-active"><b>1</b> 路線選択</span><i>→</i><span><b>2</b> 走行予定</span><i>→</i><span><b>3</b> 保存</span>
+  </div>
+
+  <main class="layout">
+    <section class="panel region-panel">
+      <div class="section-heading">
+        <div><span class="step">1</span><h2>地区を選ぶ</h2></div>
+        <p>各路線は主地区に1回だけ表示します。</p>
+      </div>
+      <div id="regionButtons" class="region-grid" aria-label="地区選択"></div>
+    </section>
+
+    <section class="panel route-panel">
+      <div class="section-heading route-heading">
+        <div><span class="step">2</span><h2 id="routeSectionTitle">攻略する路線を選ぶ</h2></div>
+        <div class="map-toggles"><label class="complete-toggle"><input id="showComplete" type="checkbox"> 一覧に全線走破も表示</label><label class="complete-toggle"><input id="showActualPaths" type="checkbox" checked> 実走線を表示</label></div>
+      </div>
+      <div id="statusSummary" class="summary-grid"></div>
+      <p id="routeHint" class="hint">最初に地区を選んでください。</p>
+      <div id="routeList" class="route-list"></div>
+    </section>
+
+    <section class="panel map-panel">
+      <div class="section-heading">
+        <div><span class="step map-step">地図</span><h2>路線位置を確認</h2></div>
+        <button id="fitMap" class="text-button" type="button">全体表示</button>
+      </div>
+      <div class="map-legend" aria-label="地図凡例">
+        <span><i class="legend-line untraveled"></i>未走破</span>
+        <span><i class="legend-line partial"></i>一部走破</span>
+        <span><i class="legend-line complete"></i>全線走破</span>
+        <span><i class="legend-line selected"></i>今回選択</span>
+        <span><i class="legend-line actual"></i>実際に走った線</span>
+      </div>
+      <div id="v5Map" class="v5-map" aria-label="攻略候補路線地図"></div>
+      <p id="mapMessage" class="map-message">全地区の路線状況を表示します。</p>
+    </section>
+
+    <aside class="panel selection-panel">
+      <div class="section-heading">
+        <div><span class="step">3</span><h2>選択中の攻略路線</h2></div>
+        <button id="clearSelection" class="text-button" type="button">選択解除</button>
+      </div>
+      <div class="journey-fields home-inline-plan-hidden" aria-label="今回の旅の基本情報">
+        <label>旅名<input id="journeyName" type="text" maxlength="80" placeholder="例：道央・残り区間をつなぐ旅"></label>
+        <label>実施予定日<input id="journeyDate" type="date"></label>
+        <label class="journey-memo-label">メモ<textarea id="journeyMemo" rows="2" maxlength="500" placeholder="立ち寄り候補、出発時刻、注意点など"></textarea></label>
+      </div>
+      <div id="selectionEmpty" class="empty-box">攻略候補を選ぶと、ここに走行順の目安が表示されます。</div>
+      <ol id="selectionList" class="selection-list"></ol>
+
+      <section id="roughPlanPanel" class="rough-plan-panel home-inline-plan-hidden" hidden aria-live="polite">
+        <div class="rough-plan-head">
+          <div>
+            <strong>ざっくり走行予定</strong>
+            <span>士別市（自宅）発着・地理データから自動作成</span>
+          </div>
+          <button id="rebuildRoughPlan" class="text-button" type="button">再作成</button>
+        </div>
+        <div id="roughPlanStatus" class="rough-plan-status"></div>
+        <ol id="roughPlanSteps" class="rough-plan-steps"></ol>
+        <p id="roughPlanDistance" class="rough-plan-distance"></p>
+        <p class="rough-plan-note">これは出発前の目安です。交差点単位の右左折や道路規制は、実走時にGuru Maps / Google Mapsなどで確認します。</p>
+      </section>
+
+      <div id="selectionActions" class="selection-actions home-inline-plan-hidden" hidden>
+        <button id="saveSelection" class="primary-button" type="button">今回の旅として保存</button>
+        <a id="openPlan" class="secondary-button" href="#savedJourneys">保存済みの旅を見る</a>
+        <p id="saveMessage" class="save-message" aria-live="polite"></p>
+      </div>
+      <div class="journey-screen-launch"><a class="primary-button" href="journey-plan.html">次へ：走行予定を確認</a><p>選択した路線から自宅発着のざっくり走行予定を作ります。</p></div><div class="rule-note"><strong>今回の試作範囲</strong><p>地区は一覧の絞り込みにだけ使い、地図には全地区の路線状況と全ての保存済み旅の実走線を常時表示します。地図上の路線クリックでも選択・解除できます。既存データは書き換えません。</p></div>
+    </aside>
+
+    <section id="savedJourneys" class="panel journeys-panel">
+      <div class="section-heading">
+        <div><span class="step">4</span><h2>保存済みの旅</h2></div>
+        <p id="journeyCount">0件</p>
+      </div>
+      <p class="hint">既存の旅とVersion 5.0で追加した旅を、同じ一覧で確認します。青い「計画」だけ削除できます。緑の「実走記録」は保護され、削除できません。</p>
+      <p><a class="secondary-button" href="gpx-import.html">実走GPXを取り込む</a></p>
+      <div id="savedJourneyList" class="saved-journey-list"></div>
+    </section>
+  </main>
+
+
+  <div id="confirmOverlay" class="confirm-overlay" hidden>
+    <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 id="confirmTitle">この内容で旅を保存しますか？</h2>
+      <p>既存の旅は変更せず、新しい旅を1件追加します。</p>
+      <dl class="confirm-summary">
+        <div><dt>旅名</dt><dd id="confirmName"></dd></div>
+        <div><dt>予定日</dt><dd id="confirmDate"></dd></div>
+        <div><dt>地区</dt><dd id="confirmRegion"></dd></div>
+        <div><dt>攻略路線</dt><dd id="confirmRoutes"></dd></div>
+        <div><dt>走行予定</dt><dd id="confirmRoughPlan"></dd></div>
+        <div><dt>メモ</dt><dd id="confirmMemo"></dd></div>
+      </dl>
+      <p class="confirm-warning">この保存では走破状態を更新しません。実走後のGPX取込と確認を経て、走破状態を確定します。</p>
+      <div class="confirm-actions">
+        <button id="cancelFormalSave" class="secondary-button" type="button">戻る</button>
+        <button id="confirmFormalSave" class="primary-button" type="button">旅を追加保存</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/v5-home.js?v=20260809-52"></script>
+</body>
+</html>

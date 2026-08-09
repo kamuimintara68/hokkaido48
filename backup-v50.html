@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全データバックアップ | 北海道48路線ふらふらlog V5</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+  <style>
+    .backup-v50-layout{width:min(920px,calc(100% - 24px));margin:18px auto 42px;display:grid;gap:18px}.backup-v50-summary{padding:14px;line-height:1.75;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;white-space:pre-line}.backup-v50-notice{margin-top:12px;padding:12px 14px;line-height:1.65;color:#713f12;background:#fffbeb;border:1px solid #fde68a;border-radius:10px}.backup-v50-message{min-height:1.6em;margin-top:12px;font-weight:700;color:#1e4e77;white-space:pre-line}.backup-v50-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.backup-v50-actions button,.backup-v50-file{display:flex;align-items:center;justify-content:center;min-height:42px;border-radius:9px;padding:9px 14px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.backup-v50-file{border:1px solid #94a3b8;background:#fff;color:#334155}.backup-v50-danger{border:1px solid #991b1b;background:#991b1b;color:#fff}.backup-v50-actions button:disabled{opacity:.45;cursor:not-allowed}.backup-v50-file input{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.backup-v50-steps{line-height:1.8;padding-left:1.4em}@media(max-width:640px){.backup-v50-actions{flex-direction:column}.backup-v50-actions>*{width:100%}}
+  </style>
+</head>
+<body>
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>全データバックアップ</h1>
+      <p>Trip・Record・V5の走破状態を1つのファイルへ保存／復元します。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a href="route-status.html">全線・例外確認</a>
+      <a class="is-active" href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+  <main class="backup-v50-layout">
+    <section class="panel">
+      <div class="section-heading"><div><span class="step">1</span><h2>現在の保存データ</h2></div></div>
+      <div id="currentSummary" class="backup-v50-summary">確認中です。</div>
+      <div id="currentWarning" class="backup-v50-notice" hidden></div>
+      <p class="hint">この端末・このブラウザに保存されているV5の主要データを対象にします。</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><span class="step">2</span><h2>バックアップを書き出す</h2></div></div>
+      <p>Trip、Routeごとの旧Record、V5の走破確定状態、V5の手動Route状態をJSONファイルへ保存します。</p>
+      <div class="backup-v50-actions"><button id="exportButton" class="primary-button" type="button">全データをバックアップ</button></div>
+      <p id="exportMessage" class="backup-v50-message" aria-live="polite"></p>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><span class="step">3</span><h2>バックアップから復元</h2></div></div>
+      <ol class="backup-v50-steps"><li>バックアップファイルを選んで内容を確認</li><li>現在データを「復元前バックアップ」として別ファイルへ保存</li><li>確認後に復元を実行</li></ol>
+      <div class="backup-v50-actions"><label class="backup-v50-file" for="backupFileInput">バックアップファイルを選ぶ<input id="backupFileInput" type="file" accept=".json,application/json"></label></div>
+      <div id="importPreview" class="backup-v50-summary">バックアップファイルはまだ選ばれていません。</div>
+      <div class="backup-v50-actions"><button id="preRestoreButton" class="secondary-button" type="button" disabled>復元前バックアップを書き出す</button><button id="restoreButton" class="backup-v50-danger" type="button" disabled>バックアップから復元</button></div>
+      <div class="backup-v50-notice">復元を実行するまでは現在のデータを変更しません。復元対象は hokkaido48Trips、route***Record、V5手動Route状態、V5走破確定状態です。</div>
+      <p id="restoreMessage" class="backup-v50-message" aria-live="polite"></p>
+    </section>
+
+    <a class="secondary-button" href="data-manager.html">データ管理へ戻る</a>
+  </main>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="js/backup-v50.js?v=20260809-52"></script>
+</body>
+</html>

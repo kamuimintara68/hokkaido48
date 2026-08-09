@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>実走GPX取込 | 北海道48路線ふらふらlog</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+</head>
+<body>
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>実走GPX取込</h1>
+      <p>GPXを旅に紐づける前に、距離・軌跡・走行国道候補を確認します。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a href="route-select.html">旅を計画</a>
+      <a class="is-active" href="gpx-import.html">GPX取込</a>
+      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a href="route-status.html">全線・例外確認</a>
+      <a href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+    <div class="page-flow gpx-page-flow" aria-label="実走GPXを記録する工程">
+    <span id="gpxFlowRead" class="is-active"><b>1</b> GPX読込</span><i>→</i><span id="gpxFlowConfirm"><b>2</b> 国道確認</span><i>→</i><span id="gpxFlowSave"><b>3</b> 旅へ保存</span>
+  </div>
+
+  <main class="gpx-layout">
+    <section class="panel gpx-control-panel">
+      <div class="section-heading">
+        <div><span class="step">1</span><h2>GPXを選ぶ</h2></div>
+      </div>
+      <label class="gpx-file-label">GPXファイル
+        <input id="gpxFile" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml">
+      </label>
+      <label class="gpx-file-label">紐づけ先
+        <select id="gpxTripSelect"></select>
+      </label>
+      <button id="gpxAnalyze" class="primary-button" type="button" disabled>GPXを解析</button>
+      <p id="gpxStatus" class="save-message" aria-live="polite">GPXファイルを選択してください。</p>
+
+      <div id="gpxSummary" class="gpx-summary" hidden>
+        <div><span>ファイル</span><strong id="gpxFileName">-</strong></div>
+        <div><span>トラック点</span><strong id="gpxPointCount">-</strong></div>
+        <div><span>実走距離</span><strong id="gpxDistance">-</strong></div>
+        <div><span>開始</span><strong id="gpxStartTime">-</strong></div>
+        <div><span>終了</span><strong id="gpxEndTime">-</strong></div>
+        <div><span>記録時間</span><strong id="gpxDuration">-</strong></div>
+      </div>
+
+      <div class="rule-note gpx-validation-note">
+        <strong>7/28検証基準</strong>
+        <p>「20260728士別∸白糠」のGPXでは、約2,612点・約334.6kmになることを基準に確認します。数百m程度の差は計算方法の違いとして許容します。</p>
+      </div>
+    </section>
+
+    <section class="panel gpx-map-panel">
+      <div class="section-heading">
+        <div><span class="step map-step">地図</span><h2>実走線を確認</h2></div>
+        <button id="gpxFit" class="text-button" type="button">全体表示</button>
+      </div>
+      <div class="map-legend"><span><i class="legend-line actual"></i>GPX実走線</span><span><i class="legend-line match"></i>選択路線との一致区間</span></div>
+      <div id="gpxMap" class="gpx-map" aria-label="GPX実走線地図"></div>
+      <p id="gpxMapMessage" class="map-message">解析後、候補国道の番号を地図上に表示します。候補をクリックすると、その国道とGPXが実際に重なる区間だけを強調表示します。</p>
+    </section>
+
+    <section class="panel gpx-candidate-panel">
+      <div class="section-heading">
+        <div><span class="step">2</span><h2>走行国道の候補</h2></div>
+        <p id="candidateCount">未解析</p>
+      </div>
+      <p class="hint">GPX線と国道GeoJSONが地図上で一致した区間そのものを抽出します。候補をクリックすると、その一致区間だけを地図で確認できます。チェックして保存した実走区間は、そのまま走破記録へ反映されます。通常の確認はこの1回で完了です。</p>
+      <div class="rule-note gpx-filter-rule"><strong>V5 GPX判定ルール</strong><p>攻略対象外は3km未満を除外、3〜5kmは「短区間・参考」、5km以上を通常判定します。出発前の攻略対象は距離で除外しません。国道から一定距離を保ったまま長く平行する軌跡は「並走疑い」とし、高速道路などの誤判定を防ぐため確定チェックを無効にします。</p></div>
+      <div id="gpxCandidates" class="gpx-candidates"><div class="empty-box">GPX解析後に候補を表示します。</div></div>
+      <div class="gpx-confirm-panel">
+        <div>
+          <strong>今回走った国道を確定</strong>
+          <span id="gpxConfirmCount">0路線選択</span>
+        </div>
+        <p>地図で確認した路線だけにチェックを入れて保存します。保存した実走区間は一部走破として自動反映され、通常はここで作業完了です。</p>
+        <button id="gpxSaveConfirmed" class="primary-button" type="button" disabled>選択した国道を旅へ保存</button>
+        <p id="gpxConfirmStatus" class="save-message" aria-live="polite"></p>
+        <a id="gpxNextStatus" class="secondary-button gpx-next-status" href="route-status.html" hidden>必要な場合のみ：全線・例外を確認</a>
+      </div>
+    </section>
+  </main>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/v5-gpx-import.js?v=20260809-52"></script>
+</body>
+</html>

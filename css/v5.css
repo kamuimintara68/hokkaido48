@@ -1,0 +1,304 @@
+:root { font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#172033; background:#edf2f7; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; }
+button,input { font:inherit; }
+.v5-header { display:flex; justify-content:space-between; gap:20px; align-items:center; padding:18px 26px; background:#173f8f; color:#fff; }
+.v5-header h1 { margin:2px 0 4px; font-size:clamp(24px,3vw,34px); }
+.v5-header p { margin:0; }
+.eyebrow { font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85; }
+.v5-header nav { display:flex; gap:9px; flex-wrap:wrap; }
+.v5-header a { padding:8px 11px; border:1px solid rgba(255,255,255,.5); border-radius:8px; color:#fff; text-decoration:none; font-weight:700; }
+.layout { display:grid; grid-template-columns:minmax(150px,.44fr) minmax(285px,.78fr) minmax(560px,1.78fr); grid-template-areas:"region routes map" "selection selection selection"; gap:12px; padding:14px; }
+.panel { background:#fff; border-radius:14px; padding:16px; box-shadow:0 4px 16px rgba(15,23,42,.08); min-width:0; }
+.region-panel { grid-area:region; }
+.route-panel { grid-area:routes; }
+.map-panel { grid-area:map; }
+.selection-panel { grid-area:selection; }
+.section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.section-heading > div { display:flex; align-items:center; gap:9px; }
+.section-heading h2 { margin:0; font-size:18px; }
+.section-heading p { margin:0; color:#64748b; font-size:11px; }
+.step { display:grid; place-items:center; width:23px; height:23px; border-radius:50%; background:#2563eb; color:#fff; font-size:12px; font-weight:900; flex:0 0 auto; }
+.map-step { width:auto; min-width:42px; padding:0 8px; border-radius:999px; font-size:11px; }
+.region-grid { display:grid; gap:8px; }
+.region-button { width:100%; min-height:58px; padding:9px 11px; border:2px solid #d9e3ef; border-radius:10px; background:#fff; color:#173b63; text-align:left; cursor:pointer; }
+.region-button strong { display:block; font-size:17px; }
+.region-button span { display:block; margin-top:2px; color:#64748b; font-size:11px; }
+.region-button.active { border-color:#2563eb; background:#eff6ff; }
+.route-heading { align-items:flex-start; }
+.complete-toggle { color:#475569; font-size:12px; font-weight:700; white-space:nowrap; }
+.summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-bottom:10px; }
+.summary-chip { padding:7px; border-radius:8px; text-align:center; font-size:11px; font-weight:800; }
+.summary-chip strong { display:block; font-size:18px; }
+.summary-chip.untraveled { background:#f1f5f9; color:#475569; }
+.summary-chip.partial { background:#ffedd5; color:#9a3412; }
+.summary-chip.complete { background:#dcfce7; color:#166534; }
+.hint { margin:0 0 9px; color:#64748b; font-size:12px; }
+.route-list { display:grid; gap:7px; max-height:470px; overflow:auto; padding-right:3px; }
+.route-card { display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center; width:100%; padding:9px; border:1px solid #d8e2ec; border-radius:9px; background:#fff; text-align:left; cursor:pointer; }
+.route-card:hover { border-color:#2563eb; }
+.route-card.selected { border:2px solid #7c3aed; background:#f5f3ff; }
+.route-number { display:grid; place-items:center; min-width:45px; height:31px; border:2px solid #1d4ed8; border-radius:8px; color:#1d4ed8; font-weight:900; }
+.route-main strong { display:block; font-size:14px; }
+.route-main span { display:block; margin-top:2px; color:#64748b; font-size:11px; }
+.status-badge { padding:4px 7px; border-radius:999px; font-size:10px; font-weight:900; white-space:nowrap; }
+.status-badge.untraveled { background:#f1f5f9; color:#475569; }
+.status-badge.partial { background:#ffedd5; color:#9a3412; }
+.status-badge.complete { background:#dcfce7; color:#166534; }
+.status-badge.excluded { background:#e2e8f0; color:#475569; }
+.text-button { border:0; background:transparent; color:#2563eb; cursor:pointer; font-weight:700; }
+.v5-map { width:100%; height:520px; border:1px solid #d7e0ea; border-radius:10px; overflow:hidden; background:#dbeafe; }
+.map-legend { display:flex; flex-wrap:wrap; gap:10px; margin:-2px 0 8px; color:#475569; font-size:10px; }
+.map-legend span { display:flex; align-items:center; gap:4px; }
+.legend-line { display:inline-block; width:20px; height:4px; border-radius:9px; background:#64748b; }
+.legend-line.partial { background:#f97316; }
+.legend-line.complete { background:#16a34a; }
+.legend-line.selected { height:6px; background:#7c3aed; }
+.map-message { min-height:18px; margin:7px 0 0; color:#64748b; font-size:11px; }
+.empty-box { padding:15px; border:1px dashed #cbd5e1; border-radius:10px; color:#64748b; line-height:1.5; }
+.selection-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:7px 18px; margin:0; padding-left:28px; }
+.selection-item { padding:8px 7px 8px 3px; border-bottom:1px solid #e2e8f0; }
+.selection-item strong { display:block; }
+.selection-item span { color:#64748b; font-size:11px; }
+.selection-actions { display:grid; grid-template-columns:minmax(220px,1fr) minmax(220px,1fr); gap:9px; margin-top:14px; }
+.primary-button,.secondary-button { display:flex; align-items:center; justify-content:center; min-height:42px; border-radius:9px; font-weight:800; text-decoration:none; }
+.primary-button { border:0; background:#15803d; color:#fff; cursor:pointer; }
+.secondary-button { border:1px solid #94a3b8; background:#fff; color:#334155; }
+.save-message { grid-column:1/-1; min-height:18px; margin:0; color:#166534; font-size:12px; font-weight:700; }
+.rule-note { margin-top:13px; padding:11px; border-radius:10px; background:#f8fafc; color:#475569; font-size:11px; line-height:1.5; }
+.rule-note p { margin:4px 0 0; }
+.build-badge { position:fixed; right:10px; bottom:10px; z-index:9999; padding:6px 10px; border:1px solid #94a3b8; border-radius:6px; background:rgba(255,255,255,.94); color:#334155; font-size:11px; }
+@media (max-width:1250px) { .layout { grid-template-columns:210px minmax(330px,1fr); grid-template-areas:"region routes" "map map" "selection selection"; } .v5-map { height:390px; } }
+@media (max-width:720px) { .v5-header { align-items:flex-start; flex-direction:column; padding:17px; } .layout { grid-template-columns:1fr; grid-template-areas:"region" "map" "routes" "selection"; padding:10px; } .region-grid { grid-template-columns:repeat(4,1fr); } .region-button { text-align:center; padding:8px 4px; } .v5-map { height:330px; } .route-list { max-height:none; } .selection-actions { grid-template-columns:1fr; } .route-card { grid-template-columns:auto 1fr; } .route-card .status-badge { grid-column:2; justify-self:start; } }
+.map-toggles { display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
+.legend-line.actual { height:6px; background:#0f766e; box-shadow:0 0 0 2px rgba(255,255,255,.9); }
+.actual-path-label { font-weight:800; color:#0f766e; }
+@media (max-width:720px) { .map-toggles { justify-content:flex-start; } }
+.journey-fields { display:grid; grid-template-columns:minmax(220px,1.4fr) minmax(150px,.6fr); gap:10px 12px; margin-bottom:13px; }
+.journey-fields label { display:grid; gap:5px; color:#334155; font-size:11px; font-weight:800; }
+.journey-fields input,.journey-fields textarea { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:9px 10px; background:#fff; color:#172033; font:inherit; font-weight:500; }
+.journey-fields input:focus,.journey-fields textarea:focus { outline:2px solid rgba(37,99,235,.18); border-color:#2563eb; }
+.journey-memo-label { grid-column:1/-1; }
+.journey-fields textarea { resize:vertical; min-height:58px; }
+@media (max-width:720px) { .journey-fields { grid-template-columns:1fr; } .journey-memo-label { grid-column:auto; } }
+
+/* Build11: map route number labels */
+.route-number-map-icon { background:transparent; border:0; }
+.route-number-map-icon span {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:36px; height:28px; padding:0 7px;
+  border:3px solid #ffffff; border-radius:8px;
+  background:#173f8f; color:#ffffff;
+  box-shadow:0 2px 7px rgba(15,23,42,.55);
+  font-size:16px; line-height:1; font-weight:900;
+  white-space:nowrap;
+}
+.leaflet-pane.leaflet-routeClickPane-pane path { cursor:pointer; }
+
+
+/* Build12: invisible click targets and on-route labels */
+.leaflet-pane.leaflet-routeClickPane-pane path,
+.leaflet-pane.leaflet-routeClickPane-pane .route-click-target {
+  stroke: transparent !important;
+  stroke-opacity: 0 !important;
+  fill: none !important;
+  cursor: pointer;
+}
+
+/* Build16: 正式な旅の保存確認 */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .56);
+}
+.confirm-overlay[hidden] { display: none; }
+.confirm-dialog {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+  padding: 22px;
+}
+.confirm-dialog h2 { margin: 0 0 8px; font-size: 1.35rem; }
+.confirm-dialog > p { margin: 0 0 16px; color: #475569; }
+.confirm-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.confirm-summary div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; }
+.confirm-summary dt { font-weight: 700; color: #334155; }
+.confirm-summary dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.confirm-warning {
+  margin-top: 14px !important;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412 !important;
+  font-size: .9rem;
+}
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+/* Build17: 保存済みの旅カード */
+.journeys-panel { grid-area: journeys; }
+.layout { grid-template-areas:"region routes map" "selection selection selection" "journeys journeys journeys"; }
+.saved-journey-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+.saved-journey-card { min-width:0; padding:14px; border:1px solid #dbe4ef; border-radius:12px; background:#fff; }
+.saved-journey-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.saved-journey-card h3 { margin:0; font-size:16px; line-height:1.35; }
+.saved-journey-card-head p { margin:4px 0 0; color:#64748b; font-size:11px; }
+.journey-kind { flex:0 0 auto; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:900; }
+.journey-kind.planned { background:#dbeafe; color:#1d4ed8; }
+.journey-kind.recorded { background:#dcfce7; color:#166534; }
+.saved-journey-routes { margin-top:12px; color:#334155; font-size:12px; font-weight:800; line-height:1.6; overflow-wrap:anywhere; }
+.saved-journey-memo { margin:9px 0 0; padding-top:9px; border-top:1px solid #eef2f7; color:#64748b; font-size:11px; line-height:1.5; white-space:pre-wrap; }
+@media (max-width:1250px) { .layout { grid-template-areas:"region routes" "map map" "selection selection" "journeys journeys"; } }
+@media (max-width:720px) { .layout { grid-template-areas:"region" "map" "routes" "selection" "journeys"; } }
+
+.saved-journey-actions { margin-top:12px; padding-top:10px; border-top:1px solid #eef2f7; display:flex; justify-content:flex-end; }
+.journey-delete-button { border:1px solid #fecaca; background:#fff; color:#b91c1c; border-radius:8px; padding:7px 10px; font:inherit; font-size:11px; font-weight:800; cursor:pointer; }
+.journey-delete-button:hover { background:#fef2f2; border-color:#fca5a5; }
+
+
+/* Build20: 自宅発着のざっくり走行予定 */
+.rough-plan-panel { margin-top:14px; padding:14px; border:1px solid #bfdbfe; border-radius:12px; background:#f8fbff; }
+.rough-plan-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.rough-plan-head strong { display:block; color:#173b63; font-size:15px; }
+.rough-plan-head span { display:block; margin-top:3px; color:#64748b; font-size:10px; }
+.rough-plan-status { margin-top:10px; color:#64748b; font-size:11px; }
+.rough-plan-steps { margin:10px 0 0; padding-left:25px; display:grid; gap:7px; }
+.rough-plan-steps li { color:#26384d; font-size:12px; line-height:1.55; }
+.rough-plan-steps li strong { color:#173b63; }
+.rough-plan-distance { margin:12px 0 0; padding:9px 11px; border-radius:9px; background:#eaf3ff; color:#173b63; font-size:12px; font-weight:800; }
+.rough-plan-note { margin:8px 0 0; color:#64748b; font-size:10px; line-height:1.5; }
+.saved-journey-plan { margin-top:10px; padding:9px 10px; border-radius:9px; background:#f8fafc; color:#475569; font-size:11px; line-height:1.55; }
+.saved-journey-plan strong { display:block; margin-bottom:4px; color:#334155; }
+@media (max-width:720px) { .rough-plan-head { flex-direction:column; } }
+
+/* Build21: 今回の旅を独立画面化 */
+.home-inline-plan-hidden { display:none !important; }
+.journey-screen-launch { margin-top:14px; padding:13px; border:1px solid #bfdbfe; border-radius:12px; background:#eff6ff; }
+.journey-screen-launch .primary-button { width:100%; }
+.journey-screen-launch p { margin:8px 0 0; color:#64748b; font-size:11px; text-align:center; }
+.journey-plan-page { background:#f1f5f9; }
+.journey-plan-layout { display:grid; grid-template-columns:minmax(390px,.9fr) minmax(520px,1.35fr); gap:14px; max-width:1600px; margin:0 auto; padding:14px; }
+.journey-plan-details,.journey-plan-map-panel { min-width:0; }
+.journey-plan-fields { grid-template-columns:minmax(220px,1fr) minmax(150px,.55fr); }
+.journey-plan-route-box { margin-top:4px; padding:13px; border:1px solid #dbe4ef; border-radius:12px; background:#fff; }
+.journey-plan-routes { margin:10px 0 0; padding-left:28px; display:grid; gap:6px; }
+.journey-plan-routes li { padding:6px 8px; border-bottom:1px solid #eef2f7; color:#334155; font-size:12px; line-height:1.45; }
+.journey-plan-routes strong { color:#173b63; }
+.journey-plan-actions { margin-top:14px; }
+.journey-plan-actions .primary-button { width:100%; }
+.journey-plan-map { width:100%; height:680px; border:1px solid #d7e0ea; border-radius:12px; overflow:hidden; background:#dbeafe; }
+.journey-plan-map-legend { display:flex; flex-wrap:wrap; gap:14px; margin:-2px 0 9px; color:#475569; font-size:11px; }
+.journey-plan-map-legend span { display:flex; align-items:center; gap:5px; }
+.journey-route-key,.journey-connector-key { display:inline-block; width:24px; height:5px; border-radius:9px; }
+.journey-route-key { background:#7c3aed; }
+.journey-connector-key { height:0; border-top:3px dashed #64748b; }
+.journey-home-key { display:inline-block; width:12px; height:12px; border-radius:50%; background:#dc2626; border:2px solid #fff; box-shadow:0 0 0 1px #dc2626; }
+.journey-order-icon { background:transparent; border:0; }
+.journey-order-icon span { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:3px solid #fff; background:#7c3aed; color:#fff; font-size:14px; font-weight:900; box-shadow:0 2px 8px rgba(15,23,42,.45); }
+.journey-home-icon { background:transparent; border:0; }
+.journey-home-icon span { display:grid; place-items:center; min-width:48px; height:30px; padding:0 7px; border-radius:16px; border:3px solid #fff; background:#dc2626; color:#fff; font-size:11px; font-weight:900; box-shadow:0 2px 8px rgba(15,23,42,.4); white-space:nowrap; }
+@media (max-width:980px) { .journey-plan-layout { grid-template-columns:1fr; } .journey-plan-map { height:520px; } }
+@media (max-width:720px) { .journey-plan-layout { padding:10px; } .journey-plan-fields { grid-template-columns:1fr; } .journey-plan-map { height:400px; } }
+
+.journey-route-label-icon { background:transparent; border:0; }
+.journey-route-label-icon span { display:grid; place-items:center; min-width:50px; height:28px; padding:0 8px; border-radius:8px; border:3px solid #fff; background:#173b7a; color:#fff; font-size:13px; font-weight:900; line-height:1; box-shadow:0 2px 8px rgba(15,23,42,.42); white-space:nowrap; }
+
+/* Build33: GPX import preview */
+.gpx-layout{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(520px,1.28fr);gap:16px;padding:16px;align-items:start}.gpx-control-panel{grid-column:1}.gpx-map-panel{grid-column:2;grid-row:1 / span 2;position:sticky;top:12px;align-self:start}.gpx-candidate-panel{grid-column:1}.gpx-file-label{display:grid;gap:7px;margin:0 0 14px;font-weight:700;color:#334155}.gpx-file-label input,.gpx-file-label select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;padding:11px;background:#fff;font:inherit;color:#0f172a}.gpx-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}.gpx-summary>div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px}.gpx-summary span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}.gpx-summary strong{font-size:15px;color:#0f172a}.gpx-map{height:650px;border-radius:12px;overflow:hidden}.gpx-validation-note{margin-top:16px}.gpx-candidates{display:grid;gap:8px}.gpx-candidate-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #dbe4f0;border-radius:10px;background:#fff}.gpx-candidate-row>div{display:grid;gap:2px}.gpx-candidate-row>div:last-child{text-align:right}.gpx-candidate-row span{font-size:12px;color:#64748b}.gpx-candidate-row b{color:#b45309}@media(max-width:950px){.gpx-layout{grid-template-columns:1fr}.gpx-control-panel,.gpx-map-panel,.gpx-candidate-panel{grid-column:1;grid-row:auto}.gpx-map-panel{position:static}.gpx-map{height:480px}}
+
+/* Build35: 重複国道の識別 */
+.gpx-candidate-row em{font-style:normal;font-size:11px;font-weight:800;color:#334155;background:#f1f5f9;border-radius:999px;padding:3px 7px;width:max-content;margin-top:3px}.gpx-candidate-row[data-overlap="重複区間中心"] em{color:#9a3412;background:#ffedd5}.gpx-candidate-row[data-overlap="接近・交差中心"] em{color:#475569;background:#e2e8f0}.gpx-candidate-row>div:last-child span+span{margin-top:3px}
+
+/* Build36: map-overlap judging */
+.legend-line.match{background:#f97316;height:5px}
+.gpx-candidate-row{cursor:pointer;transition:border-color .12s ease,background .12s ease}
+.gpx-candidate-row:hover{border-color:#fb923c;background:#fff7ed}
+.gpx-candidate-row.is-active{border-color:#ea580c;background:#fff7ed;box-shadow:inset 0 0 0 1px #fdba74}
+.gpx-candidate-row .map-check{display:inline-flex;align-items:center;gap:4px;margin-top:4px;color:#c2410c;font-size:11px;font-weight:800}
+.gpx-candidate-row .map-check::before{content:"地図";display:inline-block;border:1px solid #fdba74;border-radius:999px;padding:1px 5px;background:#fff7ed}
+
+/* Build37: GPX確認マップの国道番号ラベル */
+.gpx-route-label-icon{background:transparent;border:0;pointer-events:none}
+.gpx-route-label-icon span{display:grid;place-items:center;min-width:34px;height:22px;padding:0 5px;border-radius:6px;border:2px solid #fff;background:#173b7a;color:#fff;font-size:11px;font-weight:900;line-height:1;box-shadow:0 1px 5px rgba(15,23,42,.38);white-space:nowrap}
+.gpx-route-label-icon span.is-active{background:#ea580c;transform:scale(1.08)}
+
+/* Build39: GPX候補の人間確認・旅への確定保存 */
+.gpx-confirm-panel{margin-top:14px;padding:14px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4}
+.gpx-confirm-panel>div:first-child{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.gpx-confirm-panel>div:first-child strong{font-size:15px;color:#14532d}
+.gpx-confirm-panel>div:first-child span{font-size:12px;font-weight:800;color:#166534;background:#dcfce7;border-radius:999px;padding:4px 8px}
+.gpx-confirm-panel p{font-size:12px;color:#475569;line-height:1.6;margin:7px 0 10px}
+.gpx-confirm-panel .primary-button{width:100%}
+.gpx-confirm-panel .primary-button:disabled{opacity:.45;cursor:not-allowed}
+.gpx-candidate-check{display:flex!important;grid-template-columns:auto 1fr!important;align-items:start;gap:8px!important;margin-right:4px}
+.gpx-candidate-check input{width:18px;height:18px;margin:2px 0 0;accent-color:#15803d;cursor:pointer;flex:0 0 auto}
+.gpx-candidate-check .candidate-copy{display:grid;gap:2px;min-width:0}
+.gpx-candidate-row.is-confirmed{border-color:#16a34a;background:#f0fdf4}
+.gpx-candidate-row.is-confirmed.is-active{border-color:#ea580c;background:linear-gradient(90deg,#f0fdf4 0%,#fff7ed 100%)}
+.gpx-plan-tag{display:inline-flex!important;width:max-content!important;font-size:10px!important;font-weight:800!important;color:#1d4ed8!important;background:#dbeafe!important;border-radius:999px!important;padding:2px 6px!important;margin-top:2px!important}
+
+
+/* Build41: navigation hub and common flow */
+.v5-global-nav a.is-active{background:#fff;color:#173f8f;border-color:#fff}
+.page-flow{max-width:1600px;margin:14px auto 0;padding:0 16px;display:flex;align-items:center;justify-content:center;gap:10px;color:#64748b;font-size:12px;font-weight:800}
+.page-flow span{display:flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid #dbe4ef;border-radius:999px;background:#fff}
+.page-flow span b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:11px}
+.page-flow span.is-active{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
+.page-flow span.is-active b{background:#2563eb;color:#fff}
+.page-flow span.is-done{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.page-flow span.is-done b{background:#16a34a;color:#fff}
+.page-flow i{font-style:normal;color:#94a3b8}
+.v5-dashboard{max-width:1320px;margin:0 auto;padding:22px 16px 40px}
+.workflow-strip{display:flex;align-items:center;justify-content:center;gap:14px;padding:16px 18px;margin-bottom:18px;border:1px solid #dbe4ef;border-radius:14px;background:#fff}
+.workflow-strip>i{font-style:normal;color:#94a3b8;font-size:20px}
+.workflow-step{display:flex;align-items:center;gap:10px;min-width:170px}
+.workflow-step>span,.home-action-number{display:grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#173f8f;color:#fff;font-size:16px;font-weight:900}
+.workflow-step strong{display:block;color:#0f172a;font-size:15px}.workflow-step small{display:block;margin-top:2px;color:#64748b;font-size:11px}
+.home-action-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.home-action-card{display:flex;gap:14px;min-height:158px;padding:20px;border:1px solid #dbe4ef;border-radius:15px;background:#fff;color:#0f172a;text-decoration:none;transition:.15s ease}
+.home-action-card:hover{border-color:#93c5fd;transform:translateY(-1px)}
+.home-action-card.primary{border-color:#93c5fd;background:#eff6ff}
+.home-action-card h2{margin:0 0 7px;font-size:19px}.home-action-card p{margin:0 0 14px;color:#475569;font-size:13px;line-height:1.65}.home-action-card strong{color:#1d4ed8;font-size:12px}
+.home-usage-panel{margin-top:0}.home-usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.home-usage-grid>div{padding:13px;border-radius:11px;background:#f8fafc;border:1px solid #e2e8f0}.home-usage-grid strong{color:#173b63}.home-usage-grid p{margin:5px 0 0;color:#475569;font-size:12px;line-height:1.6}
+.saved-journey-actions{gap:7px;flex-wrap:wrap}
+.journey-gpx-button{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:8px;padding:7px 10px;font:inherit;font-size:11px;font-weight:800;text-decoration:none}
+.journey-gpx-button:hover{background:#dbeafe}
+@media(max-width:900px){.home-action-grid{grid-template-columns:1fr}.workflow-strip{align-items:stretch}.workflow-step{min-width:0;flex:1}.workflow-step small{display:none}}
+@media(max-width:620px){.workflow-strip,.page-flow{gap:5px}.workflow-strip{padding:10px}.workflow-strip>i,.page-flow i{display:none}.workflow-step{justify-content:center}.workflow-step>span{width:30px;height:30px}.page-flow{justify-content:stretch;overflow-x:auto}.page-flow span{white-space:nowrap}.home-usage-grid{grid-template-columns:1fr}.v5-dashboard{padding:14px 10px 30px}}
+
+/* Build42 Data Manager */
+.data-manager-layout{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(420px,1.6fr);gap:18px;padding:18px;align-items:start}.data-manager-selector{position:sticky;top:12px}.data-manager-main{min-width:0}.data-manager-route-status{grid-column:1/-1}.data-manager-field{display:flex;flex-direction:column;gap:7px;font-weight:700}.data-manager-field input,.data-manager-field textarea,.data-manager-field select,.data-manager-selector select,.data-status-row select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:10px 12px;font:inherit;color:#0f172a}.data-manager-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}.data-manager-span{grid-column:1/-1}.data-manager-actions{display:flex;gap:10px;margin-top:14px}.data-manager-divider{border:0;border-top:1px solid #e2e8f0;margin:24px 0}.data-manager-route-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.data-route-check{display:flex;align-items:flex-start;gap:9px;border:1px solid #e2e8f0;border-radius:10px;padding:9px;background:#fff}.data-route-check input{margin-top:3px}.data-route-check span{display:flex;flex-direction:column;gap:2px}.data-route-check small,.data-gpx-row small,.data-status-row small{color:#64748b}.data-manager-gpx-list{display:flex;flex-direction:column;gap:8px}.data-gpx-row,.data-status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fff}.data-gpx-row>div,.data-status-row>div{display:flex;flex-direction:column;gap:3px}.data-status-row select{max-width:180px}.data-manager-status-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.danger-button,.danger-outline-button{border-radius:10px;padding:10px 14px;font:inherit;font-weight:700;cursor:pointer}.danger-button{background:#991b1b;color:white;border:1px solid #991b1b}.danger-outline-button{background:#fff;color:#991b1b;border:1px solid #fca5a5}.data-manager-backup-box{margin-top:18px;padding:12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.home-action-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1100px){.data-manager-layout{grid-template-columns:1fr}.data-manager-selector{position:static}.data-manager-route-status{grid-column:auto}.data-manager-route-checks{grid-template-columns:repeat(2,minmax(0,1fr))}.home-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.data-manager-grid,.data-manager-route-checks,.data-manager-status-list,.home-action-grid{grid-template-columns:1fr}.data-gpx-row,.data-status-row{align-items:stretch;flex-direction:column}.data-status-row select{max-width:none}}
+.gpx-guard-tag,.gpx-short-tag{display:inline-flex!important;width:max-content!important;font-size:10px!important;font-weight:800!important;border-radius:999px!important;padding:2px 6px!important;margin-top:2px!important}.gpx-guard-tag{color:#b91c1c!important;background:#fee2e2!important}.gpx-short-tag{color:#92400e!important;background:#fef3c7!important}.gpx-candidate-check input:disabled{cursor:not-allowed;opacity:.45}.gpx-filter-rule{margin:10px 0 12px}
+
+/* Build44: home record map */
+.home-record-panel{margin:0 0 18px}.home-record-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 10px}.home-record-stat{display:flex;align-items:baseline;justify-content:center;gap:7px;padding:10px 12px;border-radius:11px;border:1px solid #e2e8f0;background:#f8fafc}.home-record-stat strong{font-size:22px}.home-record-stat span{font-size:12px;font-weight:700}.home-record-stat.untraveled strong{color:#475569}.home-record-stat.partial{background:#fff7ed}.home-record-stat.partial strong{color:#ea580c}.home-record-stat.complete{background:#f0fdf4}.home-record-stat.complete strong{color:#15803d}.home-record-map{height:500px;border-radius:12px;border:1px solid #dbe4ef;overflow:hidden;background:#e5eef5}.home-record-legend{margin-bottom:8px}.home-record-route-icon{background:transparent;border:0}.home-record-route-icon span{display:grid;place-items:center;min-width:38px;height:24px;padding:0 6px;border-radius:8px;border:2px solid #fff;color:#fff;font-size:12px;font-weight:900;box-shadow:0 1px 5px rgba(15,23,42,.35)}.home-record-route-icon span.complete{background:#15803d}.home-record-route-icon span.partial{background:#ea580c}@media(max-width:680px){.home-record-summary{grid-template-columns:1fr 1fr 1fr;gap:6px}.home-record-stat{padding:8px 5px;gap:4px}.home-record-stat strong{font-size:18px}.home-record-stat span{font-size:10px}.home-record-map{height:420px}}
+
+.gpx-city-rule-tag{display:inline-flex!important;width:max-content!important;font-size:10px!important;font-weight:800!important;border-radius:999px!important;padding:2px 6px!important;margin-top:2px!important;color:#1d4ed8!important;background:#dbeafe!important}
+
+/* Build48: Route status confirmation */
+.route-status-layout{display:grid;grid-template-columns:minmax(260px,.75fr) minmax(440px,1.25fr) minmax(480px,1.35fr);gap:16px;padding:16px;align-items:start}.route-status-control,.route-status-list-panel,.route-status-map-panel{min-width:0}.route-status-map{height:620px;border-radius:14px;overflow:hidden}.route-status-list{display:grid;gap:10px}.route-status-row{border:1px solid #d8e1ec;border-radius:14px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:12px}.route-status-main{display:flex;gap:12px;align-items:flex-start}.route-status-main>div{display:grid;gap:4px;min-width:0}.route-status-main span,.route-status-choice span,.route-status-choice small{font-size:13px;color:#64748b}.route-status-map-button{border:2px solid #2563eb;border-radius:10px;background:#fff;color:#1d4ed8;font-weight:700;padding:8px 10px;white-space:nowrap;cursor:pointer}.route-status-choice{display:grid;gap:6px;align-content:start}.route-status-choice label{display:grid;gap:4px;font-size:13px}.route-status-choice select{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px;background:#fff}.route-status-tag{display:inline-block;width:max-content;border-radius:999px;padding:3px 8px;font-size:12px!important;font-weight:700}.route-status-tag.city{background:#eff6ff;color:#1d4ed8}.route-status-tag.protect{background:#dcfce7;color:#166534}.route-status-save-panel{margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0}.gpx-next-status{display:inline-flex;margin-top:10px}@media(max-width:1200px){.route-status-layout{grid-template-columns:1fr 1.4fr}.route-status-map-panel{grid-column:1/-1}.route-status-map{height:520px}}@media(max-width:760px){.route-status-layout{grid-template-columns:1fr;padding:10px}.route-status-map-panel{grid-column:auto}.route-status-row{grid-template-columns:1fr}.route-status-map{height:440px}}
+
+/* Build49: route status map usability */
+@media (min-width:1201px){
+  .route-status-map-panel{position:sticky;top:12px;align-self:start}
+}
+.route-status-main{cursor:pointer}
+.route-status-row.is-map-active{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.10)}
+.route-status-route-label-wrap{background:transparent;border:0}
+.route-status-route-label{display:inline-block;transform:translate(-50%,-50%);white-space:nowrap;background:#173b7a;color:#fff;border:2px solid #fff;border-radius:9px;padding:4px 8px;font-weight:800;font-size:15px;line-height:1;box-shadow:0 1px 4px rgba(15,23,42,.35)}

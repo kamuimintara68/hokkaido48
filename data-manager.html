@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>データ管理 | 北海道48路線ふらふらlog V5</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/v5.css?v=20260809-52">
+</head>
+<body>
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 正式版候補</p>
+      <h1>データ管理</h1>
+      <p>自動で書き換えず、ここで明示的に選んだ内容だけ修正します。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a class="is-active" href="data-manager.html">データ管理</a>
+      <a href="index.html">V4.0</a>
+    </nav>
+  </header>
+
+  <main class="data-manager-layout">
+    <section class="panel data-manager-selector">
+      <div class="section-heading"><div><span class="step">1</span><h2>旅を選ぶ</h2></div></div>
+      <label class="data-manager-field">保存済みの旅
+        <select id="dmTripSelect"></select>
+      </label>
+      <p id="dmTripType" class="hint"></p>
+      <div class="data-manager-backup-box">
+        <strong>変更前バックアップ</strong>
+        <p id="dmBackupStatus" class="hint">まだこの画面からの変更はありません。</p>
+        <button id="dmRestoreBackup" class="secondary-button" type="button" disabled>直前の変更を復元</button>
+        <a class="secondary-button" href="backup-v50.html" style="margin-top:8px">全データをファイルへバックアップ</a>
+      </div>
+    </section>
+
+    <section class="panel data-manager-main">
+      <div class="section-heading"><div><span class="step">2</span><h2>旅データを修正</h2></div><p id="dmSaveStatus"></p></div>
+      <div id="dmEmpty" class="empty-box">旅を選択してください。</div>
+      <div id="dmEditor" hidden>
+        <div class="data-manager-grid">
+          <label class="data-manager-field">旅名<input id="dmTripName" type="text" maxlength="100"></label>
+          <label class="data-manager-field">開始日<input id="dmStartDate" type="date"></label>
+          <label class="data-manager-field">終了日<input id="dmEndDate" type="date"></label>
+          <label class="data-manager-field data-manager-span">メモ<textarea id="dmMemo" rows="4" maxlength="1000"></textarea></label>
+        </div>
+        <div class="data-manager-actions">
+          <button id="dmSaveBasic" class="primary-button" type="button">基本情報を保存</button>
+        </div>
+
+        <hr class="data-manager-divider">
+        <div class="section-heading"><div><h3>今回走った国道</h3></div><p>チェックした路線だけを確定値として保存します。</p></div>
+        <div id="dmRouteChecks" class="data-manager-route-checks"></div>
+        <div class="data-manager-actions"><button id="dmSaveRoutes" class="primary-button" type="button">走行国道を保存</button></div>
+
+        <hr class="data-manager-divider">
+        <div class="section-heading"><div><h3>GPX取込記録</h3></div><p>Version 5.0で紐づけたGPXだけ解除できます。</p></div>
+        <div id="dmGpxList" class="data-manager-gpx-list"></div>
+
+        <hr class="data-manager-divider">
+        <div class="section-heading"><div><h3>この旅を削除</h3></div><p>実走記録は旅名の再入力が必要です。</p></div>
+        <button id="dmDeleteTrip" class="danger-button" type="button">この旅を削除</button>
+      </div>
+    </section>
+
+    <section class="panel data-manager-route-status">
+      <div class="section-heading"><div><span class="step">3</span><h2>Route手動状態</h2></div><p>自動判定より手動指定を優先します。</p></div>
+      <div id="dmRouteStatusList" class="data-manager-status-list"></div>
+      <div class="data-manager-actions"><button id="dmSaveStatuses" class="primary-button" type="button">Route状態を保存</button></div>
+    </section>
+  </main>
+
+  <div class="build-badge">Version 5.0 Release Candidate Build 20260809-52 Single Confirmation Flow</div>
+  <script src="js/v5-data-manager.js?v=20260809-52"></script>
+</body>
+</html>
