@@ -11,7 +11,7 @@
   const tripName = $("dmTripName"), startDate = $("dmStartDate"), endDate = $("dmEndDate"), memo = $("dmMemo");
   const routeChecks = $("dmRouteChecks"), gpxList = $("dmGpxList"), statusList = $("dmRouteStatusList");
   const saveStatus = $("dmSaveStatus"), backupStatus = $("dmBackupStatus"), restoreBackup = $("dmRestoreBackup");
-  let routes = [], trips = [], manualStatuses = {};
+  let routes = [], trips = [], manualStatuses = {}, memoryBackups = [];
 
   function loadTrips() {
     try { const x = JSON.parse(localStorage.getItem(TRIPS_KEY) || "[]"); return Array.isArray(x) ? x : []; } catch { return []; }
@@ -20,13 +20,12 @@
     try { const x = JSON.parse(localStorage.getItem(MANUAL_STATUS_KEY) || "{}"); return x && typeof x === "object" && !Array.isArray(x) ? x : {}; } catch { return {}; }
   }
   function loadBackups() {
-    try { const x = JSON.parse(localStorage.getItem(BACKUP_KEY) || "[]"); return Array.isArray(x) ? x : []; } catch { return []; }
+    return memoryBackups;
   }
   function saveBackup(reason) {
-    const backups = loadBackups();
+    const backups = memoryBackups;
     backups.push({ id:`backup-${Date.now()}`, savedAt:new Date().toISOString(), reason, trips:loadTrips(), manualStatuses:loadStatuses(), confirmedStatuses:(() => { try { return JSON.parse(localStorage.getItem(CONFIRMED_STATUS_KEY) || "{}"); } catch { return {}; } })() });
     while (backups.length > MAX_BACKUPS) backups.shift();
-    localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
     renderBackupInfo();
   }
   function persistTrips() { localStorage.setItem(TRIPS_KEY, JSON.stringify(trips)); }
@@ -140,7 +139,7 @@
   function restoreLastBackup() {
     const backups=loadBackups(); const last=backups[backups.length-1]; if (!last) return;
     if (!confirm(`直前の変更前状態へ戻しますか？\n${last.reason || "変更前バックアップ"}`)) return;
-    localStorage.setItem(TRIPS_KEY, JSON.stringify(last.trips || [])); localStorage.setItem(MANUAL_STATUS_KEY, JSON.stringify(last.manualStatuses || {})); localStorage.setItem(CONFIRMED_STATUS_KEY, JSON.stringify(last.confirmedStatuses || {})); backups.pop(); localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
+    localStorage.setItem(TRIPS_KEY, JSON.stringify(last.trips || [])); localStorage.setItem(MANUAL_STATUS_KEY, JSON.stringify(last.manualStatuses || {})); localStorage.setItem(CONFIRMED_STATUS_KEY, JSON.stringify(last.confirmedStatuses || {})); backups.pop();
     renderTripSelect(); renderStatuses(); renderBackupInfo(); flash("直前の変更を復元しました。");
   }
   function flash(text) { saveStatus.textContent=text; setTimeout(() => { if (saveStatus.textContent===text) saveStatus.textContent=""; }, 5000); }
@@ -148,6 +147,9 @@
   tripSelect.addEventListener("change", renderTripEditor);
   $("dmSaveBasic").addEventListener("click", saveBasic); $("dmSaveRoutes").addEventListener("click", saveRoutes); $("dmDeleteTrip").addEventListener("click", deleteTrip); $("dmSaveStatuses").addEventListener("click", saveStatuses); restoreBackup.addEventListener("click", restoreLastBackup);
 
+  // Build78以前の自動履歴はTrip本体を複製していたため破棄する。現在の復元履歴は
+  // この画面を開いている間だけメモリに保持し、端末保存容量を消費しない。
+  try { localStorage.removeItem(BACKUP_KEY); } catch {}
   fetch(ROUTE_URL, {cache:"no-store"}).then(r => { if (!r.ok) throw new Error("routes read failed"); return r.json(); }).then(data => {
     routes=Array.isArray(data) ? data : (Array.isArray(data.routes) ? data.routes : []); renderTripSelect(); renderStatuses(); renderBackupInfo();
   }).catch(err => { console.error(err); statusList.innerHTML='<div class="empty-box">路線データを読み込めませんでした。</div>'; renderTripSelect(); renderBackupInfo(); });

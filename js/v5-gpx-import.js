@@ -789,16 +789,9 @@
     return trips;
   }
 
-  function compactAutomaticBackups(maxBackups = 5) {
-    const raw = localStorage.getItem(DATA_MANAGER_BACKUP_KEY);
-    if (!raw) return;
-    let backups;
-    try { backups = JSON.parse(raw); } catch { return; }
-    if (!Array.isArray(backups)) return;
-    const retained = backups.slice(-maxBackups);
-    retained.forEach(backup => compactStoredGeometry(backup && backup.trips));
-    const compacted = JSON.stringify(retained);
-    if (compacted !== raw) localStorage.setItem(DATA_MANAGER_BACKUP_KEY, compacted);
+  function compactAutomaticBackups() {
+    // 旧版の自動履歴はTrip全体を複製するため、GPX保存前に破棄して本体の容量を確保する。
+    localStorage.removeItem(DATA_MANAGER_BACKUP_KEY);
   }
 
   function localDateFromIso(value) {

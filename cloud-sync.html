@@ -27,14 +27,14 @@
     </section>
     <section class="panel cloud-card">
       <div class="section-heading"><div><span class="step">2</span><h2>データを同期</h2></div></div>
-      <p class="cloud-note">最初は、旅データが入っているPCから「クラウドへ保存」を押します。その後、スマホで「クラウドから読込」を押します。</p>
+      <p class="cloud-note">旅・走破記録・会計・メモを同期します。容量を圧迫する変更前履歴と検索キャッシュは同期しません。</p>
       <div class="cloud-actions"><button id="cloudUpload" class="primary-button" type="button" disabled>クラウドへ保存</button><button id="cloudDownload" class="secondary-button" type="button" disabled>クラウドから読込</button></div>
       <div id="cloudSyncStatus" class="cloud-status">ログインすると同期できます。</div>
     </section>
   </main>
-  <div class="build-badge">Version 5.0 Build 20260813-78 Cloud Sync Foundation</div>
+  <div class="build-badge">Version 5.0 Build 20260813-79 Safe Cloud Sync</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-  <script src="js/v5-cloud-sync.js?v=20260813-78"></script>
+  <script src="js/v5-cloud-sync.js?v=20260813-79"></script>
   <script>
     "use strict";
     (async function () {
@@ -42,18 +42,40 @@
       const upload = document.getElementById("cloudUpload"), download = document.getElementById("cloudDownload");
       const authStatus = document.getElementById("cloudAuthStatus"), syncStatus = document.getElementById("cloudSyncStatus");
       function message(element, text, kind) { element.textContent = text; element.className = `cloud-status${kind ? ` is-${kind}` : ""}`; }
+      function sizeText(bytes) { const mb=Number(bytes||0)/1024/1024; return mb>=0.1?`${mb.toFixed(2)}MB`:`${Math.ceil(Number(bytes||0)/1024)}KB`; }
+      function summaryText(label, value) { return value ? `${label}：旅${value.tripCount}件・${sizeText(value.bytes)}` : `${label}：データなし`; }
+      function setBusy(busy) { upload.disabled=busy; download.disabled=busy; logout.disabled=busy; }
       async function refresh() {
         try {
-          const user = await Hokkaido48CloudSync.currentUser();
+          const info = await Hokkaido48CloudSync.inspect(), user=info.user;
           const signedIn = Boolean(user);
           login.hidden = signedIn; email.hidden = signedIn; logout.hidden = !signedIn; upload.disabled = !signedIn; download.disabled = !signedIn;
           message(authStatus, signedIn ? `ログイン中：${user.email || "本人"}` : "ログインしていません。", signedIn ? "ok" : "");
+          if(signedIn){const time=info.updatedAt?` ／ 最終保存 ${new Date(info.updatedAt).toLocaleString("ja-JP")}`:"";message(syncStatus,`${summaryText("この端末",info.local)} ／ ${summaryText("クラウド",info.remote)}${time}`,"");}
+          else message(syncStatus,"ログインすると同期できます。","");
         } catch (error) { message(authStatus, error.message || "ログイン状態を確認できません。", "error"); }
       }
       login.addEventListener("click", async () => { try { login.disabled = true; await Hokkaido48CloudSync.signInWithEmail(email.value); message(authStatus, "ログイン用メールを送りました。メール内のリンクを押してください。", "ok"); } catch (error) { message(authStatus, error.message, "error"); } finally { login.disabled = false; } });
       logout.addEventListener("click", async () => { try { await Hokkaido48CloudSync.signOut(); await refresh(); } catch (error) { message(authStatus, error.message, "error"); } });
-      upload.addEventListener("click", async () => { if (!confirm("この端末の北海道48路線データをクラウドへ保存しますか？")) return; try { upload.disabled = true; const at = await Hokkaido48CloudSync.upload(); message(syncStatus, `クラウドへ保存しました：${new Date(at).toLocaleString("ja-JP")}`, "ok"); } catch (error) { message(syncStatus, error.message, "error"); } finally { upload.disabled = false; } });
-      download.addEventListener("click", async () => { if (!confirm("クラウドのデータをこの端末へ読み込みますか？\nこの端末の同名データは置き換わります。")) return; try { download.disabled = true; const at = await Hokkaido48CloudSync.download(); message(syncStatus, `読み込みました：${at ? new Date(at).toLocaleString("ja-JP") : "完了"}。ホームへ戻ります。`, "ok"); setTimeout(() => location.href = "v5.html", 900); } catch (error) { message(syncStatus, error.message, "error"); } finally { download.disabled = false; } });
+      upload.addEventListener("click", async () => {
+        if (!confirm("この端末の旅・走破記録・会計・メモをクラウドへ保存しますか？")) return;
+        try {
+          setBusy(true); let result;
+          try { result=await Hokkaido48CloudSync.upload(); }
+          catch(error){
+            if(error&&error.code==="CLOUD_SYNC_CONFLICT"&&confirm(`${error.message}\n\nこの端末のデータを正としてクラウドを上書きしますか？`)) result=await Hokkaido48CloudSync.upload({force:true});
+            else throw error;
+          }
+          message(syncStatus,`クラウドへ保存しました：${new Date(result.updatedAt).toLocaleString("ja-JP")}（旅${result.summary.tripCount}件）`,"ok");
+        } catch (error) { message(syncStatus,error.message,"error"); }
+        finally { setBusy(false); }
+      });
+      download.addEventListener("click", async () => {
+        if (!confirm("クラウドの旅・走破記録・会計・メモをこの端末へ読み込みますか？\nこの端末の同期対象データはクラウドと同じ内容に置き換わります。")) return;
+        try { setBusy(true); const result=await Hokkaido48CloudSync.download(); message(syncStatus,`読み込みました：${new Date(result.updatedAt).toLocaleString("ja-JP")}（旅${result.summary.tripCount}件）。ホームへ戻ります。`,"ok"); setTimeout(()=>location.href="v5.html",900); }
+        catch (error) { message(syncStatus,error.message,"error"); }
+        finally { setBusy(false); }
+      });
       try { Hokkaido48CloudSync.client().auth.onAuthStateChange(() => setTimeout(refresh, 0)); } catch (error) { message(authStatus, error.message, "error"); }
       await refresh();
     })();

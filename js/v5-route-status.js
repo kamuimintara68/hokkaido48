@@ -5,8 +5,6 @@
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3,"0")}.geojson`;
   const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
-  const BACKUP_KEY = "hokkaido48V5DataManagerBackups";
-  const MAX_BACKUPS = 5;
   const PATH_ENCODING = "delta-base36-e9-v1";
   const $ = id => document.getElementById(id);
   const tripSelect=$("rsTripSelect"), tripSummary=$("rsTripSummary"), listEl=$("rsRouteList"), countEl=$("rsCount"), saveBtn=$("rsSave"), messageEl=$("rsMessage"), fitBtn=$("rsFit"), mapMessage=$("rsMapMessage");
@@ -213,16 +211,6 @@
     });
     saveBtn.disabled=false;saveBtn.textContent=`表示中の${reviews.length}路線を確定`;
   }
-  function saveBackup(reason){
-    const arr=readJson(BACKUP_KEY,[]), snapshot={id:`backup-${Date.now()}`,savedAt:new Date().toISOString(),reason,trips:loadTrips(),manualStatuses:readJson(MANUAL_STATUS_KEY,{}),confirmedStatuses:readJson(CONFIRMED_STATUS_KEY,{})};
-    let lastError=null;
-    // Build65以降の容量方針に合わせ、最大5世代。容量が厳しい場合は古い世代から減らす。
-    for(let previousCount=Math.min(MAX_BACKUPS-1,arr.length);previousCount>=0;previousCount--){
-      const backups=arr.slice(-previousCount);backups.push(snapshot);
-      try{localStorage.setItem(BACKUP_KEY,JSON.stringify(backups));return;}catch(error){lastError=error;}
-    }
-    throw lastError||new Error('復元履歴を保存できませんでした。');
-  }
   async function saveStatuses(){
     const idx=Number(tripSelect.value),trip=Number.isInteger(idx)?trips[idx]:null;if(!trip)return;const selects=[...listEl.querySelectorAll('select[data-route]')];if(!selects.length)return;
     const manual=readJson(MANUAL_STATUS_KEY,{}), confirmed=readJson(CONFIRMED_STATUS_KEY,{}), changes=[];
@@ -230,8 +218,9 @@
     if(!changes.length){messageEl.textContent='変更対象がありません。';return;}
     const text=changes.map(([n,s])=>`国道${n}号：${s}`).join('\n');if(!confirm(`Routeへ次の状態を反映します。\n\n${text}\n\nよろしいですか？`))return;
     saveBtn.disabled=true;saveBtn.textContent='確定内容を保存中…';messageEl.classList.remove('is-error');
+    const previousConfirmedRaw=localStorage.getItem(CONFIRMED_STATUS_KEY);
     try{
-      saveBackup(`走破状態確定：${trip.tripName||'名称未登録'}`);const now=new Date().toISOString();
+      const now=new Date().toISOString();
       changes.forEach(([n,status])=>{const ev=evidenceByNumber.get(n);confirmed[n]={status,source:'v5-route-status-human-confirmed',confirmedAt:now,tripId:trip.id||'',evidence:ev?{coverageRatio:Number(ev.ratio.toFixed(3)),routeKm:Number(ev.totalKm.toFixed(1)),confirmedPathKm:Number(ev.confirmedKm.toFixed(1)),startDistanceKm:Number.isFinite(ev.startDist)?Number((ev.startDist/1000).toFixed(1)):null,endDistanceKm:Number.isFinite(ev.endDist)?Number((ev.endDist/1000).toFixed(1)):null,cityArrivalRule:Boolean(ev.cityRule)}:{}};});
       localStorage.setItem(CONFIRMED_STATUS_KEY,JSON.stringify(confirmed));
       const saved=readJson(CONFIRMED_STATUS_KEY,{}),verified=changes.every(([n,status])=>{const entry=saved[n];return (typeof entry==='string'?entry:entry?.status)===status&&entry?.source==='v5-route-status-human-confirmed';});
@@ -240,7 +229,8 @@
       const resultText=changes.map(([n,status])=>`国道${n}号 ${status}`).join('・');
       messageEl.textContent=`✓ 確定しました：${resultText}。走破記録へ反映済みです。`;
     }catch(error){
-      console.error(error);messageEl.classList.add('is-error');messageEl.textContent=`確定できませんでした。${error?.name==='QuotaExceededError'?'保存容量が不足しています。データ管理で復元履歴を確認してください。':error.message||'保存処理を確認してください。'}`;
+      try{if(previousConfirmedRaw===null)localStorage.removeItem(CONFIRMED_STATUS_KEY);else localStorage.setItem(CONFIRMED_STATUS_KEY,previousConfirmedRaw);}catch(rollbackError){console.error('走破状態の復元失敗',rollbackError);}
+      console.error(error);messageEl.classList.add('is-error');messageEl.textContent=`確定できませんでした。${error?.name==='QuotaExceededError'?'保存容量が不足しています。元の走破状態へ戻しました。':error.message||'保存処理を確認してください。'}`;
       saveBtn.disabled=false;saveBtn.textContent='もう一度確定する';
     }
   }
