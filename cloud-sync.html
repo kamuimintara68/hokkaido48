@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クラウド同期 | 北海道48路線ふらふらblog V5</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/v5.css?v=20260813-77">
+  <style>
+    [hidden]{display:none!important}.cloud-layout{max-width:900px;margin:0 auto;padding:28px 18px 72px}.cloud-card{display:grid;gap:18px}.cloud-status{padding:16px;border-radius:14px;background:#eef6ff}.cloud-status.is-ok{background:#ecfdf5}.cloud-status.is-error{background:#fff1f2}.cloud-field{display:grid;gap:7px}.cloud-field input{font:inherit;padding:12px;border:1px solid #cbd5e1;border-radius:10px}.cloud-actions{display:flex;flex-wrap:wrap;gap:10px}.cloud-note{color:#475569;line-height:1.7}.cloud-user{font-weight:700}
+  </style>
+</head>
+<body>
+  <header class="v5-header">
+    <div><p class="eyebrow">Version 5.0</p><h1>クラウド同期</h1><p>PCとスマホで同じ旅データを使用します。</p></div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a><a href="route-select.html">旅を計画</a><a href="gpx-import.html">GPX取込</a><a href="data-manager.html">データ管理</a><a class="is-active" href="cloud-sync.html">クラウド同期</a>
+    </nav>
+  </header>
+  <main class="cloud-layout">
+    <section class="panel cloud-card">
+      <div class="section-heading"><div><span class="step">1</span><h2>本人ログイン</h2></div></div>
+      <p class="cloud-note">PCとスマホで同じメールアドレスを使います。届いたメールのリンクを押すとログインできます。</p>
+      <label class="cloud-field">メールアドレス<input id="cloudEmail" type="email" autocomplete="email" placeholder="example@gmail.com"></label>
+      <div class="cloud-actions"><button id="cloudLogin" class="primary-button" type="button">ログインメールを送る</button><button id="cloudLogout" class="secondary-button" type="button" hidden>ログアウト</button></div>
+      <div id="cloudAuthStatus" class="cloud-status">ログイン状態を確認しています。</div>
+    </section>
+    <section class="panel cloud-card">
+      <div class="section-heading"><div><span class="step">2</span><h2>データを同期</h2></div></div>
+      <p class="cloud-note">最初は、旅データが入っているPCから「クラウドへ保存」を押します。その後、スマホで「クラウドから読込」を押します。</p>
+      <div class="cloud-actions"><button id="cloudUpload" class="primary-button" type="button" disabled>クラウドへ保存</button><button id="cloudDownload" class="secondary-button" type="button" disabled>クラウドから読込</button></div>
+      <div id="cloudSyncStatus" class="cloud-status">ログインすると同期できます。</div>
+    </section>
+  </main>
+  <div class="build-badge">Version 5.0 Build 20260813-78 Cloud Sync Foundation</div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+  <script src="js/v5-cloud-sync.js?v=20260813-78"></script>
+  <script>
+    "use strict";
+    (async function () {
+      const email = document.getElementById("cloudEmail"), login = document.getElementById("cloudLogin"), logout = document.getElementById("cloudLogout");
+      const upload = document.getElementById("cloudUpload"), download = document.getElementById("cloudDownload");
+      const authStatus = document.getElementById("cloudAuthStatus"), syncStatus = document.getElementById("cloudSyncStatus");
+      function message(element, text, kind) { element.textContent = text; element.className = `cloud-status${kind ? ` is-${kind}` : ""}`; }
+      async function refresh() {
+        try {
+          const user = await Hokkaido48CloudSync.currentUser();
+          const signedIn = Boolean(user);
+          login.hidden = signedIn; email.hidden = signedIn; logout.hidden = !signedIn; upload.disabled = !signedIn; download.disabled = !signedIn;
+          message(authStatus, signedIn ? `ログイン中：${user.email || "本人"}` : "ログインしていません。", signedIn ? "ok" : "");
+        } catch (error) { message(authStatus, error.message || "ログイン状態を確認できません。", "error"); }
+      }
+      login.addEventListener("click", async () => { try { login.disabled = true; await Hokkaido48CloudSync.signInWithEmail(email.value); message(authStatus, "ログイン用メールを送りました。メール内のリンクを押してください。", "ok"); } catch (error) { message(authStatus, error.message, "error"); } finally { login.disabled = false; } });
+      logout.addEventListener("click", async () => { try { await Hokkaido48CloudSync.signOut(); await refresh(); } catch (error) { message(authStatus, error.message, "error"); } });
+      upload.addEventListener("click", async () => { if (!confirm("この端末の北海道48路線データをクラウドへ保存しますか？")) return; try { upload.disabled = true; const at = await Hokkaido48CloudSync.upload(); message(syncStatus, `クラウドへ保存しました：${new Date(at).toLocaleString("ja-JP")}`, "ok"); } catch (error) { message(syncStatus, error.message, "error"); } finally { upload.disabled = false; } });
+      download.addEventListener("click", async () => { if (!confirm("クラウドのデータをこの端末へ読み込みますか？\nこの端末の同名データは置き換わります。")) return; try { download.disabled = true; const at = await Hokkaido48CloudSync.download(); message(syncStatus, `読み込みました：${at ? new Date(at).toLocaleString("ja-JP") : "完了"}。ホームへ戻ります。`, "ok"); setTimeout(() => location.href = "v5.html", 900); } catch (error) { message(syncStatus, error.message, "error"); } finally { download.disabled = false; } });
+      try { Hokkaido48CloudSync.client().auth.onAuthStateChange(() => setTimeout(refresh, 0)); } catch (error) { message(authStatus, error.message, "error"); }
+      await refresh();
+    })();
+  </script>
+</body>
+</html>
