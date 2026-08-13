@@ -3,9 +3,6 @@
 (function () {
   const ROUTE_DATA_URL = "data/routes-v50.json";
   const TRIPS_KEY = "hokkaido48Trips";
-  const DATA_MANAGER_BACKUP_KEY = "hokkaido48V5DataManagerBackups";
-  const PATH_ENCODING = "delta-base36-e9-v1";
-  const PATH_SCALE = 1000000000;
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3, "0")}.geojson`;
   const el = id => document.getElementById(id);
 
@@ -180,89 +177,6 @@
     });
   }
 
-  function routePolylines(geojson) {
-    return collectLines(geojson)
-      .map(line => line
-        .map(coord => Array.isArray(coord) && coord.length >= 2 ? [Number(coord[1]), Number(coord[0])] : null)
-        .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1])))
-      .filter(line => line.length >= 2);
-  }
-
-  // GPXは判定材料、国道GeoJSONは表示・保存する正本。
-  // 高密度GPXでも全点を落とさず照合できるよう、実走線分を空間格子へ登録する。
-  function buildTrackSpatialIndex(trackSegments, cellSize = 0.01) {
-    const cells = new Map();
-    const key = (y, x) => `${y}:${x}`;
-    trackSegments.forEach(segment => {
-      if (!segment.valid) return;
-      const minY = Math.floor((Math.min(segment.a[0], segment.b[0]) - 0.002) / cellSize);
-      const maxY = Math.floor((Math.max(segment.a[0], segment.b[0]) + 0.002) / cellSize);
-      const minX = Math.floor((Math.min(segment.a[1], segment.b[1]) - 0.003) / cellSize);
-      const maxX = Math.floor((Math.max(segment.a[1], segment.b[1]) + 0.003) / cellSize);
-      for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-        const k = key(y, x);
-        if (!cells.has(k)) cells.set(k, []);
-        cells.get(k).push(segment);
-      }
-    });
-    return {
-      distance(point) {
-        const y = Math.floor(point[0] / cellSize), x = Math.floor(point[1] / cellSize);
-        let best = Infinity;
-        for (let yy = y - 1; yy <= y + 1; yy += 1) for (let xx = x - 1; xx <= x + 1; xx += 1) {
-          (cells.get(key(yy, xx)) || []).forEach(segment => {
-            best = Math.min(best, pointSegmentDistanceMeters(point, segment.a, segment.b));
-          });
-        }
-        return best;
-      }
-    };
-  }
-
-  function canonicalRouteEvidence(routeLines, spatialIndex, route) {
-    const MATCH_METERS = 40;
-    let totalMeters = 0, coveredMeters = 0;
-    const coveredPaths = [];
-    const endpointDistances = [];
-    routeLines.forEach(line => {
-      const distances = line.map(point => spatialIndex.distance(point));
-      if (line.length) endpointDistances.push(distances[0], distances[distances.length - 1]);
-      let current = [];
-      for (let i = 1; i < line.length; i += 1) {
-        const meters = haversine(line[i - 1], line[i]);
-        totalMeters += meters;
-        const covered = distances[i - 1] <= MATCH_METERS && distances[i] <= MATCH_METERS;
-        if (covered) {
-          coveredMeters += meters;
-          if (!current.length) current.push(line[i - 1]);
-          current.push(line[i]);
-        } else if (current.length) {
-          if (current.length > 1) coveredPaths.push(current);
-          current = [];
-        }
-      }
-      if (current.length > 1) coveredPaths.push(current);
-    });
-    const ratio = totalMeters ? coveredMeters / totalMeters : 0;
-    const startDistance = endpointDistances.length ? endpointDistances[0] : Infinity;
-    const endDistance = endpointDistances.length ? endpointDistances[endpointDistances.length - 1] : Infinity;
-    const cityRule = route && route.completionRule && route.completionRule.type === "city-arrival-accepted";
-    const endpointLimit = cityRule ? 12000 : 3000;
-    const endpointsReached = startDistance <= endpointLimit && endDistance <= endpointLimit;
-    const nearFullCompletion = ratio >= 0.88 && endpointsReached;
-    return {
-      routeCoverageRatio: ratio,
-      routeCoveredMeters: coveredMeters,
-      routeTotalMeters: totalMeters,
-      startDistance,
-      endDistance,
-      nearFullCompletion,
-      completionStatus: nearFullCompletion ? "全線走破" : "一部走破",
-      // 全線判定時は短いGPS欠けを残さず、国道路線全体を唯一の正本にする。
-      canonicalPaths: nearFullCompletion ? routeLines.map(line => line.slice()) : coveredPaths
-    };
-  }
-
   function bbox(points) {
     return points.reduce((b, p) => ({
       minLat: Math.min(b.minLat, p[0]), maxLat: Math.max(b.maxLat, p[0]),
@@ -318,36 +232,11 @@
     return segments;
   }
 
-  function buildRouteSegmentIndex(lines, cellSize = 0.02) {
-    const segments = prepareRouteSegments(lines);
-    const cells = new Map();
-    const key = (y, x) => `${y}:${x}`;
-    segments.forEach(segment => {
-      const minY = Math.floor((Math.min(segment.a[0], segment.b[0]) - 0.003) / cellSize);
-      const maxY = Math.floor((Math.max(segment.a[0], segment.b[0]) + 0.003) / cellSize);
-      const minX = Math.floor((Math.min(segment.a[1], segment.b[1]) - 0.004) / cellSize);
-      const maxX = Math.floor((Math.max(segment.a[1], segment.b[1]) + 0.004) / cellSize);
-      for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-        const k = key(y, x);
-        if (!cells.has(k)) cells.set(k, []);
-        cells.get(k).push(segment);
-      }
-    });
-    return {
-      nearby(point) {
-        const y = Math.floor(point[0] / cellSize), x = Math.floor(point[1] / cellSize);
-        const found = [];
-        for (let yy = y - 1; yy <= y + 1; yy += 1) for (let xx = x - 1; xx <= x + 1; xx += 1) found.push(...(cells.get(key(yy, xx)) || []));
-        return found;
-      }
-    };
-  }
-
-  function nearestAlignedRoute(trackSegment, routeIndex) {
+  function nearestAlignedRoute(trackSegment, routeSegments) {
     let nearest = Infinity;
     let aligned = Infinity;
     let alignedAngle = 90;
-    for (const routeSeg of routeIndex.nearby(trackSegment.mid)) {
+    for (const routeSeg of routeSegments) {
       const d = pointSegmentDistanceMeters(trackSegment.mid, routeSeg.a, routeSeg.b);
       if (d < nearest) nearest = d;
       if (d > 220) continue;
@@ -381,7 +270,7 @@
   }
 
   function trackMapOverlapAgainstRoute(trackSegments, routeLines) {
-    const routeIndex = buildRouteSegmentIndex(routeLines);
+    const routeSegments = prepareRouteSegments(routeLines);
     const MATCH = 105;
     const STRONG = 55;
     const CORE = 30;
@@ -402,7 +291,7 @@
     for (let i = 0; i < trackSegments.length; i += 1) {
       const segment = trackSegments[i];
       if (!segment.valid) continue;
-      const match = nearestAlignedRoute(segment, routeIndex);
+      const match = nearestAlignedRoute(segment, routeSegments);
       minDistance = Math.min(minDistance, match.nearest);
       alignedDistances[i] = match.aligned;
 
@@ -512,7 +401,6 @@
     const trackLatLngs = trackPoints.map(p => [p.lat, p.lon]);
     const trackBox = bbox(trackLatLngs);
     const trackSegments = buildTrackSegments(trackPoints);
-    const spatialIndex = buildTrackSpatialIndex(trackSegments);
     latestTrackSegments = trackSegments;
     const results = [];
     let completed = 0;
@@ -526,16 +414,14 @@
         const response = await fetch(GEOJSON_PATH(route.number), { cache: "no-store" });
         if (!response.ok) continue;
         const geojson = await response.json();
-        const fullRouteLines = routePolylines(geojson);
         const routeLines = routePolylineSample(geojson, 900);
         const routePoints = routeLines.flat();
         if (routePoints.length < 2 || !boxesNear(trackBox, bbox(routePoints), 0.02)) continue;
 
         const metrics = trackMapOverlapAgainstRoute(trackSegments, routeLines);
-        const canonical = canonicalRouteEvidence(fullRouteLines, spatialIndex, route);
         const planned = plannedSet.has(String(route.number));
         const confidence = confidenceFor(metrics, planned);
-        if (confidence !== "除外" || canonical.routeCoveredMeters >= 3000) results.push({ route, geojson, routeLines, fullRouteLines, confidence: confidence === "除外" ? "参考" : confidence, planned, ...metrics, ...canonical });
+        if (confidence !== "除外") results.push({ route, geojson, routeLines, confidence, planned, ...metrics });
       } catch {}
       if (completed % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -600,7 +486,7 @@
   }
 
   function routeLabelPoint(item) {
-    const lines = Array.isArray(item.canonicalPaths) ? item.canonicalPaths : [];
+    const lines = maskToPolylines(item.matchedMask, latestTrackSegments);
     if (!lines.length) return null;
     let best = lines[0];
     let bestLength = lineLength(best);
@@ -656,7 +542,7 @@
       style: { color: "#64748b", weight: 3, opacity: 0.32, interactive: false }
     }).addTo(candidateGroup);
 
-    const matchedLines = Array.isArray(item.canonicalPaths) ? item.canonicalPaths : [];
+    const matchedLines = maskToPolylines(item.matchedMask, latestTrackSegments);
     matchedLines.forEach(line => {
       L.polyline(line, { color: "#f97316", weight: 7, opacity: 0.95, interactive: false }).addTo(candidateGroup);
     });
@@ -669,7 +555,7 @@
     const shared = item.sharedWith.length
       ? `。共用候補：${item.sharedWith.slice(0, 3).map(v => `国道${v.number}号`).join("・")}`
       : "";
-    mapMessageEl.textContent = `国道${item.route.number}号：オレンジ線は判定・選択・保存で共通使用する国道GeoJSON区間です（路線カバー ${Math.round((item.routeCoverageRatio || 0) * 100)}%）${shared}。`;
+    mapMessageEl.textContent = `国道${item.route.number}号：オレンジ線がGPXとGeoJSONの地図上一致区間です${shared}。`;
     keepMapVisible();
   }
 
@@ -723,82 +609,15 @@
     return out;
   }
 
-  function normalizeConfirmedPaths(value) {
-    if (!Array.isArray(value)) return [];
-    return value.map(path => Array.isArray(path)
-      ? path.map(point => [Number(point && point[0]), Number(point && point[1])])
-        .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
-      : [])
-      .filter(path => path.length > 1);
-  }
-
-  // 国道GeoJSONの全頂点を間引かず保存するための可逆圧縮。
-  // 緯度経度を10億倍の整数にし、前点との差分をbase36で保持する。
-  function encodeConfirmedPaths(paths) {
-    const encodedPaths = normalizeConfirmedPaths(paths).map(path => {
-      let previousLat = 0;
-      let previousLon = 0;
-      return path.map((point, index) => {
-        const lat = Math.round(point[0] * PATH_SCALE);
-        const lon = Math.round(point[1] * PATH_SCALE);
-        const latValue = index === 0 ? lat : lat - previousLat;
-        const lonValue = index === 0 ? lon : lon - previousLon;
-        previousLat = lat;
-        previousLon = lon;
-        return `${latValue.toString(36)}:${lonValue.toString(36)}`;
-      }).join(",");
-    });
-    return { format: PATH_ENCODING, scale: PATH_SCALE, paths: encodedPaths };
-  }
-
-  function compactStoredGeometry(trips) {
-    (Array.isArray(trips) ? trips : []).forEach(trip => {
-      const segmentGeometryNumbers = new Set();
-      (Array.isArray(trip && trip.routeSegments) ? trip.routeSegments : []).forEach(segment => {
-        const legacy = normalizeConfirmedPaths(segment && segment.confirmedPaths);
-        if (!legacy.length && Array.isArray(segment && segment.confirmedPath)) {
-          const single = normalizeConfirmedPaths([segment.confirmedPath]);
-          if (single.length) legacy.push(...single);
-        }
-        if (legacy.length && !(segment.confirmedGeometry && segment.confirmedGeometry.format === PATH_ENCODING)) {
-          segment.confirmedGeometry = encodeConfirmedPaths(legacy);
-        }
-        if (segment && segment.confirmedGeometry) {
-          delete segment.confirmedPaths;
-          delete segment.confirmedPath;
-          if (String(segment.routeNumber || "")) segmentGeometryNumbers.add(String(segment.routeNumber));
-        }
-      });
-      (Array.isArray(trip && trip.gpxRouteConfirmations) ? trip.gpxRouteConfirmations : []).forEach(confirmation => {
-        (Array.isArray(confirmation && confirmation.routes) ? confirmation.routes : []).forEach(route => {
-          const routeNumber = String(route && (route.routeNumber ?? route.number) || "");
-          // Trip.routeSegmentsを正本とし、確認履歴には同じ形状を二重保存しない。
-          if (segmentGeometryNumbers.has(routeNumber)) {
-            delete route.confirmedGeometry;
-            delete route.confirmedPaths;
-            return;
-          }
-          const legacy = normalizeConfirmedPaths(route && route.confirmedPaths);
-          if (legacy.length && !(route.confirmedGeometry && route.confirmedGeometry.format === PATH_ENCODING)) {
-            route.confirmedGeometry = encodeConfirmedPaths(legacy);
-          }
-          if (route && route.confirmedGeometry) delete route.confirmedPaths;
-        });
-      });
-    });
-    return trips;
-  }
-
-  function compactAutomaticBackups(maxBackups = 5) {
-    const raw = localStorage.getItem(DATA_MANAGER_BACKUP_KEY);
-    if (!raw) return;
-    let backups;
-    try { backups = JSON.parse(raw); } catch { return; }
-    if (!Array.isArray(backups)) return;
-    const retained = backups.slice(-maxBackups);
-    retained.forEach(backup => compactStoredGeometry(backup && backup.trips));
-    const compacted = JSON.stringify(retained);
-    if (compacted !== raw) localStorage.setItem(DATA_MANAGER_BACKUP_KEY, compacted);
+  function compactPath(path, maxPoints = 180) {
+    if (!Array.isArray(path) || path.length <= maxPoints) return Array.isArray(path) ? path.map(p => [Number(p[0]), Number(p[1])]) : [];
+    const step = (path.length - 1) / (maxPoints - 1);
+    const out = [];
+    for (let i = 0; i < maxPoints; i += 1) {
+      const p = path[Math.round(i * step)];
+      out.push([Number(p[0]), Number(p[1])]);
+    }
+    return out;
   }
 
   function localDateFromIso(value) {
@@ -811,25 +630,17 @@
   }
 
   function candidateSaveSnapshot(item) {
-    // 座標を間引くと曲線が直線化され、選択画面と保存後で位置が変わる。
-    // 正本GeoJSON区間は全頂点をそのまま保存する。
-    const lines = (Array.isArray(item.canonicalPaths) ? item.canonicalPaths : [])
-      .map(line => line.map(point => [Number(point[0]), Number(point[1])]))
-      .filter(line => line.length > 1);
+    const lines = maskToPolylines(item.matchedMask, latestTrackSegments).map(line => compactPath(line));
     return {
       routeNumber: String(item.route.number),
       confidence: item.confidence,
       overlapClass: item.overlapClass,
-      matchedKm: Number((item.routeCoveredMeters / 1000).toFixed(2)),
+      matchedKm: Number((item.matchedMeters / 1000).toFixed(2)),
       longestMatchedKm: Number((item.longestContinuous / 1000).toFixed(2)),
       independentKm: Number((item.independentMeters / 1000).toFixed(2)),
       sharedKm: Number((item.sharedMeters / 1000).toFixed(2)),
       sharedWith: item.sharedWith.map(v => String(v.number)),
-      confirmedGeometry: encodeConfirmedPaths(lines),
-      routeCoverageRatio: Number((item.routeCoverageRatio || 0).toFixed(4)),
-      nearFullCompletion: Boolean(item.nearFullCompletion),
-      completionStatus: item.completionStatus || "一部走破",
-      geometrySource: "route-geojson-canonical"
+      confirmedPaths: lines
     };
   }
 
@@ -861,11 +672,7 @@
         gpxFileName,
         materialImportId: importId,
         confirmedDistanceKm: snap.matchedKm,
-        confirmedGeometry: snap.confirmedGeometry,
-        completionStatus: snap.completionStatus,
-        nearFullCompletion: snap.nearFullCompletion,
-        routeCoverageRatio: snap.routeCoverageRatio,
-        geometrySource: snap.geometrySource,
+        confirmedPaths: snap.confirmedPaths,
         gpxMatch: {
           confidence: snap.confidence,
           overlapClass: snap.overlapClass,
@@ -885,30 +692,6 @@
     const index = Number(tripIndex);
     nextStatusLink.href = Number.isInteger(index) && index >= 0 ? `route-status.html?trip=${index}` : "route-status.html";
     nextStatusLink.hidden = false;
-  }
-
-  function persistTripsAndOpenHome(trips, tripIndex, savedTripId) {
-    compactStoredGeometry(trips);
-    const serialized = JSON.stringify(trips);
-    try {
-      compactAutomaticBackups();
-      localStorage.setItem(TRIPS_KEY, serialized);
-      const stored = JSON.parse(localStorage.getItem(TRIPS_KEY) || "[]");
-      const saved = Array.isArray(stored) && stored[tripIndex];
-      if (!saved || String(saved.id || "") !== String(savedTripId || "")) {
-        throw new Error("保存後の読込み確認に失敗しました。");
-      }
-      window.location.assign("v5.html?gpxSaved=1");
-      return true;
-    } catch (error) {
-      console.error("GPX保存失敗", error);
-      const quota = error && (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014);
-      confirmStatusEl.textContent = quota
-        ? "保存容量が不足しているため保存できませんでした。データは変更されていません。"
-        : `保存できませんでした：${error && error.message ? error.message : "不明なエラー"}`;
-      saveConfirmedButton.disabled = false;
-      return false;
-    }
   }
 
   function saveConfirmedRoutes() {
@@ -968,24 +751,23 @@
       const confirmations = previousConfirmations.filter(item => !sameFile(item && item.fileName));
       confirmations.push(confirmation);
       trip.gpxRouteConfirmations = confirmations;
+      const allConfirmedNumbers = [...new Set(confirmations.flatMap(item => Array.isArray(item.routeNumbers) ? item.routeNumbers.map(String) : []))];
+
       trip.routeSegments = buildRouteSegments(selectedItems, trip.routeSegments, {
         gpxFileName: a.fileName,
         importId: importRecord.id,
         replaceNumbers: previousNumbers
       });
-      const allConfirmedNumbers = [...new Set(
-        confirmations.flatMap(item => Array.isArray(item.routeNumbers) ? item.routeNumbers.map(String) : [])
-          .concat((Array.isArray(trip.routeSegments) ? trip.routeSegments : []).map(segment => String(segment && segment.routeNumber || "")).filter(Boolean))
-      )];
       trip.routes = allConfirmedNumbers.join(",");
       trip.confirmedRouteNumbers = allConfirmedNumbers;
       trip.updatedAt = now;
       if (trip.planningStatus === "planned") trip.planningStatus = "recorded";
       trip.source = String(trip.source || "").includes("Version5.0") ? trip.source : `${trip.source || "existing trip"} + Version5.0 GPX`;
       trips[target.index] = trip;
-      saveConfirmedButton.disabled = true;
-      confirmStatusEl.textContent = "旅へ保存しています…";
-      persistTripsAndOpenHome(trips, target.index, trip.id);
+      localStorage.setItem(TRIPS_KEY, JSON.stringify(trips));
+      confirmStatusEl.textContent = `保存しました：${trip.tripName || "名称未登録"} ／ ${routeText}。実走区間は走破記録へ自動反映済みです。通常はここで完了です。`;
+      setFlowStage(3);
+      showNextStatusLink(target.index);
     } else {
       const date = localDateFromIso(a.startTime) || new Date().toISOString().slice(0,10);
       const baseName = a.fileName.replace(/\.gpx$/i, "") || `${date} 実走`;
@@ -1007,9 +789,12 @@
         gpxRouteConfirmations: [confirmation]
       };
       trips.push(trip);
-      saveConfirmedButton.disabled = true;
-      confirmStatusEl.textContent = "新しい実走記録を保存しています…";
-      persistTripsAndOpenHome(trips, trips.length - 1, trip.id);
+      localStorage.setItem(TRIPS_KEY, JSON.stringify(trips));
+      confirmStatusEl.textContent = `新しい実走記録を保存しました：${trip.tripName} ／ ${routeText}。実走区間は走破記録へ自動反映済みです。通常はここで完了です。`;
+      setFlowStage(3);
+      loadTrips();
+      tripSelect.value = String(trips.length - 1);
+      showNextStatusLink(trips.length - 1);
     }
   }
 
@@ -1037,7 +822,7 @@
       row.setAttribute("role", "button");
       row.setAttribute("tabindex", "0");
       row.dataset.routeNumber = String(item.route.number);
-      const matchedKm = (item.routeCoveredMeters / 1000).toFixed(1);
+      const matchedKm = (item.matchedMeters / 1000).toFixed(1);
       const longestKm = (item.longestContinuous / 1000).toFixed(1);
       const independentKm = (item.independentMeters / 1000).toFixed(1);
       const sharedKm = (item.sharedMeters / 1000).toFixed(1);
@@ -1049,8 +834,7 @@
       row.dataset.overlap = item.overlapClass;
       const medianText = Number.isFinite(item.medianMatchDistance) ? ` ／ 中央距離 約${Math.round(item.medianMatchDistance)}m` : "";
       const guardTag = item.confidence === "並走疑い" ? '<span class="gpx-guard-tag">高速・並走の可能性</span>' : (item.confidence === "短区間・参考" ? '<span class="gpx-short-tag">3〜5km短区間</span>' : '');
-      const fullTag = item.nearFullCompletion ? '<span class="gpx-plan-tag">ほぼ全線 → 全線走破</span>' : '';
-      row.innerHTML = `<div class="gpx-candidate-check"><input type="checkbox" aria-label="国道${escapeHtml(item.route.number)}号を今回走った国道として選択"><div class="candidate-copy"><strong>${index + 1}. 国道${escapeHtml(item.route.number)}号</strong><span>${escapeHtml(item.route.start)} → ${escapeHtml(item.route.end)}</span>${planned ? '<span class="gpx-plan-tag">出発前の攻略対象</span>' : ''}${fullTag}${cityRuleTag}${guardTag}<em>${escapeHtml(item.overlapClass)}</em><span class="map-check">クリックで正本区間を確認</span></div></div><div><b>${escapeHtml(item.confidence)}</b><span>初回一致 ${escapeHtml(formatTimeOnly(item.firstMatchedTime))} ／ 路線一致 ${matchedKm}km ／ 路線カバー ${Math.round((item.routeCoverageRatio || 0) * 100)}%</span><span>最接近 約${Math.round(item.minDistance)}m${escapeHtml(medianText)} ／ 一致内訳：独立 ${independentKm}km ／ 共用 ${sharedKm}km${escapeHtml(sharedText)}</span></div>`;
+      row.innerHTML = `<div class="gpx-candidate-check"><input type="checkbox" aria-label="国道${escapeHtml(item.route.number)}号を今回走った国道として選択"><div class="candidate-copy"><strong>${index + 1}. 国道${escapeHtml(item.route.number)}号</strong><span>${escapeHtml(item.route.start)} → ${escapeHtml(item.route.end)}</span>${planned ? '<span class="gpx-plan-tag">出発前の攻略対象</span>' : ''}${cityRuleTag}${guardTag}<em>${escapeHtml(item.overlapClass)}</em><span class="map-check">クリックで一致区間を確認</span></div></div><div><b>${escapeHtml(item.confidence)}</b><span>初回一致 ${escapeHtml(formatTimeOnly(item.firstMatchedTime))} ／ 地図一致 ${matchedKm}km ／ 最長一致 ${longestKm}km</span><span>最接近 約${Math.round(item.minDistance)}m${escapeHtml(medianText)} ／ 一致内訳：独立 ${independentKm}km ／ 共用 ${sharedKm}km${escapeHtml(sharedText)}</span></div>`;
       const checkbox = row.querySelector('input[type="checkbox"]');
       checkbox.checked = confirmedNumbers.has(String(item.route.number));
       if (!planned && item.confidence === "並走疑い") {
@@ -1075,14 +859,6 @@
     });
 
     highlightCandidate(0);
-    // 全線候補、または十分な独立一致を持つ有力路線だけを初期選択する。
-    items.forEach(item => {
-      if (item.nearFullCompletion || (item.confidence === "有力" && item.independentMeters >= 2000)) confirmedNumbers.add(String(item.route.number));
-    });
-    [...candidatesEl.querySelectorAll('.gpx-candidate-row')].forEach(row => {
-      const checkbox = row.querySelector('input[type="checkbox"]');
-      if (checkbox) checkbox.checked = confirmedNumbers.has(String(row.dataset.routeNumber || ""));
-    });
     updateConfirmUi();
   }
 

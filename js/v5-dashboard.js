@@ -3,16 +3,29 @@
   const ROUTE_URL = "data/routes-v50.json";
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3, "0")}.geojson`;
   const TRIPS_KEY = "hokkaido48Trips";
+  const DRAFT_KEY = "hokkaido48V50JourneyDraft";
   const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
+  const PATH_ENCODING = "delta-base36-e9-v1";
   const VALID_STATUSES = ["未走破", "一部走破", "全線走破"];
+  const JourneyStore = window.Hokkaido48JourneyStore;
   const mapEl = document.getElementById("homeRecordMap");
   const summaryEl = document.getElementById("homeRecordSummary");
+  const progressMetricsEl = document.getElementById("homeProgressMetrics");
+  const journeySummaryEl = document.getElementById("homeJourneySummary");
+  const recordUpdatedEl = document.getElementById("homeRecordUpdated");
+  const scopeNoteEl = document.getElementById("homeRecordScopeNote");
+  const breakdownTitleEl = document.getElementById("homeBreakdownTitle");
+  const tripCountEl = document.getElementById("homeTripCount");
+  const savedJourneyListEl = document.getElementById("homeSavedJourneyList");
+  const savedJourneyCountEl = document.getElementById("homeSavedJourneyCount");
   const messageEl = document.getElementById("homeRecordMessage");
   const fitButton = document.getElementById("homeRecordFit");
   if (!mapEl || typeof L === "undefined") return;
 
   let map, baseGroup, actualGroup, labelGroup, fullBounds = null;
+  let currentTrips = [];
+  let routeCatalog = [];
 
   function readJson(key, fallback) {
     try {
@@ -21,6 +34,119 @@
     } catch {
       return fallback;
     }
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[character]));
+  }
+
+  function routeNumbersFromTrip(trip) {
+    if (!trip || typeof trip !== "object") return [];
+    if (trip.planSnapshot && Array.isArray(trip.planSnapshot.routeNumbers)) return trip.planSnapshot.routeNumbers.map(String).filter(Boolean);
+    if (Array.isArray(trip.routeSegments) && trip.routeSegments.length) {
+      return [...new Set(trip.routeSegments.map(segment => String(segment && segment.routeNumber || "")).filter(Boolean))];
+    }
+    if (Array.isArray(trip.routes)) return trip.routes.map(String).filter(Boolean);
+    if (typeof trip.routes === "string") return trip.routes.split(/[、,\s→/]+/).map(value => value.replace(/[^0-9]/g, "")).filter(Boolean);
+    return [];
+  }
+
+  function tripDateLabel(trip) {
+    const start = trip && (trip.startDate || trip.date || trip.plannedDate) || "";
+    const end = trip && trip.endDate || "";
+    if (!start) return "日付未登録";
+    return !end || end === start ? start : `${start} ～ ${end}`;
+  }
+
+  function tripMemoText(trip) {
+    const values = [trip && trip.memo, trip && trip.impressions, trip && trip.actionLog];
+    return String(values.find(value => typeof value === "string" && value.trim()) || "").trim();
+  }
+
+  function openPlannedJourney(index) {
+    const trip = currentTrips[index];
+    if (!trip || trip.planningStatus !== "planned") return;
+    const numbers = routeNumbersFromTrip(trip).filter(number => routeCatalog.some(route => String(route.number) === number));
+    const previous = readJson(DRAFT_KEY, {});
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      ...(previous && typeof previous === "object" && !Array.isArray(previous) ? previous : {}),
+      schemaVersion: 5,
+      savedAt: new Date().toISOString(),
+      displayName: trip.tripName || "",
+      journeyName: trip.tripName || "",
+      plannedDate: trip.startDate || "",
+      memo: trip.memo || "",
+      selectedRegion: "",
+      routeNumbers: numbers,
+      routes: numbers.map(number => routeCatalog.find(route => String(route.number) === number)).filter(Boolean).map(route => ({
+        number: route.number, name: route.name, start: route.start, end: route.end, status: route.displayStatusPreview
+      })),
+      roughPlan: trip.planSnapshot && trip.planSnapshot.roughPlan || null,
+      editingTripId: trip.id || "",
+      source: "v5-dashboard-open-planned-journey"
+    }));
+    window.location.href = "journey-plan.html";
+  }
+
+  function deletePlannedJourney(index, name) {
+    const trip = currentTrips[index];
+    if (!trip || trip.planningStatus !== "planned") return;
+    if (!confirm(`計画「${name}」を削除しますか？\n実走記録は削除されません。`)) return;
+    const nextTrips = currentTrips.slice();
+    nextTrips.splice(index, 1);
+    localStorage.setItem(TRIPS_KEY, JSON.stringify(nextTrips));
+    render().catch(error => { console.error(error); messageEl.textContent = error.message || "走破記録マップを更新できませんでした。"; });
+  }
+
+  function renderSavedJourneys() {
+    if (!savedJourneyListEl || !savedJourneyCountEl) return;
+    savedJourneyListEl.innerHTML = "";
+    savedJourneyCountEl.textContent = `${currentTrips.length}件`;
+    if (!currentTrips.length) {
+      savedJourneyListEl.innerHTML = '<div class="empty-box">保存済みの旅はありません。</div>';
+      return;
+    }
+    const journeyRecords = JourneyStore ? JourneyStore.read() : { journeys: [] };
+    currentTrips.map((trip, index) => ({ trip, index })).sort((a, b) => {
+      const dateA = String(a.trip && (a.trip.startDate || a.trip.date || a.trip.plannedDate) || "");
+      const dateB = String(b.trip && (b.trip.startDate || b.trip.date || b.trip.plannedDate) || "");
+      return dateB.localeCompare(dateA);
+    }).forEach(({ trip, index }) => {
+      const name = String(trip && (trip.tripName || trip.displayName || trip.name) || "名称未登録");
+      const numbers = routeNumbersFromTrip(trip);
+      const planned = trip && trip.planningStatus === "planned";
+      const memo = tripMemoText(trip);
+      const ref = JourneyStore ? JourneyStore.tripRef(trip, index) : "";
+      const parentJourney = JourneyStore ? JourneyStore.findJourneyForRef(journeyRecords, ref) : null;
+      const card = document.createElement("article");
+      card.className = `saved-journey-card${planned ? "" : " is-detail-link"}`;
+      card.innerHTML = `
+        <div class="saved-journey-card-head"><div><h3>${escapeHtml(name)}</h3><p>${escapeHtml(tripDateLabel(trip))}</p></div><span class="journey-kind ${planned ? "planned" : "recorded"}">${planned ? "計画" : "実走記録"}</span></div>
+        <div class="saved-journey-routes">${numbers.length ? numbers.map(number => `国道${escapeHtml(number)}号`).join("・") : "路線情報なし"}</div>
+        ${parentJourney ? `<span class="journey-parent-chip">${escapeHtml(parentJourney.title || "旅全体")}のDAY記録</span>` : ""}
+        ${memo ? `<p class="saved-journey-memo">${escapeHtml(memo)}</p>` : ""}
+        <div class="saved-journey-actions">${planned
+          ? `<button class="journey-open-button" type="button">この計画を開く</button><a class="journey-gpx-button" href="gpx-import.html?trip=${index}">GPXを取り込む</a><button class="journey-delete-button" type="button">削除</button>`
+          : `<a class="journey-detail-button" href="journey-detail.html?trip=${index}">旅の詳細・会計</a><a class="journey-gpx-button" href="route-status.html?trip=${index}">走破状態を確認</a>`}</div>`;
+      if (planned) {
+        card.querySelector(".journey-open-button").addEventListener("click", () => openPlannedJourney(index));
+        card.querySelector(".journey-delete-button").addEventListener("click", () => deletePlannedJourney(index, name));
+      } else {
+        card.tabIndex = 0;
+        card.setAttribute("aria-label", `${name}の旅詳細を開く`);
+        const openDetail = event => {
+          if (event.type === "click" && event.target.closest("a,button")) return;
+          if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
+          if (event.type === "keydown") event.preventDefault();
+          window.location.href = `journey-detail.html?trip=${index}`;
+        };
+        card.addEventListener("click", openDetail);
+        card.addEventListener("keydown", openDetail);
+      }
+      savedJourneyListEl.appendChild(card);
+    });
   }
 
   function readConfirmedStatuses() {
@@ -45,8 +171,25 @@
       .map(point => [Number(point[0]), Number(point[1])]);
   }
 
+  function decodeConfirmedGeometry(holder) {
+    const geometry = holder && holder.confirmedGeometry;
+    if (!geometry || geometry.format !== PATH_ENCODING || !Array.isArray(geometry.paths)) return [];
+    const scale = Number(geometry.scale) || 1000000000;
+    return geometry.paths.map(encoded => {
+      let lat = 0, lon = 0;
+      return String(encoded || "").split(",").map((token, index) => {
+        const pair = token.split(":");
+        if (pair.length !== 2) return null;
+        const a = parseInt(pair[0], 36), b = parseInt(pair[1], 36);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+        if (index === 0) { lat = a; lon = b; } else { lat += a; lon += b; }
+        return [lat / scale, lon / scale];
+      }).filter(Boolean);
+    }).filter(path => path.length > 1);
+  }
+
   function segmentPaths(segment) {
-    const paths = [];
+    const paths = decodeConfirmedGeometry(segment);
     if (Array.isArray(segment && segment.confirmedPaths)) {
       segment.confirmedPaths.forEach(path => {
         const normalized = normalizePath(path);
@@ -67,6 +210,7 @@
       const routes = Array.isArray(confirmation && confirmation.routes) ? confirmation.routes : [];
       routes.forEach(route => {
         if (String(route && (route.routeNumber ?? route.number) || "") !== String(routeNumber)) return;
+        paths.push(...decodeConfirmedGeometry(route));
         const confirmedPaths = Array.isArray(route && route.confirmedPaths) ? route.confirmedPaths : [];
         confirmedPaths.forEach(path => {
           const normalized = normalizePath(path);
@@ -113,6 +257,75 @@
       });
     });
     return byRoute;
+  }
+
+  function buildTripStatusesByRoute(trips) {
+    const statuses = new Map();
+    trips.forEach(trip => {
+      (Array.isArray(trip && trip.routeSegments) ? trip.routeSegments : []).forEach(segment => {
+        const number = String(segment && segment.routeNumber || "");
+        const status = String(segment && segment.completionStatus || "");
+        if (!number || !VALID_STATUSES.includes(status)) return;
+        const previous = statuses.get(number);
+        if (status === "全線走破" || !previous) statuses.set(number, status);
+      });
+    });
+    return statuses;
+  }
+
+  function haversineMeters(a, b) {
+    const rad = Math.PI / 180;
+    const lat1 = Number(a[0]) * rad;
+    const lat2 = Number(b[0]) * rad;
+    const dLat = (Number(b[0]) - Number(a[0])) * rad;
+    const dLon = (Number(b[1]) - Number(a[1])) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+
+  function pointKey(point) {
+    return `${Number(point[0]).toFixed(7)},${Number(point[1]).toFixed(7)}`;
+  }
+
+  function uniquePathDistanceMeters(paths) {
+    const edges = new Set();
+    let meters = 0;
+    (Array.isArray(paths) ? paths : []).forEach(path => {
+      const points = normalizePath(path);
+      for (let index = 1; index < points.length; index += 1) {
+        const a = pointKey(points[index - 1]);
+        const b = pointKey(points[index]);
+        const edge = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (edges.has(edge)) continue;
+        edges.add(edge);
+        meters += haversineMeters(points[index - 1], points[index]);
+      }
+    });
+    return meters;
+  }
+
+  function geojsonDistanceMeters(geojson) {
+    const paths = collectLines(geojson).map(line => line
+      .map(point => Array.isArray(point) ? [Number(point[1]), Number(point[0])] : null)
+      .filter(point => point && Number.isFinite(point[0]) && Number.isFinite(point[1])));
+    return uniquePathDistanceMeters(paths);
+  }
+
+  function fallbackDistanceByRoute(trips) {
+    const meters = new Map();
+    trips.forEach(trip => {
+      (Array.isArray(trip && trip.routeSegments) ? trip.routeSegments : []).forEach(segment => {
+        const number = String(segment && segment.routeNumber || "");
+        const value = Number(segment && segment.confirmedDistanceKm);
+        const hasGeometry = Boolean(
+          segment && segment.confirmedGeometry && Array.isArray(segment.confirmedGeometry.paths) && segment.confirmedGeometry.paths.length
+        ) || Boolean(Array.isArray(segment && segment.confirmedPaths) && segment.confirmedPaths.length)
+          || Boolean(Array.isArray(segment && segment.confirmedPath) && segment.confirmedPath.length);
+        if (!number || !Number.isFinite(value) || value <= 0 || hasGeometry) return;
+        meters.set(number, (meters.get(number) || 0) + value * 1000);
+      });
+    });
+    return meters;
   }
 
   function statusStyle(status) {
@@ -202,6 +415,53 @@
       <div class="home-record-stat untraveled"><strong>${counts["未走破"]}</strong><span>未走破</span></div>
       <div class="home-record-stat partial"><strong>${counts["一部走破"]}</strong><span>一部走破</span></div>
       <div class="home-record-stat complete"><strong>${counts["全線走破"]}</strong><span>全線走破</span></div>`;
+    return counts;
+  }
+
+  function formatKm(meters) {
+    const km = Math.max(0, Number(meters) || 0) / 1000;
+    return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: km < 100 ? 1 : 0 }).format(km);
+  }
+
+  function renderProgressMetrics(routes, counts, trips, allRouteTotal) {
+    if (!progressMetricsEl) return;
+    const routeTotal = routes.length || 48;
+    const complete = counts["全線走破"] || 0;
+    const routePercent = routeTotal ? complete / routeTotal * 100 : 0;
+    const totalMeters = routes.reduce((sum, route) => sum + (Number(route.totalMeters) || 0), 0);
+    const traveledMeters = routes.reduce((sum, route) => sum + (Number(route.traveledMeters) || 0), 0);
+    const distancePercent = totalMeters ? Math.min(100, traveledMeters / totalMeters * 100) : 0;
+    const routeWidth = Math.max(0, Math.min(100, routePercent));
+    const distanceWidth = Math.max(0, Math.min(100, distancePercent));
+
+    progressMetricsEl.innerHTML = `
+      <article class="home-metric-card metric-routes">
+        <div class="home-metric-top"><span class="home-metric-icon" aria-hidden="true">道</span><span>路線走破率</span></div>
+        <div class="home-metric-value">${routePercent.toFixed(1)}<small>%</small></div>
+        <p><strong>${complete}</strong> / ${routeTotal}攻略対象路線を全線走破</p>
+        <div class="home-progress-track" aria-hidden="true"><span style="width:${routeWidth.toFixed(2)}%"></span></div>
+      </article>
+      <article class="home-metric-card metric-distance">
+        <div class="home-metric-top"><span class="home-metric-icon" aria-hidden="true">km</span><span>距離走破率</span></div>
+        <div class="home-metric-value">${distancePercent.toFixed(1)}<small>%</small></div>
+        <p><strong>${formatKm(traveledMeters)} km</strong> / 対象総延長 ${formatKm(totalMeters)} km</p>
+        <div class="home-progress-track" aria-hidden="true"><span style="width:${distanceWidth.toFixed(2)}%"></span></div>
+      </article>`;
+
+    const dates = trips.map(trip => new Date(trip && (trip.updatedAt || trip.endDate || trip.startDate || "")))
+      .filter(date => !Number.isNaN(date.getTime())).sort((a, b) => b - a);
+    const latest = dates[0];
+    const latestText = latest ? new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" }).format(latest) : "記録なし";
+    if (tripCountEl) tripCountEl.textContent = `${trips.length}件の旅を表示`;
+    if (recordUpdatedEl) recordUpdatedEl.textContent = `最新記録：${latestText}`;
+    if (breakdownTitleEl) breakdownTitleEl.textContent = `攻略対象${routeTotal}路線の内訳`;
+    const excluded = Math.max(0, (Number(allRouteTotal) || routeTotal) - routeTotal);
+    if (scopeNoteEl) scopeNoteEl.textContent = excluded
+      ? `全${allRouteTotal}路線のうち海上国道${excluded}路線は集計対象外。共用区間は各路線の延長として集計しています。`
+      : `全${routeTotal}路線を集計しています。`;
+    if (journeySummaryEl) journeySummaryEl.innerHTML = `
+      <div><span class="home-journey-icon" aria-hidden="true">↗</span><div><small>保存した旅</small><strong>${trips.length}<em>件</em></strong></div></div>
+      <p>最終更新 <b>${latestText}</b></p>`;
   }
 
   function initMap() {
@@ -230,10 +490,15 @@
     const response = await fetch(ROUTE_URL, { cache: "no-store" });
     if (!response.ok) throw new Error("路線データを読み込めませんでした。");
     const data = await response.json();
+    routeCatalog = Array.isArray(data) ? data : [];
     const confirmed = readConfirmedStatuses();
     const manual = readManualStatuses();
     const trips = loadTrips();
+    currentTrips = trips;
+    renderSavedJourneys();
     const actualPathsByRoute = buildActualPathsByRoute(trips);
+    const tripStatusesByRoute = buildTripStatusesByRoute(trips);
+    const fallbackMetersByRoute = fallbackDistanceByRoute(trips);
 
     const routes = (Array.isArray(data) ? data : []).filter(route => route.challengeTarget !== false).map(route => {
       const copy = { ...route };
@@ -241,17 +506,31 @@
       const paths = actualPathsByRoute.get(number) || [];
       const entry = confirmed[number];
       const confirmedStatus = typeof entry === "string" ? entry : entry && entry.status;
+      const humanConfirmed = Boolean(entry && typeof entry === "object" && entry.source === "v5-route-status-human-confirmed");
       const manualStatus = manual[number];
+      const tripStatus = tripStatusesByRoute.get(number);
       const hasConfirmedStatus = VALID_STATUSES.includes(confirmedStatus);
       const hasManualStatus = VALID_STATUSES.includes(manualStatus);
 
-      // Tripに人間確定済みの実走線がある場合、未確定Routeを最低でも「一部走破」として表示する。
-      // ただしV5走破確定・手動状態がある場合は、そちらを正本として優先する。
-      if (!hasConfirmedStatus && !hasManualStatus && paths.length && copy.displayStatusPreview !== "全線走破") {
-        copy.displayStatusPreview = "一部走破";
+      // 正本の優先順位：手動指定 > 人が確定した例外 > 現行Trip判定 > 旧V5確定 > 既存Route。
+      // 人の例外確定と旧自動確定を区別し、Build69で直した古い誤確定は復活させない。
+      if (!hasManualStatus && humanConfirmed && confirmedStatus === "全線走破") {
+        copy.displayStatusPreview = confirmedStatus;
+        copy.statusSource = "例外確認済み";
+      } else if (!hasManualStatus && tripStatus === "全線走破") {
+        copy.displayStatusPreview = tripStatus;
+        copy.statusSource = "Trip判定";
+      } else if (!hasManualStatus && humanConfirmed && hasConfirmedStatus) {
+        copy.displayStatusPreview = confirmedStatus;
+        copy.statusSource = "例外確認済み";
+      } else if (!hasManualStatus && paths.length && VALID_STATUSES.includes(tripStatus)) {
+        copy.displayStatusPreview = tripStatus;
+        copy.statusSource = "Trip判定";
+      } else if (!hasConfirmedStatus && !hasManualStatus && paths.length) {
+        copy.displayStatusPreview = VALID_STATUSES.includes(tripStatus) ? tripStatus : (copy.displayStatusPreview === "全線走破" ? "全線走破" : "一部走破");
         copy.statusSource = "Trip実走線";
       }
-      if (hasConfirmedStatus) {
+      if (!humanConfirmed && hasConfirmedStatus && !VALID_STATUSES.includes(tripStatus)) {
         copy.displayStatusPreview = confirmedStatus;
         copy.statusSource = "V5走破確定";
       }
@@ -262,7 +541,7 @@
       copy.actualPaths = paths;
       return copy;
     });
-    renderSummary(routes);
+    const counts = renderSummary(routes);
 
     let loaded = 0;
     let actualPathCount = 0;
@@ -270,11 +549,20 @@
       const r = await fetch(GEOJSON_PATH(route.number), { cache: "no-store" });
       if (!r.ok) throw new Error(String(route.number));
       const geojson = await r.json();
+      route.totalMeters = geojsonDistanceMeters(geojson);
+      if (route.displayStatusPreview === "全線走破") route.traveledMeters = route.totalMeters;
+      else if (route.displayStatusPreview === "一部走破") {
+        const actualMeters = uniquePathDistanceMeters(route.actualPaths);
+        route.traveledMeters = Math.min(route.totalMeters, actualMeters || fallbackMetersByRoute.get(String(route.number)) || 0);
+      } else route.traveledMeters = 0;
       const layer = L.geoJSON(geojson, { style: statusStyle(route.displayStatusPreview) }).addTo(baseGroup);
       const bounds = layer.getBounds();
       if (bounds && bounds.isValid()) fullBounds = fullBounds ? fullBounds.extend(bounds) : bounds;
 
-      const paths = route.displayStatusPreview === "一部走破" ? route.actualPaths : [];
+      // GPX解析画面で確定しTripへ保存したcanonical geometryを、走破状態に
+      // 関係なくそのまま描画する。全線走破でGeoJSON本線を着色しても、
+      // 実走線を捨てないことで解析・路線選択・ホームの表示を一致させる。
+      const paths = Array.isArray(route.actualPaths) ? route.actualPaths : [];
       paths.forEach(path => {
         const actual = L.polyline(path, {
           pane: "homeRecordActual",
@@ -309,6 +597,7 @@
     }));
     if (fullBounds && fullBounds.isValid()) map.fitBounds(fullBounds, { padding: [16, 16], maxZoom: 7 });
     const failed = results.filter(item => item.status === "rejected").length;
+    renderProgressMetrics(routes, counts, trips, Array.isArray(data) ? data.length : routes.length);
     const baseText = failed
       ? `${loaded}路線を表示。${failed}路線の地図データを読み込めませんでした。`
       : `${loaded}路線の現在の走破記録を表示しています。`;

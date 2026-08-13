@@ -5,7 +5,6 @@
   const SELECTION_KEY = "hokkaido48V50JourneyDraft";
   const REGIONS = ["道北", "道央", "道東", "道南"];
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3, "0")}.geojson`;
-  const PATH_ENCODING = "delta-base36-e9-v1";
 
   const el = id => document.getElementById(id);
   const regionButtons = el("regionButtons"), routeList = el("routeList"), routeHint = el("routeHint");
@@ -429,25 +428,8 @@
       .map(point => [Number(point[0]), Number(point[1])]);
   }
 
-  function decodeConfirmedGeometry(holder) {
-    const geometry = holder && holder.confirmedGeometry;
-    if (!geometry || geometry.format !== PATH_ENCODING || !Array.isArray(geometry.paths)) return [];
-    const scale = Number(geometry.scale) || 1000000000;
-    return geometry.paths.map(encoded => {
-      let lat = 0, lon = 0;
-      return String(encoded || "").split(",").map((token, index) => {
-        const pair = token.split(":");
-        if (pair.length !== 2) return null;
-        const a = parseInt(pair[0], 36), b = parseInt(pair[1], 36);
-        if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-        if (index === 0) { lat = a; lon = b; } else { lat += a; lon += b; }
-        return [lat / scale, lon / scale];
-      }).filter(Boolean);
-    }).filter(path => path.length > 1);
-  }
-
   function segmentPaths(segment) {
-    const paths = decodeConfirmedGeometry(segment);
+    const paths = [];
     if (Array.isArray(segment.confirmedPaths)) {
       segment.confirmedPaths.forEach(path => { const normalized = normalizePath(path); if (normalized.length > 1) paths.push(normalized); });
     }
@@ -464,7 +446,6 @@
       const items = Array.isArray(confirmation && confirmation.routes) ? confirmation.routes : [];
       items.forEach(item => {
         if (String(item && (item.routeNumber ?? item.number) || "") !== String(routeNumber)) return;
-        paths.push(...decodeConfirmedGeometry(item));
         const confirmedPaths = Array.isArray(item && item.confirmedPaths) ? item.confirmedPaths : [];
         confirmedPaths.forEach(path => {
           const normalized = normalizePath(path);

@@ -6,6 +6,8 @@
   const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
   const BACKUP_KEY = "hokkaido48V5DataManagerBackups";
+  const MAX_BACKUPS = 5;
+  const PATH_ENCODING = "delta-base36-e9-v1";
   const $ = id => document.getElementById(id);
   const tripSelect=$("rsTripSelect"), tripSummary=$("rsTripSummary"), listEl=$("rsRouteList"), countEl=$("rsCount"), saveBtn=$("rsSave"), messageEl=$("rsMessage"), fitBtn=$("rsFit"), mapMessage=$("rsMapMessage");
   let trips=[], routes=[], map, routeGroup, actualGroup, labelGroup, currentBounds=null, evidenceByNumber=new Map();
@@ -17,8 +19,18 @@
     if(!Array.isArray(path))return[];
     return path.map(pt=>[Number(pt?.[0]),Number(pt?.[1])]).filter(pt=>Number.isFinite(pt[0])&&Number.isFinite(pt[1]));
   }
+  function decodeConfirmedGeometry(holder){
+    const geometry=holder?.confirmedGeometry;
+    if(!geometry||geometry.format!==PATH_ENCODING||!Array.isArray(geometry.paths))return[];
+    const scale=Number(geometry.scale)||1000000000;
+    return geometry.paths.map(encoded=>{let lat=0,lon=0;return String(encoded||"").split(",").map((token,index)=>{
+      const pair=token.split(":");if(pair.length!==2)return null;
+      const a=parseInt(pair[0],36),b=parseInt(pair[1],36);if(!Number.isFinite(a)||!Number.isFinite(b))return null;
+      if(index===0){lat=a;lon=b;}else{lat+=a;lon+=b;}return[lat/scale,lon/scale];
+    }).filter(Boolean);}).filter(path=>path.length>1);
+  }
   function segmentConfirmedPaths(seg){
-    const out=[];
+    const out=decodeConfirmedGeometry(seg);
     if(Array.isArray(seg?.confirmedPaths))seg.confirmedPaths.forEach(path=>{const p=normalizeConfirmedPath(path);if(p.length>1)out.push(p);});
     if(!out.length&&Array.isArray(seg?.confirmedPath)){const p=normalizeConfirmedPath(seg.confirmedPath);if(p.length>1)out.push(p);}
     return out;
@@ -28,6 +40,7 @@
     const confirmations=Array.isArray(t?.gpxRouteConfirmations)?t.gpxRouteConfirmations:[];
     confirmations.forEach(c=>(Array.isArray(c?.routes)?c.routes:[]).forEach(item=>{
       if(String(item?.routeNumber??item?.number??"")!==String(number))return;
+      out.push(...decodeConfirmedGeometry(item));
       (Array.isArray(item?.confirmedPaths)?item.confirmedPaths:[]).forEach(path=>{const p=normalizeConfirmedPath(path);if(p.length>1)out.push(p);});
     }));
     return out;
@@ -125,9 +138,27 @@
     if(currentBounds&&currentBounds.isValid())map.fitBounds(currentBounds,{padding:[32,32],maxZoom:10});
     mapMessage.textContent=`国道${ev.route.number}号：走破率目安 ${Math.round(ev.ratio*100)}%。灰＝国道全体、緑＝これまでに確定した実走区間。`;
   }
+  function confirmedStatusInfo(number){
+    const entry=readJson(CONFIRMED_STATUS_KEY,{})[String(number)];
+    const status=typeof entry==="string"?entry:entry?.status;
+    return{entry,status,isHuman:Boolean(entry&&typeof entry==="object"&&entry.source==='v5-route-status-human-confirmed')};
+  }
   function currentStatus(number){
     const manual=readJson(MANUAL_STATUS_KEY,{}), confirmed=readJson(CONFIRMED_STATUS_KEY,{}), route=routes.find(r=>String(r.number)===String(number));
     if(["未走破","一部走破","全線走破"].includes(manual[String(number)]))return{status:manual[String(number)],source:"手動"};
+    const confirmedInfo=confirmedStatusInfo(number);
+    // この画面で人が確定した例外はTripの自動判定より優先する。
+    // ただし、その後のTripで全線走破が確定した場合は全線を維持する。
+    let tripStatus="";
+    trips.forEach(t=>(Array.isArray(t?.routeSegments)?t.routeSegments:[]).forEach(seg=>{
+      if(String(seg?.routeNumber||"")!==String(number))return;
+      if(seg?.completionStatus==="全線走破")tripStatus="全線走破";
+      else if(!tripStatus&&seg?.completionStatus==="一部走破")tripStatus="一部走破";
+    }));
+    if(confirmedInfo.isHuman&&confirmedInfo.status==="全線走破")return{status:"全線走破",source:"例外確認済み"};
+    if(tripStatus==="全線走破")return{status:"全線走破",source:"Trip判定"};
+    if(confirmedInfo.isHuman&&["未走破","一部走破","全線走破"].includes(confirmedInfo.status))return{status:confirmedInfo.status,source:"例外確認済み"};
+    if(tripStatus)return{status:tripStatus,source:"Trip判定"};
     const e=confirmed[String(number)], st=typeof e==="string"?e:e?.status;if(["未走破","一部走破","全線走破"].includes(st))return{status:st,source:"V5確定"};
     if(confirmedPathsForRoute(number).length)return{status:"一部走破",source:"Trip実走線"};
     return{status:route?.displayStatusPreview||route?.status||"未走破",source:"既存"};
@@ -141,8 +172,9 @@
     if(Array.isArray(ev.paths)&&ev.paths.length&&cur.status==='未走破')return'実走記録あり／現在状態が未走破';
     return'';
   }
-  async function renderTrip(){
-    evidenceByNumber.clear();listEl.innerHTML='<div class="empty-box">走破状況を計算しています…</div>';saveBtn.disabled=true;messageEl.textContent="";
+  async function renderTrip(options={}){
+    evidenceByNumber.clear();listEl.innerHTML='<div class="empty-box">走破状況を計算しています…</div>';saveBtn.disabled=true;saveBtn.textContent='この例外だけ確定';
+    if(!options.preserveMessage){messageEl.textContent="";messageEl.classList.remove('is-error');}
     const idx=Number(tripSelect.value), trip=Number.isInteger(idx)?trips[idx]:null;if(!trip){listEl.innerHTML='<div class="empty-box">旅を選択してください。</div>';countEl.textContent='0路線';return;}
     const nums=routeNumbersFromTrip(trip), targetRoutes=nums.map(n=>routes.find(r=>String(r.number)===String(n))).filter(Boolean);
     tripSummary.innerHTML=`<strong>${esc(trip.startDate||trip.date||'日付未登録')}｜${esc(trip.tripName||'名称未登録')}</strong><p>確定走行国道：${targetRoutes.length?targetRoutes.map(r=>`国道${r.number}号`).join('・'):'なし'}</p>`;
@@ -156,12 +188,15 @@
       return;
     }
     const reviews=evs.map(ev=>{const cur=currentStatus(ev.route.number);return{ev,cur,reason:reviewReason(ev,cur)};}).filter(item=>item.reason);
-    countEl.textContent=reviews.length?`${reviews.length}路線 要確認`:'確認不要';
+    countEl.textContent=reviews.length?`${reviews.length}路線 要確認`:'確認完了';
     if(!reviews.length){
-      listEl.innerHTML='<div class="empty-box"><strong>追加確認はありません。</strong><br>GPX画面で確認・保存した実走区間は、一部走破としてすでに走破記録へ反映されています。通常はこのままで完了です。</div>';
-      routeGroup.clearLayers();actualGroup.clearLayers();labelGroup.clearLayers();currentBounds=null;
-      mapMessage.textContent='全線走破候補や状態の矛盾は検出されませんでした。';
-      saveBtn.disabled=true;
+      const confirmedItems=targetRoutes.map(route=>{const info=confirmedStatusInfo(route.number);return info.isHuman&&["未走破","一部走破","全線走破"].includes(info.status)?`国道${route.number}号 ${info.status}`:'';}).filter(Boolean);
+      const confirmedText=confirmedItems.length?`<span>確定済み：${confirmedItems.map(esc).join('・')}</span>`:'<span>GPX画面で確認した実走記録は反映済みです。</span>';
+      listEl.innerHTML=`<div class="empty-box route-status-complete-box"><strong>✓ この旅の例外確認は完了しています。</strong>${confirmedText}<small>追加操作は必要ありません。</small></div>`;
+      const confirmedEvidence=evs.find(ev=>confirmedStatusInfo(ev.route.number).isHuman);
+      if(confirmedEvidence){drawEvidence(confirmedEvidence);mapMessage.textContent=`国道${confirmedEvidence.route.number}号は例外確認済みです。灰＝国道全体、緑＝確定した実走区間。`;}
+      else{routeGroup.clearLayers();actualGroup.clearLayers();labelGroup.clearLayers();currentBounds=null;mapMessage.textContent='全線走破候補や状態の矛盾は検出されませんでした。';}
+      saveBtn.disabled=true;saveBtn.textContent='この旅の例外確認は完了';
       return;
     }
     reviews.forEach(({ev,cur,reason},i)=>{
@@ -176,19 +211,38 @@
       row.querySelector('.route-status-main').addEventListener('click',e=>{if(e.target.closest('select'))return;drawEvidence(ev);});
       listEl.appendChild(row);if(i===0)drawEvidence(ev);
     });
-    saveBtn.disabled=false;
+    saveBtn.disabled=false;saveBtn.textContent=`表示中の${reviews.length}路線を確定`;
   }
-  function saveBackup(reason){const arr=readJson(BACKUP_KEY,[]);arr.push({id:`backup-${Date.now()}`,savedAt:new Date().toISOString(),reason,trips:loadTrips(),manualStatuses:readJson(MANUAL_STATUS_KEY,{}),confirmedStatuses:readJson(CONFIRMED_STATUS_KEY,{})});while(arr.length>20)arr.shift();localStorage.setItem(BACKUP_KEY,JSON.stringify(arr));}
-  function saveStatuses(){
+  function saveBackup(reason){
+    const arr=readJson(BACKUP_KEY,[]), snapshot={id:`backup-${Date.now()}`,savedAt:new Date().toISOString(),reason,trips:loadTrips(),manualStatuses:readJson(MANUAL_STATUS_KEY,{}),confirmedStatuses:readJson(CONFIRMED_STATUS_KEY,{})};
+    let lastError=null;
+    // Build65以降の容量方針に合わせ、最大5世代。容量が厳しい場合は古い世代から減らす。
+    for(let previousCount=Math.min(MAX_BACKUPS-1,arr.length);previousCount>=0;previousCount--){
+      const backups=arr.slice(-previousCount);backups.push(snapshot);
+      try{localStorage.setItem(BACKUP_KEY,JSON.stringify(backups));return;}catch(error){lastError=error;}
+    }
+    throw lastError||new Error('復元履歴を保存できませんでした。');
+  }
+  async function saveStatuses(){
     const idx=Number(tripSelect.value),trip=Number.isInteger(idx)?trips[idx]:null;if(!trip)return;const selects=[...listEl.querySelectorAll('select[data-route]')];if(!selects.length)return;
     const manual=readJson(MANUAL_STATUS_KEY,{}), confirmed=readJson(CONFIRMED_STATUS_KEY,{}), changes=[];
     selects.forEach(sel=>{const n=String(sel.dataset.route),requested=sel.value;if(manual[n]==="全線走破"&&requested!=="全線走破")return;changes.push([n,requested]);});
     if(!changes.length){messageEl.textContent='変更対象がありません。';return;}
     const text=changes.map(([n,s])=>`国道${n}号：${s}`).join('\n');if(!confirm(`Routeへ次の状態を反映します。\n\n${text}\n\nよろしいですか？`))return;
-    saveBackup(`走破状態確定：${trip.tripName||'名称未登録'}`);const now=new Date().toISOString();
-    changes.forEach(([n,status])=>{const ev=evidenceByNumber.get(n);confirmed[n]={status,source:'v5-route-status-human-confirmed',confirmedAt:now,tripId:trip.id||'',evidence:ev?{coverageRatio:Number(ev.ratio.toFixed(3)),routeKm:Number(ev.totalKm.toFixed(1)),confirmedPathKm:Number(ev.confirmedKm.toFixed(1)),startDistanceKm:Number.isFinite(ev.startDist)?Number((ev.startDist/1000).toFixed(1)):null,endDistanceKm:Number.isFinite(ev.endDist)?Number((ev.endDist/1000).toFixed(1)):null,cityArrivalRule:Boolean(ev.cityRule)}:{}};});
-    localStorage.setItem(CONFIRMED_STATUS_KEY,JSON.stringify(confirmed));messageEl.textContent=`${changes.length}路線の例外状態を反映しました。通常の一部走破はGPX確認時点で反映済みです。`;
-    renderTrip();
+    saveBtn.disabled=true;saveBtn.textContent='確定内容を保存中…';messageEl.classList.remove('is-error');
+    try{
+      saveBackup(`走破状態確定：${trip.tripName||'名称未登録'}`);const now=new Date().toISOString();
+      changes.forEach(([n,status])=>{const ev=evidenceByNumber.get(n);confirmed[n]={status,source:'v5-route-status-human-confirmed',confirmedAt:now,tripId:trip.id||'',evidence:ev?{coverageRatio:Number(ev.ratio.toFixed(3)),routeKm:Number(ev.totalKm.toFixed(1)),confirmedPathKm:Number(ev.confirmedKm.toFixed(1)),startDistanceKm:Number.isFinite(ev.startDist)?Number((ev.startDist/1000).toFixed(1)):null,endDistanceKm:Number.isFinite(ev.endDist)?Number((ev.endDist/1000).toFixed(1)):null,cityArrivalRule:Boolean(ev.cityRule)}:{}};});
+      localStorage.setItem(CONFIRMED_STATUS_KEY,JSON.stringify(confirmed));
+      const saved=readJson(CONFIRMED_STATUS_KEY,{}),verified=changes.every(([n,status])=>{const entry=saved[n];return (typeof entry==='string'?entry:entry?.status)===status&&entry?.source==='v5-route-status-human-confirmed';});
+      if(!verified)throw new Error('保存内容を読み戻して確認できませんでした。');
+      await renderTrip({preserveMessage:true});
+      const resultText=changes.map(([n,status])=>`国道${n}号 ${status}`).join('・');
+      messageEl.textContent=`✓ 確定しました：${resultText}。走破記録へ反映済みです。`;
+    }catch(error){
+      console.error(error);messageEl.classList.add('is-error');messageEl.textContent=`確定できませんでした。${error?.name==='QuotaExceededError'?'保存容量が不足しています。データ管理で復元履歴を確認してください。':error.message||'保存処理を確認してください。'}`;
+      saveBtn.disabled=false;saveBtn.textContent='もう一度確定する';
+    }
   }
   function populateTrips(){trips=loadTrips();tripSelect.innerHTML='<option value="">実走した旅を選択</option>';trips.forEach((t,i)=>{const nums=routeNumbersFromTrip(t);if(!nums.length)return;const o=document.createElement('option');o.value=String(i);o.textContent=`${t.startDate||t.date||'日付未登録'}｜${t.tripName||'名称未登録'}（${nums.length}路線）`;tripSelect.appendChild(o);});const q=new URLSearchParams(location.search).get('trip');if(q!==null&&tripSelect.querySelector(`option[value="${CSS.escape(q)}"]`))tripSelect.value=q;renderTrip();}
   tripSelect.addEventListener('change',renderTrip);saveBtn.addEventListener('click',saveStatuses);fitBtn.addEventListener('click',()=>{if(currentBounds&&currentBounds.isValid())map.fitBounds(currentBounds,{padding:[24,24],maxZoom:10});});

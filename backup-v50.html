@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>全データバックアップ | 北海道48路線ふらふらlog V5</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="css/v5.css?v=20260809-53">
+  <link rel="stylesheet" href="css/v5.css?v=20260812-76">
   <style>
     .backup-v50-layout{width:min(920px,calc(100% - 24px));margin:18px auto 42px;display:grid;gap:18px}.backup-v50-summary{padding:14px;line-height:1.75;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;white-space:pre-line}.backup-v50-notice{margin-top:12px;padding:12px 14px;line-height:1.65;color:#713f12;background:#fffbeb;border:1px solid #fde68a;border-radius:10px}.backup-v50-message{min-height:1.6em;margin-top:12px;font-weight:700;color:#1e4e77;white-space:pre-line}.backup-v50-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.backup-v50-actions button,.backup-v50-file{display:flex;align-items:center;justify-content:center;min-height:42px;border-radius:9px;padding:9px 14px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.backup-v50-file{border:1px solid #94a3b8;background:#fff;color:#334155}.backup-v50-danger{border:1px solid #991b1b;background:#991b1b;color:#fff}.backup-v50-actions button:disabled{opacity:.45;cursor:not-allowed}.backup-v50-file input{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.backup-v50-steps{line-height:1.8;padding-left:1.4em}@media(max-width:640px){.backup-v50-actions{flex-direction:column}.backup-v50-actions>*{width:100%}}
   </style>
@@ -15,7 +15,7 @@
     <div>
       <p class="eyebrow">Version 5.0 正式版</p>
       <h1>全データバックアップ</h1>
-      <p>Trip・Record・V5の走破状態を1つのファイルへ保存／復元します。</p>
+      <p>Trip・旅詳細・旅会計・V5の走破状態を1つのファイルへ保存／復元します。</p>
     </div>
     <nav class="v5-global-nav" aria-label="共通ナビ">
       <a href="v5.html">ホーム</a>
@@ -37,7 +37,8 @@
 
     <section class="panel">
       <div class="section-heading"><div><span class="step">2</span><h2>バックアップを書き出す</h2></div></div>
-      <p>Trip、Routeごとの旧Record、V5の走破確定状態、V5の手動Route状態をJSONファイルへ保存します。</p>
+      <p>Trip、旅全体・DAY詳細・旅会計・会計チャット一括取込情報、Routeごとの旧Record、V5の走破状態をJSONファイルへ保存します。</p>
+      <div class="backup-v50-notice">会計チャットURLは端末内だけで管理するため、バックアップファイルには含めません。ブラウザデータの削除や別端末では再設定が必要です。</div>
       <div class="backup-v50-actions"><button id="exportButton" class="primary-button" type="button">全データをバックアップ</button></div>
       <p id="exportMessage" class="backup-v50-message" aria-live="polite"></p>
     </section>
@@ -48,14 +49,14 @@
       <div class="backup-v50-actions"><label class="backup-v50-file" for="backupFileInput">バックアップファイルを選ぶ<input id="backupFileInput" type="file" accept=".json,application/json"></label></div>
       <div id="importPreview" class="backup-v50-summary">バックアップファイルはまだ選ばれていません。</div>
       <div class="backup-v50-actions"><button id="preRestoreButton" class="secondary-button" type="button" disabled>復元前バックアップを書き出す</button><button id="restoreButton" class="backup-v50-danger" type="button" disabled>バックアップから復元</button></div>
-      <div class="backup-v50-notice">復元を実行するまでは現在のデータを変更しません。復元対象は hokkaido48Trips、route***Record、V5手動Route状態、V5走破確定状態です。</div>
+      <div class="backup-v50-notice">復元を実行するまでは現在のデータを変更しません。Trip、旅詳細・会計、RouteごとのRecord、V5走破状態が復元対象です。</div>
       <p id="restoreMessage" class="backup-v50-message" aria-live="polite"></p>
     </section>
 
     <a class="secondary-button" href="data-manager.html">データ管理へ戻る</a>
   </main>
 
-  <div class="build-badge">Version 5.0 Build 20260809-53 Official Release</div>
-  <script src="js/backup-v50.js?v=20260809-53"></script>
+  <div class="build-badge">Version 5.0 Build 20260812-76 Manual Accounting Import</div>
+  <script src="js/backup-v50.js?v=20260812-76"></script>
 </body>
 </html>

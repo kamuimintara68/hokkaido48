@@ -6,7 +6,7 @@
   <title>全線走破・例外を確認 | 北海道48路線ふらふらlog</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/v5.css?v=20260809-53">
+  <link rel="stylesheet" href="css/v5.css?v=20260812-71">
 </head>
 <body>
   <header class="v5-header">
@@ -19,7 +19,7 @@
       <a href="v5.html">ホーム</a>
       <a href="route-select.html">旅を計画</a>
       <a href="gpx-import.html">GPX取込</a>
-      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a href="v5.html#savedJourneys">保存済みの旅</a>
       <a class="is-active" href="route-status.html">全線・例外確認</a>
       <a href="data-manager.html">データ管理</a>
       <a href="index.html">V4.0</a>
@@ -47,7 +47,7 @@
       <div id="rsRouteList" class="route-status-list"><div class="empty-box">旅を選択すると、全線走破候補や矛盾がある路線だけを表示します。</div></div>
       <div class="route-status-save-panel">
         <p>通常の一部走破はGPX確認時点で反映済みです。ここでは追加判断が必要な路線だけを変更します。既存の「手動・全線走破」は自動的に下げません。</p>
-        <button id="rsSave" class="primary-button" type="button" disabled>この例外だけ確定</button>
+        <button id="rsSave" class="primary-button" type="button" disabled>表示中の例外を確定</button>
       </div>
     </section>
 
@@ -59,8 +59,8 @@
     </section>
   </main>
 
-  <div class="build-badge">Version 5.0 Build 20260809-53 Official Release</div>
+  <div class="build-badge">Version 5.0 Build 20260812-71 Clear Exception Confirmation</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/v5-route-status.js?v=20260809-53"></script>
+  <script src="js/v5-route-status.js?v=20260812-71"></script>
 </body>
 </html>

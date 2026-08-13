@@ -6,20 +6,20 @@
   <title>北海道48路線ふらふらlog Version 5.0</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/v5.css?v=20260809-53">
+  <link rel="stylesheet" href="css/v5.css?v=20260812-76">
 </head>
 <body class="v5-home-page">
   <header class="v5-header">
     <div>
       <p class="eyebrow">Version 5.0 正式版</p>
       <h1>北海道48路線ふらふらlog</h1>
-      <p>計画 → 実走 → GPXで1回確認。今やることから入ります。</p>
+      <p>走った道と、これからの道。現在の記録をひと目で確認します。</p>
     </div>
     <nav class="v5-global-nav" aria-label="共通ナビ">
       <a class="is-active" href="v5.html">ホーム</a>
       <a href="route-select.html">旅を計画</a>
       <a href="gpx-import.html">GPX取込</a>
-      <a href="route-select.html#savedJourneys">保存済みの旅</a>
+      <a href="#savedJourneys">保存済みの旅</a>
       <a href="route-status.html">全線・例外確認</a>
       <a href="data-manager.html">データ管理</a>
       <a href="index.html">V4.0</a>
@@ -27,71 +27,92 @@
   </header>
 
   <main class="v5-dashboard">
-    <section class="workflow-strip" aria-label="Version 5.0の流れ">
-      <div class="workflow-step"><span>1</span><div><strong>計画</strong><small>攻略路線と走行予定</small></div></div>
-      <i>→</i>
-      <div class="workflow-step"><span>2</span><div><strong>実走</strong><small>GPXを取り込む</small></div></div>
-      <i>→</i>
-      <div class="workflow-step"><span>3</span><div><strong>確定</strong><small>GPX画面で走行国道を1回確認・保存</small></div></div>
+    <div class="home-overview-grid">
+      <aside class="panel home-action-panel" aria-labelledby="homeActionTitle">
+        <div class="home-panel-kicker">QUICK MENU</div>
+        <div class="section-heading home-action-heading">
+          <div><h2 id="homeActionTitle">記録と操作</h2></div>
+        </div>
+        <nav class="home-action-grid" aria-label="作業を選ぶ">
+          <a class="home-action-card action-plan" href="route-select.html">
+            <span class="home-action-number">1</span>
+            <div><h3>次に走る国道</h3><p>現在地と地図から候補を決める</p></div>
+            <span class="home-action-arrow" aria-hidden="true">›</span>
+          </a>
+          <a class="home-action-card action-gpx" href="gpx-import.html">
+            <span class="home-action-number">2</span>
+            <div><h3>GPXを取り込む</h3><p>実走した国道を確認・保存</p></div>
+            <span class="home-action-arrow" aria-hidden="true">›</span>
+          </a>
+          <a class="home-action-card action-trips" href="#savedJourneys">
+            <span class="home-action-number">3</span>
+            <div><h3>過去の旅を見る</h3><p id="homeTripCount">保存件数を確認</p></div>
+            <span class="home-action-arrow" aria-hidden="true">›</span>
+          </a>
+          <a class="home-action-card action-data" href="data-manager.html">
+            <span class="home-action-number">4</span>
+            <div><h3>データを管理</h3><p>記録の確認・訂正・バックアップ</p></div>
+            <span class="home-action-arrow" aria-hidden="true">›</span>
+          </a>
+        </nav>
+        <p class="home-action-note"><span aria-hidden="true">●</span> ホームは記録確認専用です</p>
+      </aside>
+
+      <section class="panel home-record-panel" aria-labelledby="homeRecordTitle">
+        <div class="section-heading home-map-heading">
+          <div>
+            <span class="step map-step">MAP</span>
+            <div><h2 id="homeRecordTitle">走破記録マップ</h2><p>北海道48路線の現在地</p></div>
+          </div>
+          <button id="homeRecordFit" class="text-button" type="button">北海道全体</button>
+        </div>
+        <div class="map-legend home-record-legend" aria-label="走破記録凡例">
+          <span><i class="legend-line untraveled"></i>未走破</span>
+          <span><i class="legend-line partial"></i>一部走破</span>
+          <span><i class="legend-line complete"></i>全線走破</span>
+        </div>
+        <div id="homeRecordMap" class="home-record-map" aria-label="北海道48路線 走破記録マップ"></div>
+        <p id="homeRecordMessage" class="map-message">現在の走破記録を読み込みます。</p>
+      </section>
+    </div>
+
+    <section class="panel home-progress-panel" aria-labelledby="homeProgressTitle">
+      <div class="home-progress-heading">
+        <div>
+          <div class="home-panel-kicker">MY ROAD RECORD</div>
+          <h2 id="homeProgressTitle">いまの走破記録</h2>
+        </div>
+        <p id="homeRecordUpdated">保存済みの記録を集計中です</p>
+      </div>
+      <div id="homeProgressMetrics" class="home-progress-metrics" aria-label="走破率と走行距離">
+        <div class="home-progress-loading">記録を計算しています…</div>
+      </div>
+      <p id="homeRecordScopeNote" class="home-record-scope-note"></p>
+      <div class="home-progress-subgrid">
+        <div class="home-progress-breakdown">
+          <h3 id="homeBreakdownTitle">路線の内訳</h3>
+          <div id="homeRecordSummary" class="home-record-summary" aria-label="走破状況集計"></div>
+        </div>
+        <div id="homeJourneySummary" class="home-journey-summary" aria-label="旅の記録集計"></div>
+      </div>
     </section>
 
-    <section class="home-action-grid" aria-label="作業を選ぶ">
-      <a class="home-action-card primary" href="route-select.html">
-        <span class="home-action-number">1</span>
-        <div><h2>旅を計画する</h2><p>地区と攻略路線を選び、自宅発着のざっくり走行予定を作ります。</p><strong>出発前はこちら</strong></div>
-      </a>
-      <a class="home-action-card" href="gpx-import.html">
-        <span class="home-action-number">2</span>
-        <div><h2>実走GPXを取り込む</h2><p>帰宅後にGPXを読み込み、地図で走行国道を確認して旅へ保存します。</p><strong>実走後はこちら</strong></div>
-      </a>
-      <a class="home-action-card" href="route-select.html#savedJourneys">
-        <span class="home-action-number">3</span>
-        <div><h2>保存済みの旅を見る</h2><p>計画と実走記録を確認します。計画の修正や、その旅へのGPX取込へ進めます。</p><strong id="homeTripCount">保存件数を確認</strong></div>
-      </a>
-      <a class="home-action-card" href="data-manager.html">
-        <span class="home-action-number">4</span>
-        <div><h2>データを管理する</h2><p>旅の基本情報、走行国道、GPX取込、Routeの手動状態を確認・訂正します。</p><strong>明示的な修正はこちら</strong></div>
-      </a>
-    </section>
-
-
-    <section class="panel home-record-panel" aria-labelledby="homeRecordTitle">
-      <div class="section-heading">
-        <div><span class="step map-step">記録</span><h2 id="homeRecordTitle">走破記録マップ</h2></div>
-        <button id="homeRecordFit" class="text-button" type="button">全体表示</button>
+    <section id="savedJourneys" class="panel home-saved-panel" aria-labelledby="homeSavedTitle">
+      <div class="home-saved-heading">
+        <div>
+          <div class="home-panel-kicker">TRIP ARCHIVE</div>
+          <h2 id="homeSavedTitle">過去の旅を見る</h2>
+          <p>計画と実走記録を、記録確認用のホームでまとめて表示します。</p>
+        </div>
+        <span id="homeSavedJourneyCount">0件</span>
       </div>
-      <div id="homeRecordSummary" class="home-record-summary" aria-label="走破状況集計"></div>
-      <div class="map-legend home-record-legend" aria-label="走破記録凡例">
-        <span><i class="legend-line untraveled"></i>未走破</span>
-        <span><i class="legend-line partial"></i>一部走破</span>
-        <span><i class="legend-line complete"></i>全線走破</span>
-      </div>
-      <div id="homeRecordMap" class="home-record-map" aria-label="北海道48路線 走破記録マップ"></div>
-      <p id="homeRecordMessage" class="map-message">現在の走破記録を読み込みます。</p>
-      <p class="hint">この地図は記録確認用です。路線選択や計画作成は「旅を計画する」から行います。</p>
-    </section>
-
-    <section class="panel home-usage-panel">
-      <div class="section-heading"><div><span class="step">使い方</span><h2>普段はこの2本だけ</h2></div></div>
-      <div class="home-usage-grid">
-        <div><strong>出発前</strong><p>ホーム → 旅を計画 → 路線選択 → 走行予定 → 保存</p></div>
-        <div><strong>帰宅後</strong><p>ホーム → 保存済みの旅 → この旅にGPXを取り込む → 国道確認 → 保存</p></div>
-      </div>
-      <p class="hint">過去GPXを単独で検証するときだけ、ホームから直接「GPX取込」を開きます。</p>
+      <div id="homeSavedJourneyList" class="saved-journey-list"></div>
     </section>
   </main>
 
-  <div class="build-badge">Version 5.0 Build 20260809-53 Official Release</div>
+  <div class="build-badge">Version 5.0 Build 20260813-77 Canonical Geometry Display</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/v5-dashboard.js?v=20260809-53"></script>
-  <script>
-    (() => {
-      try {
-        const trips = JSON.parse(localStorage.getItem('hokkaido48Trips') || '[]');
-        const el = document.getElementById('homeTripCount');
-        if (el && Array.isArray(trips)) el.textContent = `${trips.length}件の旅を表示`;
-      } catch {}
-    })();
-  </script>
+  <script src="js/v5-journey-store.js?v=20260812-76"></script>
+  <script src="js/v5-dashboard.js?v=20260813-77"></script>
 </body>
 </html>

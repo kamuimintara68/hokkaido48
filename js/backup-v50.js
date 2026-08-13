@@ -6,6 +6,7 @@ const APP_VERSION = "5.0";
 const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
 const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
 const TRIP_STORAGE_KEY = "hokkaido48Trips";
+const JOURNEY_RECORDS_KEY = "hokkaido48V5JourneyRecords";
 const RECORD_KEY_PATTERN = /^route\d{3}Record$/;
 
 const currentSummary = document.getElementById("currentSummary");
@@ -20,7 +21,22 @@ let selectedBackup = null;
 let selectedAnalysis = null;
 let preRestoreFingerprint = null;
 
-function isManagedKey(key) { return key === TRIP_STORAGE_KEY || RECORD_KEY_PATTERN.test(key) || key === MANUAL_STATUS_KEY || key === CONFIRMED_STATUS_KEY; }
+function isManagedKey(key) { return key === TRIP_STORAGE_KEY || key === JOURNEY_RECORDS_KEY || RECORD_KEY_PATTERN.test(key) || key === MANUAL_STATUS_KEY || key === CONFIRMED_STATUS_KEY; }
+function sanitizedManagedValue(key, rawValue) {
+  if (key !== JOURNEY_RECORDS_KEY) return rawValue;
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.journeys)) return rawValue;
+    parsed.journeys = parsed.journeys.map(journey => {
+      if (!journey || typeof journey !== "object" || Array.isArray(journey)) return journey;
+      const { accountingChatUrl: _privateUrl, ...safeJourney } = journey;
+      return safeJourney;
+    });
+    return JSON.stringify(parsed);
+  } catch {
+    return rawValue;
+  }
+}
 function getManagedKeys() {
   const keys = [];
   for (let i = 0; i < localStorage.length; i += 1) {
@@ -33,7 +49,7 @@ function collectManagedStorage() {
   const storage = {};
   getManagedKeys().forEach(key => {
     const value = localStorage.getItem(key);
-    if (value !== null) storage[key] = value;
+    if (value !== null) storage[key] = sanitizedManagedValue(key, value);
   });
   return storage;
 }
@@ -42,7 +58,7 @@ function createSnapshot() {
 }
 function analyzeStorage(storage, strict) {
   if (!storage || typeof storage !== "object" || Array.isArray(storage)) throw new Error("保存データの構成を確認できません。");
-  const analysis = { tripCount: 0, recordCount: 0, manualStatusCount: 0, confirmedStatusCount: 0, warnings: [] };
+  const analysis = { tripCount: 0, journeyCount: 0, dayDetailCount: 0, expenseCount: 0, syncedExpenseCount: 0, recordCount: 0, manualStatusCount: 0, confirmedStatusCount: 0, warnings: [] };
   Object.entries(storage).forEach(([key, rawValue]) => {
     if (!isManagedKey(key)) { if (strict) throw new Error("対象外の保存項目が含まれています。"); return; }
     if (typeof rawValue !== "string") throw new Error(key + " の保存形式を確認できません。");
@@ -52,6 +68,15 @@ function analyzeStorage(storage, strict) {
         if (!Array.isArray(parsed)) throw new Error("Tripが配列形式ではありません。");
         if (parsed.some(item => !item || typeof item !== "object" || Array.isArray(item))) throw new Error("Tripに確認できない項目があります。");
         analysis.tripCount = parsed.length;
+      } else if (key === JOURNEY_RECORDS_KEY) {
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("旅詳細・会計がオブジェクト形式ではありません。");
+        if (parsed.journeys !== undefined && !Array.isArray(parsed.journeys)) throw new Error("旅全体の記録が配列形式ではありません。");
+        if (parsed.dayDetails !== undefined && (!parsed.dayDetails || typeof parsed.dayDetails !== "object" || Array.isArray(parsed.dayDetails))) throw new Error("DAY詳細がオブジェクト形式ではありません。");
+        const journeys = Array.isArray(parsed.journeys) ? parsed.journeys : [];
+        analysis.journeyCount = journeys.length;
+        analysis.dayDetailCount = Object.keys(parsed.dayDetails || {}).length;
+        analysis.expenseCount = journeys.reduce((sum, journey) => sum + (Array.isArray(journey && journey.expenses) ? journey.expenses.length : 0), 0);
+        analysis.syncedExpenseCount = journeys.reduce((sum, journey) => sum + (Array.isArray(journey && journey.expenses) ? journey.expenses.filter(expense => expense && expense.syncSource === "accounting-chat").length : 0), 0);
       } else if (key === MANUAL_STATUS_KEY) {
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("V5手動Route状態がオブジェクト形式ではありません。");
         const allowed = new Set(["未走破", "一部走破", "全線走破"]);
@@ -98,7 +123,7 @@ function downloadSnapshot(prefix) {
   downloadBlob(new Blob([JSON.stringify(snapshot, null, 2)], {type:"application/json;charset=utf-8"}), prefix + "_" + createTimestamp() + ".json");
   return snapshot;
 }
-function formatSummary(a) { return "Trip：" + a.tripCount + "件\nRouteごとのRecord：" + a.recordCount + "件\nV5走破確定：" + a.confirmedStatusCount + "路線\nV5手動状態：" + a.manualStatusCount + "路線"; }
+function formatSummary(a) { return "Trip（DAY記録）：" + a.tripCount + "件\n旅全体：" + a.journeyCount + "件\nDAY詳細：" + a.dayDetailCount + "件\n旅会計明細：" + a.expenseCount + "件（チャット一括取込 " + a.syncedExpenseCount + "件）\nRouteごとのRecord：" + a.recordCount + "件\nV5走破確定：" + a.confirmedStatusCount + "路線\nV5手動状態：" + a.manualStatusCount + "路線"; }
 function refreshCurrentSummary() {
   try {
     const analysis = analyzeStorage(collectManagedStorage(), false);
@@ -115,7 +140,7 @@ function resetRestorePreparation() { preRestoreFingerprint = null; restoreButton
 document.getElementById("exportButton").addEventListener("click", () => {
   try {
     const snapshot = downloadSnapshot("hokkaido48_backup");
-    exportMessage.textContent = "Trip・Record・V5 Route状態のバックアップを書き出しました。\n" + formatSummary(analyzeStorage(snapshot.storage, false));
+    exportMessage.textContent = "Trip・旅詳細・旅会計・会計チャット一括取込情報・V5 Route状態のバックアップを書き出しました。\n" + formatSummary(analyzeStorage(snapshot.storage, false));
   } catch (error) { console.error(error); exportMessage.textContent = "バックアップを書き出せませんでした。 " + error.message; }
 });
 
@@ -147,7 +172,7 @@ function replaceManagedStorage(targetStorage) {
   const previous = collectManagedStorage();
   try {
     getManagedKeys().forEach(key => localStorage.removeItem(key));
-    Object.entries(targetStorage).forEach(([key,value]) => localStorage.setItem(key,value));
+    Object.entries(targetStorage).forEach(([key,value]) => localStorage.setItem(key, sanitizedManagedValue(key, value)));
   } catch (error) {
     try {
       getManagedKeys().forEach(key => localStorage.removeItem(key));
@@ -165,7 +190,7 @@ restoreButton.addEventListener("click", () => {
   if (JSON.stringify(collectManagedStorage()) !== preRestoreFingerprint) {
     resetRestorePreparation(); restoreMessage.textContent = "復元前バックアップの後に保存データが変わりました。もう一度、復元前バックアップを書き出してください。"; return;
   }
-  if (!window.confirm("現在のTrip・Record・V5 Route状態を、選択したバックアップの内容へ置き換えます。\n" + formatSummary(selectedAnalysis) + "\n\n復元を実行しますか？")) {
+  if (!window.confirm("現在のTrip・旅詳細・旅会計・V5 Route状態を、選択したバックアップの内容へ置き換えます。\n" + formatSummary(selectedAnalysis) + "\n\n復元を実行しますか？")) {
     restoreMessage.textContent = "復元を中止しました。現在のデータは変更していません。"; return;
   }
   try {

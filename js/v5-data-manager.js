@@ -4,6 +4,7 @@
   const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
   const BACKUP_KEY = "hokkaido48V5DataManagerBackups";
+  const MAX_BACKUPS = 5;
   const ROUTE_URL = "data/routes-v50.json";
   const $ = id => document.getElementById(id);
   const tripSelect = $("dmTripSelect"), tripType = $("dmTripType"), editor = $("dmEditor"), empty = $("dmEmpty");
@@ -24,7 +25,7 @@
   function saveBackup(reason) {
     const backups = loadBackups();
     backups.push({ id:`backup-${Date.now()}`, savedAt:new Date().toISOString(), reason, trips:loadTrips(), manualStatuses:loadStatuses(), confirmedStatuses:(() => { try { return JSON.parse(localStorage.getItem(CONFIRMED_STATUS_KEY) || "{}"); } catch { return {}; } })() });
-    while (backups.length > 20) backups.shift();
+    while (backups.length > MAX_BACKUPS) backups.shift();
     localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
     renderBackupInfo();
   }

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>旅の詳細・会計 | 北海道48路線ふらふらlog</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/v5.css?v=20260812-76">
+</head>
+<body class="journey-detail-page">
+  <header class="v5-header">
+    <div>
+      <p class="eyebrow">Version 5.0 Build76 試作</p>
+      <h1>旅の詳細・会計</h1>
+      <p>連続するDAY記録を一つの旅としてまとめ、記録と経費を管理します。</p>
+    </div>
+    <nav class="v5-global-nav" aria-label="共通ナビ">
+      <a href="v5.html">ホーム</a>
+      <a href="route-select.html">旅を計画</a>
+      <a href="gpx-import.html">GPX取込</a>
+      <a class="is-active" href="v5.html#savedJourneys">保存済みの旅</a>
+      <a href="route-status.html">全線・例外確認</a>
+      <a href="data-manager.html">データ管理</a>
+    </nav>
+  </header>
+
+  <main class="journey-detail-layout">
+    <div class="journey-detail-back"><a href="v5.html#savedJourneys">← 過去の旅へ戻る</a></div>
+
+    <section class="journey-detail-hero" aria-labelledby="journeyDetailTitle">
+      <div>
+        <p class="journey-detail-kicker">TRIP RECORD</p>
+        <h2 id="journeyDetailTitle">旅を読み込んでいます</h2>
+        <p id="journeyDetailPeriod">日付を確認中です</p>
+      </div>
+      <div class="journey-detail-metrics">
+        <div><span>DAY</span><strong id="journeyDayCount">0</strong></div>
+        <div><span>走行距離</span><strong id="journeyDistance">0<small>km</small></strong></div>
+        <div class="expense"><span>旅の経費</span><strong id="journeyExpenseTotal">0<small>円</small></strong></div>
+      </div>
+    </section>
+
+    <div id="journeyLoadError" class="panel journey-detail-error" hidden></div>
+
+    <div id="journeyDetailContent" class="journey-detail-content" hidden>
+      <section class="panel journey-master-panel" aria-labelledby="journeyMasterTitle">
+        <div class="journey-section-heading">
+          <div><span class="journey-section-mark coral">旅</span><div><h2 id="journeyMasterTitle">旅全体の記録</h2><p>複数DAYに共通する情報です。</p></div></div>
+          <span id="journeyGroupState" class="journey-group-state"></span>
+        </div>
+        <div class="journey-form-grid">
+          <label class="journey-field wide">旅の名前<input id="journeyTitleInput" type="text" maxlength="120"></label>
+          <label class="journey-field">使用車両<input id="journeyVehicleInput" type="text" maxlength="80" placeholder="例：ハイエース"></label>
+          <div class="journey-period-field"><span>期間</span><strong id="journeyPeriodValue">—</strong></div>
+          <label class="journey-field full">旅全体のメモ<textarea id="journeyMemoInput" rows="4" maxlength="2000" placeholder="旅全体の振り返りや、次回へのメモ"></textarea></label>
+        </div>
+        <fieldset class="journey-member-fieldset">
+          <legend>この旅に含めるDAY記録</legend>
+          <div id="journeyMemberChecks" class="journey-member-checks"></div>
+          <p>同じ旅名の連続した実走記録を候補にしています。必要なDAYだけ選んで保存します。</p>
+        </fieldset>
+        <div class="journey-save-row"><button id="saveJourneyButton" class="journey-primary-button" type="button">旅全体を保存</button><p id="journeySaveMessage" aria-live="polite"></p></div>
+      </section>
+
+      <section class="panel journey-days-panel" aria-labelledby="journeyDaysTitle">
+        <div class="journey-section-heading">
+          <div><span class="journey-section-mark blue">日</span><div><h2 id="journeyDaysTitle">DAYごとの記録</h2><p>カードを切り替えて、その日の内容を記録します。</p></div></div>
+        </div>
+        <div id="journeyDayTabs" class="journey-day-tabs" role="tablist"></div>
+        <div class="journey-day-summary">
+          <div><span>走行国道</span><strong id="dayRouteSummary">—</strong></div>
+          <div><span>GPX</span><strong id="dayGpxSummary">—</strong></div>
+        </div>
+        <div class="journey-day-form">
+          <label class="journey-field">出発日時<input id="dayStartInput" type="datetime-local"></label>
+          <label class="journey-field">到着日時<input id="dayEndInput" type="datetime-local"></label>
+          <label class="journey-field">使用車両<input id="dayVehicleInput" type="text" maxlength="80" placeholder="旅全体と同じなら空欄でも可"></label>
+          <label class="journey-field">宿泊地<input id="dayLodgingInput" type="text" maxlength="150" placeholder="例：道の駅 女満別"></label>
+          <label class="journey-field full">立寄り先<input id="dayStopsInput" type="text" maxlength="500" placeholder="温泉、食事、観光地など"></label>
+          <label class="journey-field full">その日の詳細<textarea id="dayDetailInput" rows="4" maxlength="3000" placeholder="走行内容、出来事、予定変更など"></textarea></label>
+          <label class="journey-field full">メモ<textarea id="dayMemoInput" rows="3" maxlength="2000" placeholder="あとで確認したいこと、記事や写真のメモなど"></textarea></label>
+        </div>
+        <div class="journey-save-row"><button id="saveDayButton" class="journey-primary-button blue" type="button">このDAYを保存</button><p id="daySaveMessage" aria-live="polite"></p></div>
+      </section>
+
+      <section class="panel journey-expense-panel" aria-labelledby="journeyExpenseTitle">
+        <div class="journey-section-heading">
+          <div><span class="journey-section-mark green">円</span><div><h2 id="journeyExpenseTitle">旅会計</h2><p>すべてのDAYに共通する、この旅の経費明細です。</p></div></div>
+          <strong id="expensePanelTotal">合計 0円</strong>
+        </div>
+        <div class="journey-accounting-chat" aria-labelledby="accountingChatTitle">
+          <div class="journey-accounting-chat-heading">
+            <div>
+              <strong id="accountingChatTitle">会計チャット一括取込</strong>
+              <p>会計チャットがまとめたJSONを貼り付け、syncKeyで旅・日付・分類へ振り分けます。</p>
+            </div>
+            <span id="accountingChatState">未取込</span>
+          </div>
+          <div class="journey-accounting-chat-controls">
+            <label class="journey-field">この旅の会計チャットURL（任意）<input id="accountingChatUrlInput" type="url" inputmode="url" autocomplete="url" placeholder="https://chatgpt.com/..."></label>
+            <button id="saveAccountingChatButton" class="journey-primary-button green" type="button">会計チャットURLを設定</button>
+            <button id="deleteAccountingChatButton" class="journey-secondary-button" type="button" hidden>URLを削除</button>
+            <a id="openAccountingChatLink" class="journey-chat-open-button" href="#" target="_blank" rel="noopener noreferrer" hidden>会計チャットを開く ↗</a>
+          </div>
+          <div class="journey-accounting-privacy-notice">
+            <strong>この方式では会計データを公開しません</strong>
+            <p>貼り付けた会計と会計チャットURLは、この端末のブラウザ内だけに保存します。GitHubや公開JSONへの接続は使いません。</p>
+            <p>ブラウザデータを削除する前や別端末へ移す前に、バックアップ画面からJSONバックアップを保存してください。</p>
+          </div>
+          <div class="journey-accounting-import-guide">
+            <div><span>1</span><strong>依頼文をコピー</strong><small>この旅のsyncKeyを含みます</small></div>
+            <div><span>2</span><strong>会計チャットへ貼る</strong><small>全明細のJSONを作成</small></div>
+            <div><span>3</span><strong>下へJSONを貼る</strong><small>複数の旅も一括で可</small></div>
+            <div><span>4</span><strong>確認して取込</strong><small>再取込はチャット分を置換</small></div>
+          </div>
+          <div class="journey-accounting-sync-actions">
+            <button id="copyAccountingRequestButton" class="journey-secondary-button" type="button">会計チャット用の依頼文をコピー</button>
+            <span id="accountingSyncMeta">この旅のsyncKey：<code id="accountingSyncKeyValue"></code></span>
+          </div>
+          <label class="journey-field journey-accounting-paste-field">会計チャットが出力したJSON
+            <textarea id="accountingImportInput" rows="9" spellcheck="false" placeholder="ここへJSONをまとめて貼り付けます"></textarea>
+          </label>
+          <div class="journey-accounting-import-actions">
+            <button id="previewAccountingImportButton" class="journey-primary-button green" type="button">貼り付け内容を確認</button>
+            <button id="clearAccountingImportButton" class="journey-secondary-button" type="button">入力を消去</button>
+            <button id="applyAccountingImportButton" class="journey-primary-button blue" type="button" hidden>確認した内容を取込</button>
+          </div>
+          <div id="accountingImportPreview" class="journey-accounting-import-preview" hidden></div>
+          <p id="accountingChatMessage" class="journey-accounting-chat-message" aria-live="polite"></p>
+        </div>
+        <div id="expenseCategorySummary" class="expense-category-summary"></div>
+        <div class="journey-expense-entry">
+          <div class="expense-form-grid">
+            <label class="journey-field">日付<input id="expenseDateInput" type="date"></label>
+            <label class="journey-field">分類<select id="expenseCategoryInput"><option value="fuel">燃料</option><option value="meal">食事</option><option value="bath">温泉・入浴</option><option value="lodging">宿泊</option><option value="toll">高速・駐車</option><option value="shopping">買い物</option><option value="other">その他</option></select></label>
+            <label class="journey-field">金額<input id="expenseAmountInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0"></label>
+            <label class="journey-field">店名・支払先<input id="expenseVendorInput" type="text" maxlength="150"></label>
+            <label class="journey-field full">メモ<input id="expenseMemoInput" type="text" maxlength="500"></label>
+          </div>
+          <div id="fuelExpenseFields" class="fuel-expense-fields">
+            <label class="journey-field">給油量（L）<input id="expenseLitersInput" type="number" min="0" step="0.01" inputmode="decimal"></label>
+            <label class="journey-field">走行距離（km）<input id="expenseDistanceInput" type="number" min="0" step="0.1" inputmode="decimal"></label>
+            <div class="fuel-efficiency-preview"><span>燃費</span><strong id="fuelEfficiencyPreview">—</strong></div>
+          </div>
+          <div class="expense-entry-actions"><button id="saveExpenseButton" class="journey-primary-button green" type="button">明細を追加</button><button id="cancelExpenseEditButton" class="journey-secondary-button" type="button" hidden>編集をやめる</button><p id="expenseSaveMessage" aria-live="polite"></p></div>
+        </div>
+        <div id="expenseDaySummary" class="expense-day-summary"></div>
+        <div class="expense-table-wrap">
+          <table class="expense-table">
+            <thead><tr><th>日付</th><th>分類</th><th>店名・内容</th><th>補足</th><th>金額</th><th></th></tr></thead>
+            <tbody id="expenseTableBody"></tbody>
+          </table>
+          <div id="expenseEmpty" class="empty-box">経費明細はまだありません。</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="build-badge">Version 5.0 Build 20260812-76 Manual Accounting Import</div>
+  <script src="js/v5-journey-store.js?v=20260812-76"></script>
+  <script src="js/v5-journey-detail.js?v=20260812-76"></script>
+</body>
+</html>
