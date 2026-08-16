@@ -8,6 +8,7 @@
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
   const PATH_ENCODING = "delta-base36-e9-v1";
   const VALID_STATUSES = ["未走破", "一部走破", "全線走破"];
+  const PLAN_MODE = new URLSearchParams(window.location.search).get("plan") || "";
   const JourneyStore = window.Hokkaido48JourneyStore;
   const mapEl = document.getElementById("homeRecordMap");
   const summaryEl = document.getElementById("homeRecordSummary");
@@ -21,11 +22,34 @@
   const savedJourneyCountEl = document.getElementById("homeSavedJourneyCount");
   const messageEl = document.getElementById("homeRecordMessage");
   const fitButton = document.getElementById("homeRecordFit");
+  const planner = {
+    empty: document.getElementById("homePlannerEmpty"),
+    route: document.getElementById("homePlannerRoute"),
+    number: document.getElementById("homePlannerRouteNumber"),
+    status: document.getElementById("homePlannerRouteStatus"),
+    title: document.getElementById("homePlannerRouteTitle"),
+    start: document.getElementById("homePlannerRouteStart"),
+    end: document.getElementById("homePlannerRouteEnd"),
+    remaining: document.getElementById("homePlannerRouteRemaining"),
+    note: document.getElementById("homePlannerRouteNote"),
+    toggle: document.getElementById("homePlannerToggle"),
+    clear: document.getElementById("homePlannerClear"),
+    count: document.getElementById("homePlannerCandidateCount"),
+    candidateEmpty: document.getElementById("homePlannerCandidateEmpty"),
+    list: document.getElementById("homePlannerCandidateList"),
+    actions: document.getElementById("homePlannerCandidateActions"),
+    saveState: document.getElementById("homePlannerSaveState"),
+    create: document.getElementById("homePlannerCreate")
+  };
   if (!mapEl || typeof L === "undefined") return;
 
-  let map, baseGroup, actualGroup, labelGroup, fullBounds = null;
+  let map, baseGroup, remainingGroup, actualGroup, labelGroup, clickGroup, fullBounds = null;
   let currentTrips = [];
   let routeCatalog = [];
+  let selectedNumbers = [];
+  let activeNumber = "";
+  let plannerStartsFresh = false;
+  const routeModels = new Map();
 
   function readJson(key, fallback) {
     try {
@@ -40,6 +64,12 @@
     return String(value ?? "").replace(/[&<>"']/g, character => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
     }[character]));
+  }
+
+  function statusClass(status) {
+    if (status === "全線走破") return "complete";
+    if (status === "一部走破") return "partial";
+    return "untraveled";
   }
 
   function routeNumbersFromTrip(trip) {
@@ -333,6 +363,14 @@
     return { color: "#64748b", weight: 3.2, opacity: status === "一部走破" ? .55 : .62 };
   }
 
+  function actualPathStyle(status) {
+    return {
+      color: status === "全線走破" ? "#16a34a" : "#f97316",
+      weight: 6,
+      opacity: .98
+    };
+  }
+
   function collectLines(node, out = []) {
     if (!node || typeof node !== "object") return out;
     if (node.type === "FeatureCollection" && Array.isArray(node.features)) {
@@ -345,6 +383,114 @@
       node.coordinates.forEach(line => { if (Array.isArray(line)) out.push(line); });
     }
     return out;
+  }
+
+  function routeLatLonLines(geojson) {
+    return collectLines(geojson).map(line => line
+      .map(point => Array.isArray(point) ? [Number(point[1]), Number(point[0])] : null)
+      .filter(point => point && Number.isFinite(point[0]) && Number.isFinite(point[1])))
+      .filter(line => line.length > 1);
+  }
+
+  function distanceToSegmentMeters(point, a, b) {
+    const lat0 = Number(point[0]) * Math.PI / 180;
+    const x1 = (Number(a[1]) - Number(point[1])) * 111320 * Math.cos(lat0);
+    const y1 = (Number(a[0]) - Number(point[0])) * 110540;
+    const x2 = (Number(b[1]) - Number(point[1])) * 111320 * Math.cos(lat0);
+    const y2 = (Number(b[0]) - Number(point[0])) * 110540;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length2 = dx * dx + dy * dy;
+    const ratio = length2 ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / length2)) : 0;
+    return Math.hypot(x1 + ratio * dx, y1 + ratio * dy);
+  }
+
+  function buildActualSegmentIndex(actualPaths) {
+    const cellDegrees = .002;
+    const paddingDegrees = .001;
+    const cells = new Map();
+    const cellNumber = value => Math.floor(Number(value) / cellDegrees);
+    const cellKey = (lat, lon) => `${lat}:${lon}`;
+    actualPaths.forEach(path => {
+      const points = normalizePath(path);
+      for (let index = 1; index < points.length; index += 1) {
+        const segment = [points[index - 1], points[index]];
+        const minLat = cellNumber(Math.min(segment[0][0], segment[1][0]) - paddingDegrees);
+        const maxLat = cellNumber(Math.max(segment[0][0], segment[1][0]) + paddingDegrees);
+        const minLon = cellNumber(Math.min(segment[0][1], segment[1][1]) - paddingDegrees);
+        const maxLon = cellNumber(Math.max(segment[0][1], segment[1][1]) + paddingDegrees);
+        for (let lat = minLat; lat <= maxLat; lat += 1) {
+          for (let lon = minLon; lon <= maxLon; lon += 1) {
+            const key = cellKey(lat, lon);
+            if (!cells.has(key)) cells.set(key, []);
+            cells.get(key).push(segment);
+          }
+        }
+      }
+    });
+    return { cells, cellDegrees, cellNumber, cellKey };
+  }
+
+  function pointNearActualPath(point, actualIndex, thresholdMeters = 65) {
+    const lat = actualIndex.cellNumber(point[0]);
+    const lon = actualIndex.cellNumber(point[1]);
+    const segments = actualIndex.cells.get(actualIndex.cellKey(lat, lon)) || [];
+    for (const segment of segments) {
+      if (distanceToSegmentMeters(point, segment[0], segment[1]) <= thresholdMeters) return true;
+    }
+    return false;
+  }
+
+  function splitUntraveledSections(geojson, actualPaths) {
+    const untraveled = [];
+    const actualIndex = buildActualSegmentIndex(actualPaths);
+    routeLatLonLines(geojson).forEach((line, lineIndex) => {
+      let startIndex = null;
+      for (let index = 1; index < line.length; index += 1) {
+        const a = line[index - 1];
+        const b = line[index];
+        const midpoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        if (!pointNearActualPath(midpoint, actualIndex)) {
+          if (startIndex === null) startIndex = index - 1;
+        } else if (startIndex !== null) {
+          untraveled.push({ lineIndex, startIndex, endIndex: index - 1 });
+          startIndex = null;
+        }
+      }
+      if (startIndex !== null) untraveled.push({ lineIndex, startIndex, endIndex: line.length - 1 });
+    });
+    return untraveled;
+  }
+
+  function sectionsToPaths(geojson, sections) {
+    const lines = routeLatLonLines(geojson);
+    return (Array.isArray(sections) ? sections : []).map(section => {
+      const line = lines[Number(section && section.lineIndex)];
+      if (!line) return [];
+      const startIndex = Math.max(0, Number(section.startIndex) || 0);
+      const endIndex = Math.min(line.length - 1, Number(section.endIndex));
+      return Number.isFinite(endIndex) && endIndex > startIndex
+        ? line.slice(startIndex, endIndex + 1)
+        : [];
+    }).filter(path => path.length > 1);
+  }
+
+  function remainingSectionsForModel(model) {
+    if (!model || model.route.displayStatusPreview === "全線走破") return [];
+    if (Array.isArray(model.untraveledSections)) return model.untraveledSections;
+    const lines = routeLatLonLines(model.geojson);
+    const actualPaths = Array.isArray(model.route.actualPaths) ? model.route.actualPaths : [];
+    model.untraveledSections = model.route.displayStatusPreview === "一部走破" && actualPaths.length
+      ? splitUntraveledSections(model.geojson, actualPaths)
+      : lines.map((line, lineIndex) => ({ lineIndex, startIndex: 0, endIndex: line.length - 1 }));
+    return model.untraveledSections;
+  }
+
+  function untraveledPathsForModel(model) {
+    if (!model || model.route.displayStatusPreview === "全線走破") return [];
+    if (model.untraveledPaths) return model.untraveledPaths;
+    model.untraveledPaths = sectionsToPaths(model.geojson, remainingSectionsForModel(model));
+    return model.untraveledPaths;
   }
 
   function longestLineMidpoint(geojson, fallback) {
@@ -423,6 +569,136 @@
     return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: km < 100 ? 1 : 0 }).format(km);
   }
 
+  function restorePlannerDraft() {
+    const draft = readJson(DRAFT_KEY, {});
+    const editingExistingPlan = Boolean(draft && draft.editingTripId);
+    plannerStartsFresh = PLAN_MODE === "new" || (editingExistingPlan && PLAN_MODE !== "edit");
+    selectedNumbers = !plannerStartsFresh && Array.isArray(draft && draft.routeNumbers)
+      ? [...new Set(draft.routeNumbers.map(String))]
+      : [];
+  }
+
+  function savePlannerDraft() {
+    const previous = readJson(DRAFT_KEY, {});
+    const previousObject = previous && typeof previous === "object" && !Array.isArray(previous) ? previous : {};
+    const selectedRoutes = selectedNumbers
+      .map(number => routeCatalog.find(route => String(route.number) === number))
+      .filter(Boolean);
+    const remainingSections = {};
+    selectedNumbers.forEach(number => {
+      const model = routeModels.get(String(number));
+      if (!model) return;
+      remainingSections[String(number)] = remainingSectionsForModel(model).map(section => ({
+        lineIndex: section.lineIndex,
+        startIndex: section.startIndex,
+        endIndex: section.endIndex
+      }));
+    });
+    const draft = {
+      ...(plannerStartsFresh ? {} : previousObject),
+      schemaVersion: 5,
+      savedAt: new Date().toISOString(),
+      routeNumbers: selectedNumbers.slice(),
+      routes: selectedRoutes.map(route => ({
+        number: route.number,
+        name: route.name,
+        start: route.start,
+        end: route.end,
+        status: route.displayStatusPreview
+      })),
+      remainingSections,
+      selectedRegion: "",
+      roughPlan: null,
+      source: "v5-integrated-home-planner"
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    plannerStartsFresh = false;
+    if (planner.saveState) {
+      planner.saveState.textContent = `自動保存済み ${new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`;
+    }
+  }
+
+  function renderPlannerCandidates() {
+    if (!planner.list || !planner.count) return;
+    const selectedRoutes = selectedNumbers
+      .map(number => routeCatalog.find(route => String(route.number) === number))
+      .filter(Boolean);
+    planner.count.textContent = `${selectedRoutes.length}路線`;
+    planner.candidateEmpty.hidden = selectedRoutes.length > 0;
+    planner.actions.hidden = selectedRoutes.length === 0;
+    planner.clear.disabled = selectedRoutes.length === 0;
+    planner.list.innerHTML = "";
+    selectedRoutes.forEach(route => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "home-planner-candidate-chip";
+      button.setAttribute("aria-label", `国道${route.number}号を候補から外す`);
+      button.innerHTML = `国道${escapeHtml(route.number)}号 <span aria-hidden="true">×</span>`;
+      button.addEventListener("click", () => togglePlannerCandidate(String(route.number)));
+      planner.list.appendChild(button);
+    });
+  }
+
+  function showPlannerRoute(number, options = {}) {
+    const model = routeModels.get(String(number));
+    if (!model || !planner.route) return;
+    activeNumber = String(number);
+    remainingGroup.clearLayers();
+    const remainingPaths = untraveledPathsForModel(model);
+    remainingPaths.forEach(path => {
+      L.polyline(path, {
+        pane: "homeRecordRemaining",
+        color: "#fde68a",
+        weight: 9,
+        opacity: .95,
+        interactive: false
+      }).addTo(remainingGroup);
+    });
+
+    const route = model.route;
+    const status = route.displayStatusPreview || "未走破";
+    const remainingMeters = status === "全線走破"
+      ? 0
+      : Math.max(0, Number(route.totalMeters || 0) - Number(route.traveledMeters || 0));
+    planner.empty.hidden = true;
+    planner.route.hidden = false;
+    planner.number.textContent = route.number;
+    planner.status.className = `status-badge ${statusClass(status)}`;
+    planner.status.textContent = status;
+    planner.title.textContent = route.name || `一般国道${route.number}号`;
+    planner.start.textContent = route.start || "未登録";
+    planner.end.textContent = route.end || "未登録";
+    planner.remaining.textContent = status === "全線走破" ? "走破済み" : `${formatKm(remainingMeters)} km`;
+    if (status === "全線走破") {
+      planner.note.textContent = "全線走破済みのため、薄黄色の未走行区間はありません。候補への追加は可能です。";
+    } else if (status === "一部走破" && route.actualPaths.length) {
+      planner.note.textContent = "薄黄色＝未走行区間の目安です。橙色は保存済みの確定実走区間です。";
+    } else if (status === "一部走破") {
+      planner.note.textContent = "確定実走線が保存されていないため、国道全体を薄黄色で表示しています。";
+    } else {
+      planner.note.textContent = "未走破のため、国道全体を薄黄色で表示しています。";
+    }
+    const isSelected = selectedNumbers.includes(activeNumber);
+    planner.toggle.textContent = isSelected ? "候補に追加済み（押すと解除）" : "この路線を今回の候補に追加";
+    planner.toggle.classList.toggle("is-selected", isSelected);
+    if (options.fit !== false && model.bounds && model.bounds.isValid()) {
+      map.fitBounds(model.bounds, { padding: [28, 28], maxZoom: 9 });
+    }
+    if (window.matchMedia("(max-width: 760px)").matches && options.scroll !== false) {
+      planner.route.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function togglePlannerCandidate(number) {
+    const key = String(number);
+    const index = selectedNumbers.indexOf(key);
+    if (index >= 0) selectedNumbers.splice(index, 1);
+    else selectedNumbers.push(key);
+    savePlannerDraft();
+    renderPlannerCandidates();
+    if (activeNumber === key) showPlannerRoute(key, { fit: false, scroll: false });
+  }
+
   function renderProgressMetrics(routes, counts, trips, allRouteTotal) {
     if (!progressMetricsEl) return;
     const routeTotal = routes.length || 48;
@@ -470,21 +746,35 @@
       maxZoom: 18,
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
+    map.createPane("homeRecordRemaining");
+    map.getPane("homeRecordRemaining").style.zIndex = 440;
     map.createPane("homeRecordActual");
     map.getPane("homeRecordActual").style.zIndex = 450;
+    map.createPane("homeRecordClick");
+    map.getPane("homeRecordClick").style.zIndex = 610;
     map.createPane("homeRecordLabels");
     map.getPane("homeRecordLabels").style.zIndex = 620;
     map.getPane("homeRecordLabels").style.pointerEvents = "none";
     baseGroup = L.layerGroup().addTo(map);
+    remainingGroup = L.layerGroup().addTo(map);
     actualGroup = L.layerGroup().addTo(map);
+    clickGroup = L.layerGroup().addTo(map);
     labelGroup = L.layerGroup().addTo(map);
   }
 
   async function render() {
     messageEl.textContent = "走破記録マップを読み込んでいます…";
     baseGroup.clearLayers();
+    remainingGroup.clearLayers();
     actualGroup.clearLayers();
+    clickGroup.clearLayers();
     labelGroup.clearLayers();
+    routeModels.clear();
+    activeNumber = "";
+    if (planner.empty && planner.route) {
+      planner.empty.hidden = false;
+      planner.route.hidden = true;
+    }
     fullBounds = null;
 
     const response = await fetch(ROUTE_URL, { cache: "no-store" });
@@ -541,6 +831,10 @@
       copy.actualPaths = paths;
       return copy;
     });
+    routeCatalog = routes;
+    restorePlannerDraft();
+    selectedNumbers = selectedNumbers.filter(number => routeCatalog.some(route => String(route.number) === number));
+    renderPlannerCandidates();
     const counts = renderSummary(routes);
 
     let loaded = 0;
@@ -558,17 +852,25 @@
       const layer = L.geoJSON(geojson, { style: statusStyle(route.displayStatusPreview) }).addTo(baseGroup);
       const bounds = layer.getBounds();
       if (bounds && bounds.isValid()) fullBounds = fullBounds ? fullBounds.extend(bounds) : bounds;
+      const model = { route, geojson, layer, bounds, untraveledPaths: null, untraveledSections: null };
+      routeModels.set(String(route.number), model);
+      L.geoJSON(geojson, {
+        pane: "homeRecordClick",
+        style: { color: "transparent", weight: 22, opacity: 0, fillOpacity: 0 },
+        onEachFeature: (_feature, featureLayer) => featureLayer.on("click", event => {
+          if (event && event.originalEvent) L.DomEvent.stop(event.originalEvent);
+          showPlannerRoute(String(route.number));
+        })
+      }).addTo(clickGroup);
 
       // GPX解析画面で確定しTripへ保存したcanonical geometryを、走破状態に
-      // 関係なくそのまま描画する。全線走破でGeoJSON本線を着色しても、
-      // 実走線を捨てないことで解析・路線選択・ホームの表示を一致させる。
+      // 関係なくそのまま描画する。確定線を捨てず、全線走破は緑、一部走破は
+      // オレンジで重ねることで解析・路線選択・ホームの表示を一致させる。
       const paths = Array.isArray(route.actualPaths) ? route.actualPaths : [];
       paths.forEach(path => {
         const actual = L.polyline(path, {
           pane: "homeRecordActual",
-          color: "#f97316",
-          weight: 6,
-          opacity: .98,
+          ...actualPathStyle(route.displayStatusPreview),
           interactive: false
         }).addTo(actualGroup);
         actualPathCount += 1;
@@ -601,11 +903,19 @@
     const baseText = failed
       ? `${loaded}路線を表示。${failed}路線の地図データを読み込めませんでした。`
       : `${loaded}路線の現在の走破記録を表示しています。`;
-    messageEl.textContent = `${baseText} 緑＝全線走破、橙＝確定実走区間、灰＝未走破または残り区間。確定実走線 ${actualPathCount}区間を反映。`;
+    messageEl.textContent = `${baseText} 路線を選ぶと未走行区間を薄黄色で表示します。緑＝全線走破、橙＝確定実走区間、灰＝国道全体。確定実走線 ${actualPathCount}区間を反映。`;
     setTimeout(() => map.invalidateSize(), 80);
   }
 
   initMap();
   fitButton?.addEventListener("click", () => { if (fullBounds && fullBounds.isValid()) map.fitBounds(fullBounds, { padding: [16, 16], maxZoom: 7 }); });
+  planner.toggle?.addEventListener("click", () => { if (activeNumber) togglePlannerCandidate(activeNumber); });
+  planner.create?.addEventListener("click", () => savePlannerDraft());
+  planner.clear?.addEventListener("click", () => {
+    selectedNumbers = [];
+    savePlannerDraft();
+    renderPlannerCandidates();
+    if (activeNumber) showPlannerRoute(activeNumber, { fit: false, scroll: false });
+  });
   render().catch(error => { console.error(error); messageEl.textContent = error.message || "走破記録マップを表示できませんでした。"; });
 })();

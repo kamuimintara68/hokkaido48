@@ -6,7 +6,7 @@
   <title>北海道48路線ふらふらlog Version 5.0</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/v5.css?v=20260812-76">
+  <link rel="stylesheet" href="css/v5.css?v=20260816-84">
 </head>
 <body class="v5-home-page">
   <header class="v5-header">
@@ -17,7 +17,7 @@
     </div>
     <nav class="v5-global-nav" aria-label="共通ナビ">
       <a class="is-active" href="v5.html">ホーム</a>
-      <a href="route-select.html">旅を計画</a>
+      <a href="v5.html?plan=new#homeMapPlanner">旅を計画</a>
       <a href="gpx-import.html">GPX取込</a>
       <a href="#savedJourneys">保存済みの旅</a>
       <a href="route-status.html">全線・例外確認</a>
@@ -35,9 +35,9 @@
           <div><h2 id="homeActionTitle">記録と操作</h2></div>
         </div>
         <nav class="home-action-grid" aria-label="作業を選ぶ">
-          <a class="home-action-card action-plan" href="route-select.html">
+          <a class="home-action-card action-plan" href="v5.html?plan=new#homeMapPlanner">
             <span class="home-action-number">1</span>
-            <div><h3>次に走る国道</h3><p>現在地と地図から候補を決める</p></div>
+            <div><h3>次に走る国道</h3><p>地図で未走行区間を確認する</p></div>
             <span class="home-action-arrow" aria-hidden="true">›</span>
           </a>
           <a class="home-action-card action-gpx" href="gpx-import.html">
@@ -56,24 +56,57 @@
             <span class="home-action-arrow" aria-hidden="true">›</span>
           </a>
         </nav>
-        <p class="home-action-note"><span aria-hidden="true">●</span> ホームは記録確認専用です</p>
+        <p class="home-action-note"><span aria-hidden="true">●</span> 記録確認と旅の計画をここでまとめます</p>
       </aside>
 
-      <section class="panel home-record-panel" aria-labelledby="homeRecordTitle">
+      <section id="homeMapPlanner" class="panel home-record-panel" aria-labelledby="homeRecordTitle">
         <div class="section-heading home-map-heading">
           <div>
             <span class="step map-step">MAP</span>
-            <div><h2 id="homeRecordTitle">走破記録マップ</h2><p>北海道48路線の現在地</p></div>
+            <div><h2 id="homeRecordTitle">走破記録・旅の計画マップ</h2><p>国道を選び、未走行区間を確認します</p></div>
           </div>
           <button id="homeRecordFit" class="text-button" type="button">北海道全体</button>
         </div>
         <div class="map-legend home-record-legend" aria-label="走破記録凡例">
-          <span><i class="legend-line untraveled"></i>未走破</span>
-          <span><i class="legend-line partial"></i>一部走破</span>
+          <span><i class="legend-line untraveled"></i>国道全体</span>
+          <span><i class="legend-line partial"></i>確定実走区間</span>
           <span><i class="legend-line complete"></i>全線走破</span>
+          <span><i class="legend-line remaining"></i>選択路線の未走行区間</span>
         </div>
         <div id="homeRecordMap" class="home-record-map" aria-label="北海道48路線 走破記録マップ"></div>
         <p id="homeRecordMessage" class="map-message">現在の走破記録を読み込みます。</p>
+
+        <div class="home-map-planner" aria-live="polite">
+          <div id="homePlannerEmpty" class="home-planner-empty">
+            地図上の国道を選ぶと、走破状況と未走行区間を確認できます。
+          </div>
+          <article id="homePlannerRoute" class="home-planner-route" hidden>
+            <div class="home-planner-route-head">
+              <span id="homePlannerRouteNumber" class="home-planner-route-number"></span>
+              <div><span id="homePlannerRouteStatus" class="status-badge"></span><h3 id="homePlannerRouteTitle"></h3></div>
+            </div>
+            <dl class="home-planner-facts">
+              <div><dt>起点</dt><dd id="homePlannerRouteStart"></dd></div>
+              <div><dt>終点</dt><dd id="homePlannerRouteEnd"></dd></div>
+              <div><dt>未走行の目安</dt><dd id="homePlannerRouteRemaining"></dd></div>
+            </dl>
+            <p id="homePlannerRouteNote" class="home-planner-note"></p>
+            <button id="homePlannerToggle" class="home-planner-toggle" type="button">今回の候補に追加</button>
+          </article>
+
+          <section class="home-planner-candidates" aria-labelledby="homePlannerCandidatesTitle">
+            <div class="home-planner-candidate-head">
+              <div><h3 id="homePlannerCandidatesTitle">今回の候補</h3><span id="homePlannerCandidateCount">0路線</span></div>
+              <button id="homePlannerClear" class="text-button" type="button">全て解除</button>
+            </div>
+            <div id="homePlannerCandidateEmpty" class="home-planner-candidate-empty">候補はまだありません。</div>
+            <div id="homePlannerCandidateList" class="home-planner-candidate-list"></div>
+            <div id="homePlannerCandidateActions" class="home-planner-candidate-actions" hidden>
+              <span id="homePlannerSaveState">この端末に自動保存します</span>
+              <a id="homePlannerCreate" class="primary-button" href="journey-plan.html">走行予定を作る</a>
+            </div>
+          </section>
+        </div>
       </section>
     </div>
 
@@ -111,9 +144,9 @@
     </section>
   </main>
 
-  <div class="build-badge">Version 5.0 Build 20260813-79 Safe Cloud Sync</div>
+  <div class="build-badge">Version 5.0 Build 20260816-84 Route Progress Overlay</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/v5-journey-store.js?v=20260812-76"></script>
-  <script src="js/v5-dashboard.js?v=20260813-77"></script>
+  <script src="js/v5-dashboard.js?v=20260816-83"></script>
 </body>
 </html>

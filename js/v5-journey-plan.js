@@ -32,6 +32,7 @@
   let draft = null;
   let map;
   let routeGroup;
+  let traveledGroup;
   let connectorGroup;
   let markerGroup;
   let currentPlan = null;
@@ -127,25 +128,71 @@
     return geojsonCache.get(key);
   }
 
-  async function geometryInfo(route) {
+  async function geometryItems(route) {
     const geojson = await loadGeoJSON(route.number);
     const candidates = collectGeoJsonLines(geojson)
-      .map(line => ({ line, info: lineInfo(line) }))
-      .filter(item => item.info)
-      .sort((a, b) => b.info.length - a.info.length);
+      .map((line, lineIndex) => ({ lineIndex, info: lineInfo(line) }))
+      .filter(item => item.info);
     if (!candidates.length) return null;
-    const main = candidates[0];
-    const first = main.info.points[0];
-    const last = main.info.points[main.info.points.length - 1];
-    return {
-      route,
-      geojson,
-      mainPoints: main.info.points.map(point => [point.lat, point.lng]),
-      startPoint: [first.lat, first.lng],
-      endPoint: [last.lat, last.lng],
-      totalMeters: main.info.length,
-      labelPoint: [main.info.midpoint.lat, main.info.midpoint.lng]
-    };
+
+    function makeItem(points, options = {}) {
+      const mainPoints = points.map(point => [point.lat, point.lng]);
+      const targetLabel = options.targetLabel || "選択区間";
+      return {
+        route,
+        geojson,
+        mainPoints,
+        startPoint: mainPoints[0],
+        endPoint: mainPoints[mainPoints.length - 1],
+        totalMeters: polylineMeters(mainPoints),
+        labelPoint: segmentMidpoint(mainPoints),
+        targetLabel,
+        startLabel: options.startLabel || route.start,
+        endLabel: options.endLabel || route.end,
+        lineIndex: options.lineIndex,
+        sectionStartIndex: options.startIndex,
+        sectionEndIndex: options.endIndex,
+        isRemainingSection: Boolean(options.isRemainingSection)
+      };
+    }
+
+    const stored = draft && draft.remainingSections;
+    const refs = stored && Array.isArray(stored[String(route.number)])
+      ? stored[String(route.number)]
+      : null;
+    if (refs && refs.length) {
+      const items = refs.map((section, index) => {
+        const lineIndex = Number(section && section.lineIndex);
+        const candidate = candidates.find(item => item.lineIndex === lineIndex);
+        if (!candidate) return null;
+        const startIndex = Math.max(0, Math.trunc(Number(section.startIndex)));
+        const endIndex = Math.min(candidate.info.points.length - 1, Math.trunc(Number(section.endIndex)));
+        if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex) || endIndex <= startIndex) return null;
+        const targetLabel = refs.length > 1 ? `未走行区間${index + 1}` : "未走行区間";
+        return makeItem(candidate.info.points.slice(startIndex, endIndex + 1), {
+          targetLabel,
+          startLabel: "区間始点",
+          endLabel: "区間終点",
+          lineIndex,
+          startIndex,
+          endIndex,
+          isRemainingSection: true
+        });
+      }).filter(Boolean);
+      if (items.length) return items;
+    }
+
+    // 全線走破済みの再走、またはBuild82以前の下書きは従来どおり主線全体を使う。
+    const main = candidates.slice().sort((a, b) => b.info.length - a.info.length)[0];
+    return [makeItem(main.info.points, {
+      targetLabel: "選択区間",
+      startLabel: route.start,
+      endLabel: route.end,
+      lineIndex: main.lineIndex,
+      startIndex: 0,
+      endIndex: main.info.points.length - 1,
+      isRemainingSection: false
+    })];
   }
 
   function distanceMeters(a, b) {
@@ -243,127 +290,163 @@
     return points[points.length - 1];
   }
 
-  function chooseSequence(items) {
-    if (!items.length) return { sequence: [], routeMeters: 0, connectorMeters: 0, finalConnectorMeters: 0, estimatedMeters: 0 };
+  function traveledPathsForRoute(number, geojson) {
+    const stored = draft && draft.remainingSections;
+    if (!stored || !Object.prototype.hasOwnProperty.call(stored, String(number))) return [];
+    const remaining = Array.isArray(stored[String(number)]) ? stored[String(number)] : [];
+    const lines = collectGeoJsonLines(geojson)
+      .map(line => lineInfo(line))
+      .map(info => info ? info.points.map(point => [point.lat, point.lng]) : []);
+    const traveled = [];
 
-    // Build27: 国道の起点・終点ではなく、路線同士の接続点（最接近点）を使って
-    // 「今回使う区間」だけを切り出す。自宅→各路線→自宅の総移動が少ない順を選ぶ。
-    const n = items.length;
-    const homeNearest = items.map(item => nearestPointIndex(item.mainPoints, HOME.point));
-    const pairCache = new Map();
-    const pairKey = (a, b) => `${Math.min(a,b)}:${Math.max(a,b)}`;
-
-    function getPair(a, b) {
-      const key = pairKey(a, b);
-      if (!pairCache.has(key)) {
-        const low = Math.min(a,b), high = Math.max(a,b);
-        pairCache.set(key, nearestPair(items[low].mainPoints, items[high].mainPoints));
-      }
-      const raw = pairCache.get(key);
-      if (a < b) return raw;
-      return {
-        indexA: raw.indexB,
-        indexB: raw.indexA,
-        distance: raw.distance,
-        pointA: raw.pointB,
-        pointB: raw.pointA
-      };
-    }
-
-    function evaluateOrder(order) {
-      const links = [];
-      for (let i = 0; i < order.length - 1; i += 1) links.push(getPair(order[i], order[i+1]));
-
-      const sequence = order.map((itemIndex, pos) => {
-        const item = items[itemIndex];
-        const entryIndex = pos === 0 ? homeNearest[itemIndex].index : links[pos - 1].indexB;
-        const exitIndex = pos === order.length - 1 ? homeNearest[itemIndex].index : links[pos].indexA;
-        let plannedPoints = segmentBetween(item.mainPoints, entryIndex, exitIndex);
-        // 1点だけになると地図表示できないため、ごく近傍を1点追加する。
-        if (plannedPoints.length === 1 && item.mainPoints.length > 1) {
-          const neighbor = Math.min(item.mainPoints.length - 1, entryIndex + 1);
-          const other = neighbor === entryIndex ? Math.max(0, entryIndex - 1) : neighbor;
-          plannedPoints = segmentBetween(item.mainPoints, entryIndex, other);
+    lines.forEach((line, lineIndex) => {
+      if (line.length < 2) return;
+      const remainingSegments = Array(line.length - 1).fill(false);
+      remaining.forEach(section => {
+        if (Number(section && section.lineIndex) !== lineIndex) return;
+        const startIndex = Math.max(0, Math.trunc(Number(section.startIndex)));
+        const endIndex = Math.min(line.length - 1, Math.trunc(Number(section.endIndex)));
+        if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex) || endIndex <= startIndex) return;
+        for (let segmentIndex = startIndex; segmentIndex < endIndex; segmentIndex += 1) {
+          remainingSegments[segmentIndex] = true;
         }
-        const routeMeters = polylineMeters(plannedPoints);
-        const nextNumber = pos < order.length - 1 ? String(items[order[pos + 1]].route.number) : null;
-        const prevNumber = pos > 0 ? String(items[order[pos - 1]].route.number) : null;
-        const forward = exitIndex >= entryIndex;
-        const directionLabel = forward ? item.route.end : item.route.start;
-        return {
-          number: String(item.route.number),
-          route: item.route,
-          geojson: item.geojson,
-          mainPoints: item.mainPoints,
-          plannedPoints,
-          labelPoint: segmentMidpoint(plannedPoints),
-          entryIndex,
-          exitIndex,
-          entry: item.mainPoints[entryIndex],
-          exit: item.mainPoints[exitIndex],
-          routeMeters,
-          directionLabel,
-          fromLabel: forward ? item.route.start : item.route.end,
-          toLabel: forward ? item.route.end : item.route.start,
-          nextNumber,
-          prevNumber,
-          connectorBeforeMeters: pos === 0 ? homeNearest[itemIndex].distance : links[pos - 1].distance
-        };
       });
 
-      const finalConnectorMeters = distanceMeters(sequence[sequence.length - 1].exit, HOME.point);
-      const connectorMeters = sequence.reduce((sum, item) => sum + item.connectorBeforeMeters, 0) + finalConnectorMeters;
-      const routeMeters = sequence.reduce((sum, item) => sum + item.routeMeters, 0);
-
-      // 接続区間を強く嫌い、選択路線を数km触るだけの案にもペナルティを加える。
-      const shortPenalty = sequence.reduce((sum, item) => {
-        const minUseful = 8000;
-        return sum + Math.max(0, minUseful - item.routeMeters) * 4;
-      }, 0);
-      const score = routeMeters + connectorMeters * 5 + shortPenalty;
-      return { sequence, routeMeters, connectorMeters, finalConnectorMeters, estimatedMeters: routeMeters + connectorMeters * 1.25, score };
-    }
-
-    function permutations(array) {
-      const result = [];
-      const used = Array(array.length).fill(false);
-      const cur = [];
-      function walk() {
-        if (cur.length === array.length) { result.push(cur.slice()); return; }
-        for (let i = 0; i < array.length; i += 1) {
-          if (used[i]) continue;
-          used[i] = true; cur.push(array[i]); walk(); cur.pop(); used[i] = false;
+      let startIndex = null;
+      for (let segmentIndex = 0; segmentIndex < remainingSegments.length; segmentIndex += 1) {
+        if (!remainingSegments[segmentIndex]) {
+          if (startIndex === null) startIndex = segmentIndex;
+        } else if (startIndex !== null) {
+          traveled.push(line.slice(startIndex, segmentIndex + 1));
+          startIndex = null;
         }
       }
-      walk();
-      return result;
-    }
+      if (startIndex !== null) traveled.push(line.slice(startIndex));
+    });
+    return traveled.filter(path => path.length > 1);
+  }
 
-    let orders;
-    if (n <= 8) {
-      orders = permutations(Array.from({length:n}, (_,i)=>i));
+  function chooseSequence(items) {
+    if (!items.length) return { sequence: [], routeMeters: 0, connectorMeters: 0, finalConnectorMeters: 0, estimatedMeters: 0 };
+    const n = items.length;
+    const endpoints = items.map(item => [item.mainPoints[0], item.mainPoints[item.mainPoints.length - 1]]);
+    const entryPoint = (itemIndex, orientation) => endpoints[itemIndex][orientation];
+    const exitPoint = (itemIndex, orientation) => endpoints[itemIndex][1 - orientation];
+    let selections = [];
+
+    if (n <= 14) {
+      // 全未走行区間を必ず端から端まで走る条件で、区間順と走行方向を同時に最適化する。
+      const states = new Map();
+      const stateKey = (mask, last, orientation) => `${mask}:${last}:${orientation}`;
+      for (let itemIndex = 0; itemIndex < n; itemIndex += 1) {
+        for (let orientation = 0; orientation < 2; orientation += 1) {
+          states.set(stateKey(1 << itemIndex, itemIndex, orientation), {
+            cost: distanceMeters(HOME.point, entryPoint(itemIndex, orientation)),
+            previous: null
+          });
+        }
+      }
+      const fullMask = (1 << n) - 1;
+      for (let mask = 1; mask <= fullMask; mask += 1) {
+        for (let last = 0; last < n; last += 1) {
+          if (!(mask & (1 << last))) continue;
+          for (let orientation = 0; orientation < 2; orientation += 1) {
+            const key = stateKey(mask, last, orientation);
+            const state = states.get(key);
+            if (!state) continue;
+            for (let next = 0; next < n; next += 1) {
+              if (mask & (1 << next)) continue;
+              for (let nextOrientation = 0; nextOrientation < 2; nextOrientation += 1) {
+                const nextMask = mask | (1 << next);
+                const nextKey = stateKey(nextMask, next, nextOrientation);
+                const cost = state.cost + distanceMeters(exitPoint(last, orientation), entryPoint(next, nextOrientation));
+                const current = states.get(nextKey);
+                if (!current || cost < current.cost) {
+                  states.set(nextKey, { cost, previous: { mask, last, orientation } });
+                }
+              }
+            }
+          }
+        }
+      }
+      let best = null;
+      for (let last = 0; last < n; last += 1) {
+        for (let orientation = 0; orientation < 2; orientation += 1) {
+          const state = states.get(stateKey(fullMask, last, orientation));
+          if (!state) continue;
+          const cost = state.cost + distanceMeters(exitPoint(last, orientation), HOME.point);
+          if (!best || cost < best.cost) best = { cost, mask: fullMask, last, orientation };
+        }
+      }
+      while (best) {
+        selections.push({ itemIndex: best.last, orientation: best.orientation });
+        const state = states.get(stateKey(best.mask, best.last, best.orientation));
+        best = state && state.previous ? { ...state.previous, cost: 0 } : null;
+      }
+      selections.reverse();
     } else {
-      // 多数選択時は計算量を抑えるため、自宅に近い路線から接続距離最小で貪欲に並べる。
-      const remaining = new Set(Array.from({length:n}, (_,i)=>i));
-      let current = Array.from(remaining).sort((a,b)=>homeNearest[a].distance-homeNearest[b].distance)[0];
-      const order = [current]; remaining.delete(current);
+      // 区間数が多い場合は、自宅／直前区間から入口が最も近い区間を順に選ぶ。
+      const remaining = new Set(Array.from({ length: n }, (_, index) => index));
+      let currentPoint = HOME.point;
       while (remaining.size) {
         let best = null;
-        for (const next of remaining) {
-          const d = getPair(current, next).distance;
-          if (!best || d < best.d) best = { next, d };
-        }
-        current = best.next; order.push(current); remaining.delete(current);
+        remaining.forEach(itemIndex => {
+          for (let orientation = 0; orientation < 2; orientation += 1) {
+            const cost = distanceMeters(currentPoint, entryPoint(itemIndex, orientation));
+            if (!best || cost < best.cost) best = { itemIndex, orientation, cost };
+          }
+        });
+        selections.push({ itemIndex: best.itemIndex, orientation: best.orientation });
+        currentPoint = exitPoint(best.itemIndex, best.orientation);
+        remaining.delete(best.itemIndex);
       }
-      orders = [order];
     }
 
-    let bestPlan = null;
-    for (const order of orders) {
-      const candidate = evaluateOrder(order);
-      if (!bestPlan || candidate.score < bestPlan.score) bestPlan = candidate;
-    }
-    return bestPlan;
+    let previousExit = HOME.point;
+    const sequence = selections.map((selection, position) => {
+      const item = items[selection.itemIndex];
+      const forward = selection.orientation === 0;
+      const plannedPoints = forward ? item.mainPoints.slice() : item.mainPoints.slice().reverse();
+      const entry = plannedPoints[0];
+      const exit = plannedPoints[plannedPoints.length - 1];
+      const result = {
+        number: String(item.route.number),
+        route: item.route,
+        geojson: item.geojson,
+        mainPoints: item.mainPoints,
+        plannedPoints,
+        labelPoint: segmentMidpoint(plannedPoints),
+        entryIndex: forward ? 0 : item.mainPoints.length - 1,
+        exitIndex: forward ? item.mainPoints.length - 1 : 0,
+        entry,
+        exit,
+        routeMeters: polylineMeters(plannedPoints),
+        directionLabel: forward ? item.endLabel : item.startLabel,
+        fromLabel: forward ? item.startLabel : item.endLabel,
+        toLabel: forward ? item.endLabel : item.startLabel,
+        targetLabel: item.targetLabel,
+        isRemainingSection: item.isRemainingSection,
+        lineIndex: item.lineIndex,
+        sectionStartIndex: item.sectionStartIndex,
+        sectionEndIndex: item.sectionEndIndex,
+        nextNumber: position < selections.length - 1 ? String(items[selections[position + 1].itemIndex].route.number) : null,
+        prevNumber: position > 0 ? String(items[selections[position - 1].itemIndex].route.number) : null,
+        connectorBeforeMeters: distanceMeters(previousExit, entry)
+      };
+      previousExit = exit;
+      return result;
+    });
+    const finalConnectorMeters = distanceMeters(previousExit, HOME.point);
+    const connectorMeters = sequence.reduce((sum, item) => sum + item.connectorBeforeMeters, 0) + finalConnectorMeters;
+    const routeMeters = sequence.reduce((sum, item) => sum + item.routeMeters, 0);
+    return {
+      sequence,
+      routeMeters,
+      connectorMeters,
+      finalConnectorMeters,
+      estimatedMeters: routeMeters + connectorMeters * 1.25,
+      score: connectorMeters
+    };
   }
 
   function buildSteps(plan) {
@@ -378,7 +461,11 @@
           : `接続区間を使って国道${item.number}号へ向かう。`);
       } else {
         const previous = plan.sequence[index - 1];
-        if (gapKm <= 2) {
+        if (String(previous.number) === String(item.number)) {
+          result.push(gapKm <= 2
+            ? `国道${item.number}号の次の未走行区間へ移る。`
+            : `接続区間を使い、国道${item.number}号の次の未走行区間へ移る。`);
+        } else if (gapKm <= 2) {
           result.push(`国道${previous.number}号との接続付近で国道${item.number}号へ移る。`);
         } else if (gapKm <= 15) {
           result.push(`国道${previous.number}号から接続区間を使い、国道${item.number}号へ移る。`);
@@ -387,11 +474,7 @@
         }
       }
 
-      if (item.nextNumber) {
-        result.push(`国道${item.number}号を${item.directionLabel}方面へ進み、国道${item.nextNumber}号との接続付近まで走る。`);
-      } else {
-        result.push(`国道${item.number}号を${item.directionLabel}方面へ進み、自宅へ戻りやすい地点まで走る。`);
-      }
+      result.push(`国道${item.number}号の${item.targetLabel}を${item.fromLabel}から${item.toLabel}まで走る。`);
     });
 
     const last = plan.sequence[plan.sequence.length - 1];
@@ -409,6 +492,7 @@
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
     connectorGroup = L.layerGroup().addTo(map);
+    traveledGroup = L.layerGroup().addTo(map);
     routeGroup = L.layerGroup().addTo(map);
     markerGroup = L.layerGroup().addTo(map);
     setTimeout(() => map.invalidateSize(), 100);
@@ -421,6 +505,7 @@
 
   function renderMap(plan) {
     routeGroup.clearLayers();
+    traveledGroup.clearLayers();
     connectorGroup.clearLayers();
     markerGroup.clearLayers();
     currentBounds = L.latLngBounds([]);
@@ -428,6 +513,19 @@
     const homeIcon = L.divIcon({ className: "journey-home-icon", html: "<span>自宅</span>", iconSize: [48, 30], iconAnchor: [24, 15] });
     L.marker(HOME.point, { icon: homeIcon, interactive: false }).addTo(markerGroup);
     currentBounds.extend(HOME.point);
+
+    const renderedRoutes = new Set();
+    plan.sequence.forEach(item => {
+      const number = String(item.number);
+      if (renderedRoutes.has(number)) return;
+      renderedRoutes.add(number);
+      traveledPathsForRoute(number, item.geojson).forEach(path => {
+        const halo = L.polyline(path, { color: "#ffffff", weight: 8, opacity: .9, interactive: false }).addTo(traveledGroup);
+        L.polyline(path, { color: "#f97316", weight: 5, opacity: .95, interactive: false }).addTo(traveledGroup);
+        const bounds = halo.getBounds();
+        if (bounds.isValid()) currentBounds.extend(bounds);
+      });
+    });
 
     let previous = HOME.point;
     plan.sequence.forEach((item, index) => {
@@ -460,7 +558,7 @@
 
   function renderRoutes(plan) {
     routeList.innerHTML = plan.sequence.map((item, index) =>
-      `<li><strong>${index + 1}. 国道${escapeHtml(item.number)}号</strong>　${escapeHtml(item.fromLabel)} → ${escapeHtml(item.toLabel)}</li>`
+      `<li><strong>${index + 1}. 国道${escapeHtml(item.number)}号</strong>　${escapeHtml(item.targetLabel)}：${escapeHtml(item.fromLabel)} → ${escapeHtml(item.toLabel)}</li>`
     ).join("");
   }
 
@@ -470,10 +568,10 @@
     plan.generatedAt = new Date().toISOString();
     plan.homeLabel = HOME.label;
     plan.homePoint = HOME.point.slice();
-    plan.routeNumbers = plan.sequence.map(item => item.number);
+    plan.routeNumbers = [...new Set(plan.sequence.map(item => item.number))];
     status.textContent = failedCount
-      ? `${plan.sequence.length}路線で作成。${failedCount}路線は地図データを読み込めませんでした。`
-      : "選択国道同士の接続点を基準に、今回使う区間だけを切り出して自宅発着の順番を組んでいます。灰色線は接続区間の目安です。";
+      ? `${plan.sequence.length}区間で作成。${failedCount}路線は地図データを読み込めませんでした。`
+      : "薄黄色で確認した未走行区間を紫色で計画し、走破済み区間を橙色で重ねています。灰色線は接続区間の目安です。";
     stepsEl.innerHTML = plan.steps.map((step, index) => `<li>${index === 0 || index === plan.steps.length - 1 ? escapeHtml(step) : escapeHtml(step).replace(/国道(\d+)号/g, '<strong>国道$1号</strong>')}</li>`).join("");
     distanceEl.textContent = `概算走行距離：約${Math.round(plan.estimatedMeters / 1000)} km`;
     renderRoutes(plan);
@@ -486,6 +584,7 @@
     rebuildButton.disabled = true;
     rebuildButton.textContent = "再計算中…";
     routeGroup.clearLayers();
+    traveledGroup.clearLayers();
     connectorGroup.clearLayers();
     markerGroup.clearLayers();
     let selectedNumbers = normalizeRouteNumbers(draft && draft.routeNumbers);
@@ -507,9 +606,11 @@
     status.textContent = "選択路線の位置関係から走行予定を組み立てています…";
     saveButton.disabled = true;
     const selected = selectedNumbers.map(findRoute).filter(Boolean);
-    const results = await Promise.allSettled(selected.map(geometryInfo));
-    const items = results.filter(result => result.status === "fulfilled" && result.value).map(result => result.value);
-    const failed = selected.length - items.length;
+    const results = await Promise.allSettled(selected.map(geometryItems));
+    const items = results
+      .filter(result => result.status === "fulfilled" && Array.isArray(result.value))
+      .flatMap(result => result.value);
+    const failed = results.filter(result => result.status !== "fulfilled" || !Array.isArray(result.value) || !result.value.length).length;
     if (!items.length) {
       status.textContent = "路線位置を読み込めず、走行予定を作成できませんでした。";
       rebuildButton.disabled = false;
@@ -535,7 +636,6 @@
     const reversed = original.slice().reverse().map((item, index, array) => {
       const sourceIndex = original.length - 1 - index;
       const previousOriginal = sourceIndex + 1 < original.length ? original[sourceIndex + 1] : null;
-      const directionLabel = item.directionLabel === item.route.end ? item.route.start : item.route.end;
       return {
         ...item,
         plannedPoints: Array.isArray(item.plannedPoints) ? item.plannedPoints.slice().reverse() : [],
@@ -544,7 +644,7 @@
         entry: item.exit,
         exit: item.entry,
         labelPoint: item.labelPoint,
-        directionLabel,
+        directionLabel: item.fromLabel,
         fromLabel: item.toLabel || item.route.end,
         toLabel: item.fromLabel || item.route.start,
         connectorBeforeMeters: index === 0 ? currentPlan.finalConnectorMeters : (previousOriginal ? previousOriginal.connectorBeforeMeters : 0),
@@ -588,7 +688,15 @@
       routeNumbers: currentPlan.routeNumbers.slice(),
       steps: currentPlan.steps.slice(),
       estimatedKm: Math.round(currentPlan.estimatedMeters / 1000),
-      routeSegments: currentPlan.sequence.map(item => ({ number: item.number, entryIndex: item.entryIndex, exitIndex: item.exitIndex }))
+      routeSegments: currentPlan.sequence.map(item => ({
+        number: item.number,
+        targetLabel: item.targetLabel,
+        lineIndex: item.lineIndex,
+        sectionStartIndex: item.sectionStartIndex,
+        sectionEndIndex: item.sectionEndIndex,
+        entryIndex: item.entryIndex,
+        exitIndex: item.exitIndex
+      }))
     };
   }
 
@@ -639,7 +747,7 @@
     if (error) { messageEl.textContent = error; return; }
     confirmName.textContent = nameInput.value.trim();
     confirmDate.textContent = dateInput.value;
-    confirmRoutes.textContent = currentPlan.sequence.map(item => `国道${item.number}号`).join(" → ");
+    confirmRoutes.textContent = currentPlan.sequence.map(item => `国道${item.number}号（${item.targetLabel}）`).join(" → ");
     confirmDistance.textContent = `約${Math.round(currentPlan.estimatedMeters / 1000)} km`;
     confirmOverlay.hidden = false;
   }

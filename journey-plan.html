@@ -6,7 +6,7 @@
   <title>今回の旅 | 北海道48路線ふらふらlog Version 5.0</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/v5.css?v=20260809-53">
+  <link rel="stylesheet" href="css/v5.css?v=20260816-84">
 </head>
 <body class="journey-plan-page">
   <header class="v5-header">
@@ -17,7 +17,7 @@
     </div>
     <nav class="v5-global-nav" aria-label="共通ナビ">
       <a href="v5.html">ホーム</a>
-      <a class="is-active" href="route-select.html">旅を計画</a>
+      <a class="is-active" href="v5.html?plan=edit#homeMapPlanner">旅を計画</a>
       <a href="gpx-import.html">GPX取込</a>
       <a href="v5.html#savedJourneys">保存済みの旅</a>
       <a href="route-status.html">全線・例外確認</a>
@@ -45,7 +45,7 @@
       <div class="journey-plan-route-box">
         <div class="rough-plan-head">
           <div><strong>攻略対象</strong><span>地図上の番号と対応します</span></div>
-          <a class="text-button" href="route-select.html">路線を変更</a>
+          <a class="text-button" href="v5.html?plan=edit#homeMapPlanner">路線を変更</a>
         </div>
         <ol id="journeyPlanRoutes" class="journey-plan-routes"></ol>
       </div>
@@ -61,7 +61,7 @@
         <div id="journeyPlanStatus" class="rough-plan-status">読み込み中…</div>
         <ol id="journeyPlanSteps" class="rough-plan-steps"></ol>
         <p id="journeyPlanDistance" class="rough-plan-distance"></p>
-        <p class="rough-plan-note">紫の実線＝今回の計画で使う攻略対象国道の主線、灰色の破線＝接続区間の目安です。</p>
+        <p class="rough-plan-note">紫の実線＝今回走る未走破区間、橙色の実線＝走破済み区間、灰色の破線＝接続区間の目安です。</p>
       </section>
 
       <div class="journey-plan-actions">
@@ -76,12 +76,13 @@
         <button id="journeyPlanFit" class="text-button" type="button">全体表示</button>
       </div>
       <div class="journey-plan-map-legend">
-        <span><i class="journey-route-key"></i>攻略対象国道</span>
+        <span><i class="journey-route-key"></i>今回走る未走破区間</span>
+        <span><i class="journey-traveled-key"></i>走破済み区間</span>
         <span><i class="journey-connector-key"></i>接続区間の目安</span>
         <span><i class="journey-home-key"></i>自宅</span>
       </div>
       <div id="journeyPlanMap" class="journey-plan-map"></div>
-      <p class="map-message">地図には今回の走行計画で使う国道の主線だけを表示します。灰色の接続区間はまだ直線の目安です。</p>
+      <p class="map-message">選択した国道の未走破区間を紫、走破済み区間を橙色で表示します。灰色の接続区間はまだ直線の目安です。</p>
     </section>
   </main>
 
@@ -102,8 +103,8 @@
     </section>
   </div>
 
-  <div class="build-badge">Version 5.0 Build 20260809-53 Official Release</div>
+  <div class="build-badge">Version 5.0 Build 20260816-84 Route Progress Overlay</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="js/v5-journey-plan.js?v=20260809-53"></script>
+  <script src="js/v5-journey-plan.js?v=20260816-84"></script>
 </body>
 </html>
