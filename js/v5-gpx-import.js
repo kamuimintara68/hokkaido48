@@ -34,10 +34,17 @@
 
   let map, trackGroup, candidateGroup, routeLabelGroup, currentBounds = null;
   let routes = [];
+  let routesReady = false;
+  let routeLoadError = null;
+  let analyzing = false;
   let latestTrackSegments = [];
   let latestCandidates = [];
   let latestAnalysis = null;
   const confirmedNumbers = new Set();
+
+  function updateAnalyzeButton() {
+    analyzeButton.disabled = analyzing || !routesReady || !fileInput.files.length;
+  }
 
 
   function setFlowStage(stage) {
@@ -524,7 +531,7 @@
       statusEl.textContent = `地図上の一致区間を照合中… ${completed}/${targets.length}`;
       try {
         const response = await fetch(GEOJSON_PATH(route.number), { cache: "no-store" });
-        if (!response.ok) continue;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const geojson = await response.json();
         const fullRouteLines = routePolylines(geojson);
         const routeLines = routePolylineSample(geojson, 900);
@@ -536,7 +543,9 @@
         const planned = plannedSet.has(String(route.number));
         const confidence = confidenceFor(metrics, planned);
         if (confidence !== "除外" || canonical.routeCoveredMeters >= 3000) results.push({ route, geojson, routeLines, fullRouteLines, confidence: confidence === "除外" ? "参考" : confidence, planned, ...metrics, ...canonical });
-      } catch {}
+      } catch (error) {
+        throw new Error(`国道${route.number}号の地図データを読み込めませんでした。通信状態を確認して再度解析してください。${error && error.message ? `（${error.message}）` : ""}`);
+      }
       if (completed % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
 
@@ -1081,9 +1090,20 @@
 
   async function analyze() {
     const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    analyzeButton.disabled = true;
+    if (!file || analyzing) return;
+    if (!routesReady) {
+      statusEl.textContent = routeLoadError ? routeLoadError.message : "路線データの読み込み完了をお待ちください。";
+      return;
+    }
+    analyzing = true;
+    updateAnalyzeButton();
     statusEl.textContent = "GPXを解析しています…";
+    latestAnalysis = null;
+    latestCandidates = [];
+    confirmedNumbers.clear();
+    updateConfirmUi();
+    candidatesEl.innerHTML = '<div class="empty-box">解析中です。</div>';
+    candidateCountEl.textContent = "解析中";
     try {
       const text = await file.text();
       const points = parseGpx(text);
@@ -1118,8 +1138,15 @@
     } catch (error) {
       statusEl.textContent = error && error.message ? error.message : "GPX解析に失敗しました。";
       summaryEl.hidden = true;
+      latestAnalysis = null;
+      latestCandidates = [];
+      confirmedNumbers.clear();
+      candidatesEl.innerHTML = '<div class="empty-box">解析を完了できませんでした。再度解析してください。</div>';
+      candidateCountEl.textContent = "解析失敗";
+      updateConfirmUi();
     } finally {
-      analyzeButton.disabled = !fileInput.files.length;
+      analyzing = false;
+      updateAnalyzeButton();
     }
   }
 
@@ -1129,8 +1156,10 @@
     setFlowStage(0);
     updateConfirmUi();
     confirmStatusEl.textContent = "";
-    analyzeButton.disabled = !fileInput.files.length;
-    statusEl.textContent = fileInput.files.length ? `選択：${fileInput.files[0].name}` : "GPXファイルを選択してください。";
+    updateAnalyzeButton();
+    statusEl.textContent = routeLoadError ? routeLoadError.message
+      : fileInput.files.length ? `選択：${fileInput.files[0].name}${routesReady ? "" : "（路線データ読込中）"}`
+        : "GPXファイルを選択してください。";
   });
   analyzeButton.addEventListener("click", analyze);
   saveConfirmedButton.addEventListener("click", saveConfirmedRoutes);
@@ -1151,6 +1180,18 @@
       if (!response.ok) throw new Error(`路線データ読込失敗: ${response.status}`);
       return response.json();
     })
-    .then(data => { routes = Array.isArray(data) ? data : []; })
-    .catch(error => { statusEl.textContent = error.message; });
+    .then(data => {
+      if (!Array.isArray(data) || !data.some(route => route.challengeTarget !== false)) {
+        throw new Error("路線データが空、または形式が正しくありません。");
+      }
+      routes = data;
+      routesReady = true;
+      updateAnalyzeButton();
+      statusEl.textContent = fileInput.files.length ? `選択：${fileInput.files[0].name}` : "GPXファイルを選択してください。";
+    })
+    .catch(error => {
+      routeLoadError = new Error(`路線データを読み込めませんでした。ページを再読み込みしてください。${error && error.message ? `（${error.message}）` : ""}`);
+      updateAnalyzeButton();
+      statusEl.textContent = routeLoadError.message;
+    });
 })();
