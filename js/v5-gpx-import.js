@@ -780,7 +780,8 @@
     });
   }
 
-  function compactTrackPreview(points, maxPoints = 300) {
+  // 概要プレビューだけを軽量化する。正本の一致区間geometryは全頂点を別途保存する。
+  function compactTrackPreview(points, maxPoints = 100) {
     const source = points.map(p => ({ lat: Number(p.lat), lng: Number(p.lon), time: p.time || "" }));
     if (source.length <= maxPoints) return source;
     const step = (source.length - 1) / (maxPoints - 1);
