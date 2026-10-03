@@ -5,6 +5,10 @@
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3,"0")}.geojson`;
   const MANUAL_STATUS_KEY = "hokkaido48V5ManualRouteStatus";
   const CONFIRMED_STATUS_KEY = "hokkaido48V5ConfirmedRouteStatus";
+  const requestedRoute = new URLSearchParams(location.search).get("route");
+  const routeEditMode = requestedRoute !== null;
+  const routeEditNumber = /^\d+$/.test(requestedRoute || "") ? String(Number(requestedRoute)) : "";
+  let editedRoute = null;
   const PATH_ENCODING = "delta-base36-e9-v1";
   const $ = id => document.getElementById(id);
   const tripSelect=$("rsTripSelect"), tripSummary=$("rsTripSummary"), listEl=$("rsRouteList"), countEl=$("rsCount"), saveBtn=$("rsSave"), messageEl=$("rsMessage"), fitBtn=$("rsFit"), mapMessage=$("rsMapMessage");
@@ -211,7 +215,58 @@
     });
     saveBtn.disabled=false;saveBtn.textContent=`表示中の${reviews.length}路線を確定`;
   }
+  async function renderRouteEditor(){
+    tripSelect.closest('label').style.display='none';
+    document.querySelector('.route-status-control h2').textContent='選択した路線を修正';
+    document.querySelector('.route-status-list-panel h2').textContent='走破状態を手動修正';
+    document.querySelector('header h1').textContent='路線の走破状態を修正';
+    document.querySelector('header > div > p:last-child').textContent='市内到達ルールなどを確認し、この路線の状態を手動で確定します。';
+    document.querySelector('.page-flow').style.display='none';
+    $('rsRuleExplanation').innerHTML='<strong>手動修正の考え方</strong><p>全線候補に自動判定されていない路線も修正できます。市内到達・例外ルールと実走記録を確認して選択してください。</p>';
+    document.querySelector('.route-status-save-panel p').textContent='選択した1路線だけを変更します。GPX・旅の記録・実走区間はそのまま保持します。';
+    editedRoute=routes.find(r=>String(r.number)===routeEditNumber);
+    if(!editedRoute){listEl.textContent='指定した路線を確認できません。ホーム地図から選び直してください。';tripSummary.textContent='路線指定を確認してください。';countEl.textContent='0路線';saveBtn.disabled=true;return;}
+    const r=editedRoute,cur=currentStatus(r.number);
+    tripSummary.innerHTML=`<strong>国道${esc(r.number)}号：${esc(r.start)} → ${esc(r.end)}</strong><p>${esc(r.completionRule?.note || '起点・終点と走行区間を確認してください。')}</p>`;
+    listEl.innerHTML=`<article class="route-status-row" data-route="${esc(r.number)}"><div class="route-status-main"><strong>国道${esc(r.number)}号</strong><span>現在：${esc(cur.status)}（${esc(cur.source)}）</span></div><div class="route-status-choice"><label>修正後の走破状態<select data-route="${esc(r.number)}">${['未走破','一部走破','全線走破'].map(st=>`<option value="${st}" ${st===cur.status?'selected':''}>${st}</option>`).join('')}</select></label><small>市内到達などの根拠を確認して確定してください。</small></div></article>`;
+    countEl.textContent='1路線';saveBtn.textContent='この路線の状態を保存';saveBtn.disabled=false;
+    try{const ev=await buildEvidence(r);evidenceByNumber.set(String(r.number),ev);drawEvidence(ev);}
+    catch(e){mapMessage.textContent='実走区間の地図を読み込めませんでした。走破状態の手動修正は可能です。';}
+  }
+  async function saveRouteEditor(){
+    if(!editedRoute)return;
+    const select=listEl.querySelector('select[data-route]'),requested=select?.value;
+    if(!['未走破','一部走破','全線走破'].includes(requested))return;
+    let previous,manual;
+    try{
+      previous=localStorage.getItem(MANUAL_STATUS_KEY);
+      manual=JSON.parse(previous||'{}');
+      if(!manual||typeof manual!=='object'||Array.isArray(manual))throw new Error('手動状態の保存形式を確認できません。');
+    }catch(e){messageEl.textContent='保存データを確認できないため、修正を保存できません。';messageEl.classList.add('is-error');return;}
+    const number=String(editedRoute.number);
+    if(!confirm(`国道${number}号を「${requested}」へ手動修正します。\n市内到達などの根拠を確認済みですか？`))return;
+    if(localStorage.getItem(MANUAL_STATUS_KEY)!==previous){messageEl.textContent='別画面で走破状態が変更されました。画面を更新して確認してください。';return;}
+    saveBtn.disabled=true;select.disabled=true;
+    let written=false;
+    try{
+      const serialized=JSON.stringify({...manual,[number]:requested});
+      localStorage.setItem(MANUAL_STATUS_KEY,serialized);written=true;
+      if(localStorage.getItem(MANUAL_STATUS_KEY)!==serialized)throw new Error('保存内容を確認できませんでした。');
+      messageEl.classList.remove('is-error');
+      messageEl.innerHTML=`✓ 国道${esc(number)}号を${esc(requested)}に修正しました。 <a href="v5.html?routeStatusSaved=${encodeURIComponent(number)}">ホーム地図で確認</a>`;
+      listEl.querySelector('.route-status-main span').textContent=`現在：${requested}（手動）`;
+    }catch(e){
+      let restored=!written;
+      if(written)try{
+        if(previous===null)localStorage.removeItem(MANUAL_STATUS_KEY);else localStorage.setItem(MANUAL_STATUS_KEY,previous);
+        restored=localStorage.getItem(MANUAL_STATUS_KEY)===previous;
+      }catch{}
+      messageEl.classList.add('is-error');
+      messageEl.textContent=restored?'保存できませんでした。元の走破状態は保持しています。':'保存内容の自動復元を完了できませんでした。バックアップを保持して確認してください。';
+    }finally{saveBtn.disabled=false;select.disabled=false;}
+  }
   async function saveStatuses(){
+    if(routeEditMode)return saveRouteEditor();
     const idx=Number(tripSelect.value),trip=Number.isInteger(idx)?trips[idx]:null;if(!trip)return;const selects=[...listEl.querySelectorAll('select[data-route]')];if(!selects.length)return;
     const manual=readJson(MANUAL_STATUS_KEY,{}), confirmed=readJson(CONFIRMED_STATUS_KEY,{}), changes=[];
     selects.forEach(sel=>{const n=String(sel.dataset.route),requested=sel.value;if(manual[n]==="全線走破"&&requested!=="全線走破")return;changes.push([n,requested]);});
@@ -236,5 +291,5 @@
   }
   function populateTrips(){trips=loadTrips();tripSelect.innerHTML='<option value="">実走した旅を選択</option>';trips.forEach((t,i)=>{const nums=routeNumbersFromTrip(t);if(!nums.length)return;const o=document.createElement('option');o.value=String(i);o.textContent=`${t.startDate||t.date||'日付未登録'}｜${t.tripName||'名称未登録'}（${nums.length}路線）`;tripSelect.appendChild(o);});const q=new URLSearchParams(location.search).get('trip');if(q!==null&&tripSelect.querySelector(`option[value="${CSS.escape(q)}"]`))tripSelect.value=q;renderTrip();}
   tripSelect.addEventListener('change',renderTrip);saveBtn.addEventListener('click',saveStatuses);fitBtn.addEventListener('click',()=>{if(currentBounds&&currentBounds.isValid())map.fitBounds(currentBounds,{padding:[24,24],maxZoom:10});});
-  initMap();fetch(ROUTE_URL,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('routes read failed');return r.json();}).then(data=>{routes=Array.isArray(data)?data:[];populateTrips();}).catch(e=>{console.error(e);listEl.innerHTML='<div class="empty-box">路線データを読み込めませんでした。</div>';});
+  initMap();fetch(ROUTE_URL,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('routes read failed');return r.json();}).then(data=>{routes=Array.isArray(data)?data:[];if(routeEditMode){trips=loadTrips();renderRouteEditor();}else populateTrips();}).catch(e=>{console.error(e);listEl.innerHTML='<div class="empty-box">路線データを読み込めませんでした。</div>';});
 })();

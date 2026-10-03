@@ -81,7 +81,7 @@ async function open(t, { storage = seed, synthetic = true, mobile = false, route
     if (url.href === 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js') {
       const source = fs.readFileSync(require.resolve('leaflet/dist/leaflet.js'), 'utf8');
       // 実Leafletを使い、描画へ渡った正本座標も検証する。
-      return r.fulfill({ contentType: 'application/javascript', body: source + '\nconst originalPolyline=L.polyline; L.polyline=function(points,options){window.__drawnPaths.push({points,options});return originalPolyline(points,options);};' });
+      return r.fulfill({ contentType: 'application/javascript', body: source + '\nconst originalPolyline=L.polyline; L.polyline=function(points,options){window.__drawnPaths.push({points,options});return originalPolyline(points,options);}; const originalMap=L.map;L.map=function(...args){const map=originalMap(...args);window.__testMaps=window.__testMaps||{};window.__testMaps[typeof args[0]===\'string\'?args[0]:args[0].id]=map;return map;};' });
     }
     if (url.href === 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css') {
       return r.fulfill({ contentType: 'text/css', body: fs.readFileSync(require.resolve('leaflet/dist/leaflet.css')) });
@@ -491,4 +491,78 @@ test('完走容量: 残り21路線の全頂点を各4回・84Trip追加＋512KiB
   await page.addScriptTag({path:path.join(root,'js/trip-data-v36.js')});
   const legacy=await page.evaluate(()=>window.Hokkaido48TripData.getTrips());
   assert.equal(legacy.length,103);
+});
+
+async function clickHomeRoute(page) {
+  await page.locator('#homeRecordMap').scrollIntoViewIfNeeded();
+  await page.evaluate(()=>window.__testMaps.homeRecordMap.setView([43,141.1],10,{animate:false}));
+  await page.waitForFunction(()=>!window.__testMaps.homeRecordMap._animatingZoom&&!window.__testMaps.homeRecordMap._panAnim?._inProgress);
+  const box=await page.locator('#homeRecordMap').boundingBox();
+  const point=await page.evaluate(()=>{const p=window.__testMaps.homeRecordMap.latLngToContainerPoint([43,141.1]);return{x:p.x,y:p.y};});
+  await page.mouse.click(box.x+point.x,box.y+point.y);
+  await page.locator('#homePlannerEditStatus').waitFor({state:'visible'});
+}
+const cityRoute={...route,completionRule:{type:'city-arrival-accepted',note:'起点・終点が市の場合は、該当市内への到達で可'}};
+test('ホーム地図を実クリック→市内ルール表示→候補外路線を手動全線→ホームで緑、Trip・geometry・他路線を保持',async t=>{
+  const storage={...seed,[TRIPS]:JSON.stringify([...JSON.parse(seed[TRIPS]),{id:'partial-city',tripName:'市内確認',memo:'保持する🚗'.repeat(2000),
+    confirmedRouteNumbers:['237'],routeSegments:[{routeNumber:'237',completionStatus:'一部走破',confirmedPaths:[road.slice(0,20).map(([lon,lat])=>[lat,lon])]}]}])};
+  const page=await open(t,{storage,mobile:true,routeHandler:r=>r.fulfill({json:[cityRoute]})});
+  await page.evaluate(()=>localStorage.setItem('hokkaido48Trips',localStorage.getItem('hokkaido48Trips')));
+  const before=await snapshot(page);
+  const beforePhysical=await page.evaluate(()=>localStorage.hokkaido48Trips);
+  assert.ok(beforePhysical.startsWith('hokkaido48-lz16-v1:'));
+  await page.goto(base+'/v5.html');
+  await page.waitForFunction(()=>document.getElementById('homeRecordMessage').textContent.includes('確定実走線'));
+  await clickHomeRoute(page);
+  assert.equal(await page.locator('#homePlannerRouteStatus').textContent(),'一部走破');
+  await page.locator('#homePlannerEditStatus').click();
+  await page.waitForURL('**/route-status.html?route=237');
+  await page.locator('select[data-route="237"]').waitFor({state:'visible'});
+  assert.match(await page.locator('#rsTripSummary').textContent(),/市内への到達で可/);
+  assert.equal(await page.locator('#rsTripSelect').isVisible(),false,'旅選択は不要');
+  assert.equal(await page.locator('select[data-route="237"]').inputValue(),'一部走破','自動全線昇格しない');
+  await page.locator('select[data-route="237"]').selectOption('全線走破');await page.locator('#rsSave').click();
+  assert.match(await page.locator('#rsMessage').textContent(),/修正しました/);
+  const after=await snapshot(page);
+  assert.deepEqual(JSON.parse(after.hokkaido48V5ManualRouteStatus),{'38':'全線走破','237':'全線走破'});
+  for(const key of Object.keys(before).filter(k=>k!=='hokkaido48V5ManualRouteStatus'))assert.equal(after[key],before[key]);
+  assert.equal(await page.evaluate(()=>localStorage.hokkaido48Trips),beforePhysical,'圧縮物理データも不変');
+  await page.getByRole('link',{name:'ホーム地図で確認',exact:true}).click();
+  await page.waitForFunction(()=>document.getElementById('homeRecordMessage').textContent.includes('確定実走線'));
+  await clickHomeRoute(page);assert.equal(await page.locator('#homePlannerRouteStatus').textContent(),'全線走破');
+  assert.equal(await page.locator('.home-record-route-icon span.complete').textContent(),'237');
+  await page.locator('#homePlannerEditStatus').click();await page.locator('select[data-route="237"]').waitFor({state:'visible'});
+  await page.locator('select[data-route="237"]').selectOption('一部走破');await page.locator('#rsSave').click();
+  assert.equal(JSON.parse((await snapshot(page)).hokkaido48V5ManualRouteStatus)['237'],'一部走破','本人の明示操作では修正し直せる');
+});
+
+test('路線の直接修正: キャンセル・容量失敗・競合・破損した状態データを上書きしない',async t=>{
+  const page=await open(t);
+  await page.goto(base+'/route-status.html?route=237');await page.locator('select[data-route="237"]').waitFor({state:'visible'});
+  await page.locator('select[data-route="237"]').selectOption('全線走破');
+  page.removeAllListeners('dialog');page.once('dialog',d=>d.dismiss());
+  await page.locator('#rsSave').click();assert.deepEqual(await snapshot(page),seed);
+  page.on('dialog',d=>d.accept());
+  await page.evaluate(()=>{window.__set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='hokkaido48V5ManualRouteStatus')throw new DOMException('quota','QuotaExceededError');return window.__set.call(this,k,v)};});
+  await page.locator('#rsSave').click();assert.match(await page.locator('#rsMessage').textContent(),/元の走破状態は保持/);assert.deepEqual(await snapshot(page),seed);
+  await page.evaluate(()=>{Storage.prototype.setItem=window.__set;window.confirm=()=>{localStorage.setItem('hokkaido48V5ManualRouteStatus','{"38":"全線走破","39":"全線走破"}');return true;};});
+  await page.locator('#rsSave').click();assert.match(await page.locator('#rsMessage').textContent(),/別画面/);
+  assert.deepEqual(JSON.parse((await snapshot(page)).hokkaido48V5ManualRouteStatus),{'38':'全線走破','39':'全線走破'});
+  await page.evaluate(()=>localStorage.setItem('hokkaido48V5ManualRouteStatus','{broken'));
+  await page.locator('#rsSave').click();assert.match(await page.locator('#rsMessage').textContent(),/保存データを確認できない/);
+  assert.equal((await snapshot(page)).hokkaido48V5ManualRouteStatus,'{broken');
+});
+
+test('路線直接修正: Tripがなくても本人判断で設定、未登録・不正な路線は保存不可',async t=>{
+  const page=await open(t,{storage:{}});
+  await page.goto(base+'/route-status.html?route=237');await page.locator('select[data-route="237"]').waitFor({state:'visible'});
+  await page.locator('select[data-route="237"]').selectOption('全線走破');await page.locator('#rsSave').click();
+  assert.deepEqual(await snapshot(page),{hokkaido48V5ManualRouteStatus:'{"237":"全線走破"}'});
+  await page.locator('select[data-route="237"]').selectOption('未走破');await page.locator('#rsSave').click();
+  assert.equal(JSON.parse((await snapshot(page)).hokkaido48V5ManualRouteStatus)['237'],'未走破');
+  for(const q of ['999','invalid']){
+    await page.goto(base+'/route-status.html?route='+q);
+    await page.waitForFunction(()=>document.getElementById('rsRouteList').textContent.includes('指定した路線'));
+    assert.equal(await page.locator('#rsSave').isDisabled(),true);assert.equal(await page.locator('select[data-route]').count(),0);
+  }
 });
