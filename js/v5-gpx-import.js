@@ -3,7 +3,6 @@
 (function () {
   const ROUTE_DATA_URL = "data/routes-v50.json";
   const TRIPS_KEY = "hokkaido48Trips";
-  const DATA_MANAGER_BACKUP_KEY = "hokkaido48V5DataManagerBackups";
   const PATH_ENCODING = "delta-base36-e9-v1";
   const PATH_SCALE = 1000000000;
   const GEOJSON_PATH = number => `data/geojson/route_${String(number).padStart(3, "0")}.geojson`;
@@ -34,10 +33,20 @@
 
   let map, trackGroup, candidateGroup, routeLabelGroup, currentBounds = null;
   let routes = [];
+  let routesReady = false;
+  let routeLoadError = null;
+  let analyzing = false;
+  let loadedTrips = [];
   let latestTrackSegments = [];
   let latestCandidates = [];
   let latestAnalysis = null;
   const confirmedNumbers = new Set();
+
+  function updateAnalyzeButton() {
+    analyzeButton.disabled = analyzing || !routesReady || !fileInput.files.length;
+    fileInput.disabled = analyzing;
+    tripSelect.disabled = analyzing;
+  }
 
 
   function setFlowStage(stage) {
@@ -71,6 +80,7 @@
       const parsed = JSON.parse(localStorage.getItem(TRIPS_KEY) || "[]");
       if (Array.isArray(parsed)) trips = parsed;
     } catch {}
+    loadedTrips = trips;
     tripSelect.innerHTML = '<option value="__new__">新しい実走記録として取り込む</option>';
     trips.forEach((trip, index) => {
       const option = document.createElement("option");
@@ -257,9 +267,10 @@
       startDistance,
       endDistance,
       nearFullCompletion,
-      completionStatus: nearFullCompletion ? "全線走破" : "一部走破",
-      // 全線判定時は短いGPS欠けを残さず、国道路線全体を唯一の正本にする。
-      canonicalPaths: nearFullCompletion ? routeLines.map(line => line.slice()) : coveredPaths
+      // GPX取込では全線走破へ自動昇格しない。候補フラグだけ残し、
+      // 実際に一致した区間を「一部走破」として保存する。全線確定は別画面で人が行う。
+      completionStatus: "一部走破",
+      canonicalPaths: coveredPaths
     };
   }
 
@@ -524,7 +535,7 @@
       statusEl.textContent = `地図上の一致区間を照合中… ${completed}/${targets.length}`;
       try {
         const response = await fetch(GEOJSON_PATH(route.number), { cache: "no-store" });
-        if (!response.ok) continue;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const geojson = await response.json();
         const fullRouteLines = routePolylines(geojson);
         const routeLines = routePolylineSample(geojson, 900);
@@ -536,7 +547,9 @@
         const planned = plannedSet.has(String(route.number));
         const confidence = confidenceFor(metrics, planned);
         if (confidence !== "除外" || canonical.routeCoveredMeters >= 3000) results.push({ route, geojson, routeLines, fullRouteLines, confidence: confidence === "除外" ? "参考" : confidence, planned, ...metrics, ...canonical });
-      } catch {}
+      } catch (error) {
+        throw new Error(`国道${route.number}号の地図データを読み込めませんでした。再度解析してください。（${error.message}）`);
+      }
       if (completed % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
 
@@ -680,11 +693,15 @@
     }[character]));
   }
 
-  function loadStoredTrips() {
+  function loadStoredTrips(strict = false) {
     try {
       const parsed = JSON.parse(localStorage.getItem(TRIPS_KEY) || "[]");
+      if (strict && !Array.isArray(parsed)) throw new Error("Tripデータの形式が正しくありません。");
       return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
+    } catch (error) {
+      if (strict) throw new Error(`既存Tripを読み込めないため保存を中止しました。（${error.message}）`);
+      return [];
+    }
   }
 
   function normalizeRouteNumbers(value) {
@@ -704,10 +721,59 @@
     return { index, trip, plannedNumbers };
   }
 
+  function gpxMatchesAnalysis(gpx, analysis) {
+    if (!gpx || !analysis) return false;
+    if (gpx.trackFingerprint && analysis.trackFingerprint) return gpx.trackFingerprint === analysis.trackFingerprint;
+    const storedPoints = Number(gpx.pointCount || 0);
+    const currentPoints = Array.isArray(analysis.points) ? analysis.points.length : 0;
+    const storedDistance = Number(gpx.distanceKm);
+    const currentDistance = Number(analysis.meters) / 1000;
+    const samePoints = storedPoints > 0 && currentPoints > 0 && storedPoints === currentPoints;
+    const sameDistance = Number.isFinite(storedDistance) && Number.isFinite(currentDistance)
+      && Math.abs(storedDistance - currentDistance) <= 0.02;
+    const sameStart = String(gpx.startTime || "") === String(analysis.startTime || "");
+    const sameEnd = String(gpx.endTime || "") === String(analysis.endTime || "");
+    const storedSize = Number(gpx.sizeBytes || 0);
+    const currentSize = Number(analysis.fileSize || 0);
+    const sameSize = storedSize > 0 && currentSize > 0 && storedSize === currentSize;
+    const sameName = String(gpx.fileName || "") !== ""
+      && String(gpx.fileName || "") === String(analysis.fileName || "");
+
+    // 名前変更後でも、点数・距離・開始終了時刻が一致すれば同じGPXとみなす。
+    if (gpx.startTime && gpx.endTime && analysis.startTime && analysis.endTime
+      && samePoints && sameDistance && sameStart && sameEnd) return true;
+    // 時刻情報が欠けた旧データは、ファイル名・サイズ・点数・距離で判定する。
+    return sameName && sameSize && samePoints && sameDistance;
+  }
+
+  async function trackFingerprint(points) {
+    if (!window.crypto || !window.crypto.subtle) return "";
+    const bytes = new TextEncoder().encode(JSON.stringify(points.map(p => [p.lat, p.lon, p.time])));
+    const hash = await window.crypto.subtle.digest("SHA-256", bytes);
+    return `sha256-track-v1:${Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("")}`;
+  }
+
+  function findDuplicateGpx(trips, analysis, allowedTripIndex = -1) {
+    const list = Array.isArray(trips) ? trips : [];
+    for (let tripIndex = 0; tripIndex < list.length; tripIndex += 1) {
+      const trip = list[tripIndex];
+      const imports = Array.isArray(trip && trip.materialImports) ? trip.materialImports : [];
+      for (const item of imports) {
+        const gpxs = Array.isArray(item && item.gpx) ? item.gpx : [];
+        for (const gpx of gpxs) {
+          if (!gpxMatchesAnalysis(gpx, analysis)) continue;
+          if (tripIndex === allowedTripIndex) continue;
+          return { tripIndex, trip, gpx };
+        }
+      }
+    }
+    return null;
+  }
+
   function updateConfirmUi() {
     const count = confirmedNumbers.size;
     confirmCountEl.textContent = `${count}路線選択`;
-    saveConfirmedButton.disabled = !latestAnalysis || count === 0;
+    saveConfirmedButton.disabled = analyzing || !latestAnalysis || count === 0;
     if (latestAnalysis) setFlowStage(count > 0 ? 2 : 1); else setFlowStage(0);
     [...candidatesEl.querySelectorAll(".gpx-candidate-row")].forEach(row => {
       row.classList.toggle("is-confirmed", confirmedNumbers.has(String(row.dataset.routeNumber || "")));
@@ -751,49 +817,6 @@
     return { format: PATH_ENCODING, scale: PATH_SCALE, paths: encodedPaths };
   }
 
-  function compactStoredGeometry(trips) {
-    (Array.isArray(trips) ? trips : []).forEach(trip => {
-      const segmentGeometryNumbers = new Set();
-      (Array.isArray(trip && trip.routeSegments) ? trip.routeSegments : []).forEach(segment => {
-        const legacy = normalizeConfirmedPaths(segment && segment.confirmedPaths);
-        if (!legacy.length && Array.isArray(segment && segment.confirmedPath)) {
-          const single = normalizeConfirmedPaths([segment.confirmedPath]);
-          if (single.length) legacy.push(...single);
-        }
-        if (legacy.length && !(segment.confirmedGeometry && segment.confirmedGeometry.format === PATH_ENCODING)) {
-          segment.confirmedGeometry = encodeConfirmedPaths(legacy);
-        }
-        if (segment && segment.confirmedGeometry) {
-          delete segment.confirmedPaths;
-          delete segment.confirmedPath;
-          if (String(segment.routeNumber || "")) segmentGeometryNumbers.add(String(segment.routeNumber));
-        }
-      });
-      (Array.isArray(trip && trip.gpxRouteConfirmations) ? trip.gpxRouteConfirmations : []).forEach(confirmation => {
-        (Array.isArray(confirmation && confirmation.routes) ? confirmation.routes : []).forEach(route => {
-          const routeNumber = String(route && (route.routeNumber ?? route.number) || "");
-          // Trip.routeSegmentsを正本とし、確認履歴には同じ形状を二重保存しない。
-          if (segmentGeometryNumbers.has(routeNumber)) {
-            delete route.confirmedGeometry;
-            delete route.confirmedPaths;
-            return;
-          }
-          const legacy = normalizeConfirmedPaths(route && route.confirmedPaths);
-          if (legacy.length && !(route.confirmedGeometry && route.confirmedGeometry.format === PATH_ENCODING)) {
-            route.confirmedGeometry = encodeConfirmedPaths(legacy);
-          }
-          if (route && route.confirmedGeometry) delete route.confirmedPaths;
-        });
-      });
-    });
-    return trips;
-  }
-
-  function compactAutomaticBackups() {
-    // 旧版の自動履歴はTrip全体を複製するため、GPX保存前に破棄して本体の容量を確保する。
-    localStorage.removeItem(DATA_MANAGER_BACKUP_KEY);
-  }
-
   function localDateFromIso(value) {
     if (!value) return "";
     const date = new Date(value);
@@ -821,16 +844,16 @@
       confirmedGeometry: encodeConfirmedPaths(lines),
       routeCoverageRatio: Number((item.routeCoverageRatio || 0).toFixed(4)),
       nearFullCompletion: Boolean(item.nearFullCompletion),
-      completionStatus: item.completionStatus || "一部走破",
+      completionStatus: "一部走破",
       geometrySource: "route-geojson-canonical"
     };
   }
 
   function buildRouteSegments(selectedItems, existingSegments = [], options = {}) {
     const gpxFileName = String(options.gpxFileName || "");
+    const replaceFileNames = new Set([gpxFileName, ...(options.replaceFileNames || [])]);
     const importId = String(options.importId || "");
     const replaceNumbers = new Set((options.replaceNumbers || []).map(String));
-    selectedItems.forEach(item => replaceNumbers.add(String(item.route.number)));
 
     const keep = Array.isArray(existingSegments) ? existingSegments.filter(seg => {
       if (!seg) return false;
@@ -838,7 +861,7 @@
       const source = String(seg.source || "");
       const segFileName = String(seg.gpxFileName || "");
       // 同じGPXを再確定した場合は、そのGPX由来の以前の確定区間を丸ごと置換する。
-      if (source === "v5-gpx-human-confirmed" && gpxFileName && segFileName === gpxFileName) return false;
+      if (source === "v5-gpx-human-confirmed" && segFileName && replaceFileNames.has(segFileName)) return false;
       // Build43以前の区間にはgpxFileNameが無いため、同じGPXの過去確認に含まれていた路線だけ除去する。
       if (source === "v5-gpx-human-confirmed" && !segFileName && replaceNumbers.has(number)) return false;
       return true;
@@ -880,42 +903,83 @@
     nextStatusLink.hidden = false;
   }
 
-  function persistTripsAndOpenHome(trips, tripIndex, savedTripId) {
-    compactStoredGeometry(trips);
-    const serialized = JSON.stringify(trips);
+  function persistTripsAndOpenHome(trips, tripIndex, savedTripId, previousSerialized) {
+    let candidateWritten = false;
+    let serialized;
     try {
-      compactAutomaticBackups();
+      serialized = JSON.stringify(trips);
+      if (localStorage.getItem(TRIPS_KEY) !== previousSerialized) {
+        throw new Error("別画面でTripが変更されました。再読み込みしてから保存してください。");
+      }
       localStorage.setItem(TRIPS_KEY, serialized);
-      const stored = JSON.parse(localStorage.getItem(TRIPS_KEY) || "[]");
+      candidateWritten = true;
+      const verifiedSerialized = localStorage.getItem(TRIPS_KEY);
+      const stored = JSON.parse(verifiedSerialized || "[]");
       const saved = Array.isArray(stored) && stored[tripIndex];
-      if (!saved || String(saved.id || "") !== String(savedTripId || "")) {
+      if (verifiedSerialized !== serialized || !saved || String(saved.id || "") !== String(savedTripId || "")) {
         throw new Error("保存後の読込み確認に失敗しました。");
       }
       window.location.assign("v5.html?gpxSaved=1");
       return true;
     } catch (error) {
+      // setItem後の検証で異常が起きた場合だけ、直前のTripデータへ自動復元する。
+      // QuotaExceededErrorでsetItem自体が失敗した場合は、ブラウザ仕様上も元データはそのまま。
+      let recoveryMessage = "";
+      if (candidateWritten) {
+        try {
+          if (localStorage.getItem(TRIPS_KEY) !== serialized) {
+            throw new Error("別画面の変更を保護するため自動復元を中止しました。");
+          }
+          const restore = previousSerialized === null ? "[]" : previousSerialized;
+          localStorage.setItem(TRIPS_KEY, restore);
+          if (localStorage.getItem(TRIPS_KEY) !== restore) throw new Error("復元後の検証に失敗しました。");
+          recoveryMessage = " 直前のTripデータへ復元しました。";
+        } catch (rollbackError) {
+          console.error("GPX保存ロールバック失敗", rollbackError);
+          recoveryMessage = ` 自動復元を完了できませんでした。追加の保存をせず、バックアップを確認してください。（${rollbackError.message}）`;
+        }
+      }
       console.error("GPX保存失敗", error);
       const quota = error && (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014);
-      confirmStatusEl.textContent = quota
+      confirmStatusEl.textContent = quota && !candidateWritten
         ? "保存容量が不足しているため保存できませんでした。データは変更されていません。"
-        : `保存できませんでした：${error && error.message ? error.message : "不明なエラー"}`;
+        : `保存できませんでした：${error && error.message ? error.message : "不明なエラー"}${recoveryMessage}`;
       saveConfirmedButton.disabled = false;
       return false;
     }
   }
 
   function saveConfirmedRoutes() {
-    if (!latestAnalysis || confirmedNumbers.size === 0) return;
+    try {
+      saveConfirmedRoutesSafely();
+    } catch (error) {
+      confirmStatusEl.textContent = `保存を中止しました：${error.message}`;
+      updateConfirmUi();
+    }
+  }
+
+  function saveConfirmedRoutesSafely() {
+    if (analyzing || !latestAnalysis || confirmedNumbers.size === 0) return;
     const selectedItems = latestCandidates.filter(item => confirmedNumbers.has(String(item.route.number)));
     if (!selectedItems.length) return;
     const routeText = selectedItems.map(item => `国道${item.route.number}号`).join("・");
     const target = selectedTripInfo();
-    const targetText = target.trip ? `「${target.trip.tripName || "名称未登録"}」` : "新しい実走記録";
-    if (!window.confirm(`${targetText}へ ${routeText} を今回走った国道として保存します。\n保存した実走区間は走破記録へ自動反映されます。通常の確認はこの1回で完了です。`)) return;
-
-    const trips = loadStoredTrips();
+    const previousSerialized = localStorage.getItem(TRIPS_KEY);
+    const trips = loadStoredTrips(true);
+    if (target.index >= 0 && (!trips[target.index] || !loadedTrips[target.index]
+      || trips[target.index].id !== loadedTrips[target.index].id)) {
+      throw new Error("紐づけ先のTripが変更されました。ページを再読み込みしてください。");
+    }
     const now = new Date().toISOString();
     const a = latestAnalysis;
+    const duplicate = findDuplicateGpx(trips, a, target.index);
+    if (duplicate) {
+      const duplicateName = String(duplicate.trip && duplicate.trip.tripName || "名称未登録");
+      confirmStatusEl.textContent = `このGPXはすでに「${duplicateName}」へ登録済みです。二重登録を防止したため保存しませんでした。`;
+      return;
+    }
+    const targetText = target.trip ? `「${target.trip.tripName || "名称未登録"}」` : "新しい実走記録";
+    if (!window.confirm(`${targetText}へ ${routeText} の一致区間を一部走破として保存します。\n全線走破の確定は「全線・例外確認」で行ってください。`)) return;
     const previewTrack = compactTrackPreview(a.points);
     const importRecord = {
       id: `material-v50-gpx-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
@@ -930,6 +994,7 @@
         distanceKm: Number((a.meters / 1000).toFixed(2)),
         startTime: a.startTime || "",
         endTime: a.endTime || "",
+        trackFingerprint: a.trackFingerprint || "",
         previewTrack
       }],
       audio: [], transcripts: [], photos: [], fileBodiesStored: false
@@ -940,20 +1005,34 @@
       source: "v5-gpx-map-human-confirmation",
       fileName: a.fileName,
       routeNumbers: selectedItems.map(item => String(item.route.number)),
-      routes: selectedItems.map(candidateSaveSnapshot)
+      routes: selectedItems.map(item => {
+        const snapshot = candidateSaveSnapshot(item);
+        // 正本geometryはrouteSegmentsだけに保持し、新規の確認履歴へは重複保存しない。
+        delete snapshot.confirmedGeometry;
+        return snapshot;
+      })
     };
 
     if (target.trip && target.index >= 0 && trips[target.index]) {
       const trip = { ...trips[target.index] };
-      const sameFile = value => String(value || "") === String(a.fileName || "");
+      const oldImports = Array.isArray(trip.materialImports) ? trip.materialImports : [];
+      const replaceFileNames = [a.fileName, ...oldImports.flatMap(item =>
+        (Array.isArray(item && item.gpx) ? item.gpx : [])
+          .filter(gpx => gpxMatchesAnalysis(gpx, a)).map(gpx => String(gpx.fileName || "")))];
+      const sameFile = value => replaceFileNames.includes(String(value || ""));
       const previousConfirmations = Array.isArray(trip.gpxRouteConfirmations) ? trip.gpxRouteConfirmations.slice() : [];
       const previousForThisFile = previousConfirmations.filter(item => sameFile(item && item.fileName));
       const previousNumbers = [...new Set(previousForThisFile.flatMap(item => Array.isArray(item.routeNumbers) ? item.routeNumbers.map(String) : []))];
 
       // 同じGPXを再解析・再確定した場合は、以前の同ファイル取込を置換する。
-      const imports = (Array.isArray(trip.materialImports) ? trip.materialImports.slice() : []).filter(item => {
+      const imports = oldImports.flatMap(item => {
         const gpxs = Array.isArray(item && item.gpx) ? item.gpx : [];
-        return !gpxs.some(g => sameFile(g && g.fileName));
+        const keep = gpxs.filter(g => !sameFile(g && g.fileName));
+        if (keep.length === gpxs.length) return [item];
+        if (keep.length || ["audio", "transcripts", "photos"].some(key => item[key] && item[key].length)) {
+          return [{ ...item, gpx: keep }];
+        }
+        return [];
       });
       imports.push(importRecord);
       trip.materialImports = imports;
@@ -964,6 +1043,7 @@
       trip.routeSegments = buildRouteSegments(selectedItems, trip.routeSegments, {
         gpxFileName: a.fileName,
         importId: importRecord.id,
+        replaceFileNames,
         replaceNumbers: previousNumbers
       });
       const allConfirmedNumbers = [...new Set(
@@ -978,7 +1058,7 @@
       trips[target.index] = trip;
       saveConfirmedButton.disabled = true;
       confirmStatusEl.textContent = "旅へ保存しています…";
-      persistTripsAndOpenHome(trips, target.index, trip.id);
+      persistTripsAndOpenHome(trips, target.index, trip.id, previousSerialized);
     } else {
       const date = localDateFromIso(a.startTime) || new Date().toISOString().slice(0,10);
       const baseName = a.fileName.replace(/\.gpx$/i, "") || `${date} 実走`;
@@ -1002,7 +1082,7 @@
       trips.push(trip);
       saveConfirmedButton.disabled = true;
       confirmStatusEl.textContent = "新しい実走記録を保存しています…";
-      persistTripsAndOpenHome(trips, trips.length - 1, trip.id);
+      persistTripsAndOpenHome(trips, trips.length - 1, trip.id, previousSerialized);
     }
   }
 
@@ -1042,7 +1122,7 @@
       row.dataset.overlap = item.overlapClass;
       const medianText = Number.isFinite(item.medianMatchDistance) ? ` ／ 中央距離 約${Math.round(item.medianMatchDistance)}m` : "";
       const guardTag = item.confidence === "並走疑い" ? '<span class="gpx-guard-tag">高速・並走の可能性</span>' : (item.confidence === "短区間・参考" ? '<span class="gpx-short-tag">3〜5km短区間</span>' : '');
-      const fullTag = item.nearFullCompletion ? '<span class="gpx-plan-tag">ほぼ全線 → 全線走破</span>' : '';
+      const fullTag = item.nearFullCompletion ? '<span class="gpx-plan-tag">全線走破候補・要確認</span>' : '';
       row.innerHTML = `<div class="gpx-candidate-check"><input type="checkbox" aria-label="国道${escapeHtml(item.route.number)}号を今回走った国道として選択"><div class="candidate-copy"><strong>${index + 1}. 国道${escapeHtml(item.route.number)}号</strong><span>${escapeHtml(item.route.start)} → ${escapeHtml(item.route.end)}</span>${planned ? '<span class="gpx-plan-tag">出発前の攻略対象</span>' : ''}${fullTag}${cityRuleTag}${guardTag}<em>${escapeHtml(item.overlapClass)}</em><span class="map-check">クリックで正本区間を確認</span></div></div><div><b>${escapeHtml(item.confidence)}</b><span>初回一致 ${escapeHtml(formatTimeOnly(item.firstMatchedTime))} ／ 路線一致 ${matchedKm}km ／ 路線カバー ${Math.round((item.routeCoverageRatio || 0) * 100)}%</span><span>最接近 約${Math.round(item.minDistance)}m${escapeHtml(medianText)} ／ 一致内訳：独立 ${independentKm}km ／ 共用 ${sharedKm}km${escapeHtml(sharedText)}</span></div>`;
       const checkbox = row.querySelector('input[type="checkbox"]');
       checkbox.checked = confirmedNumbers.has(String(item.route.number));
@@ -1081,9 +1161,20 @@
 
   async function analyze() {
     const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    analyzeButton.disabled = true;
+    if (!file || analyzing) return;
+    if (!routesReady) {
+      statusEl.textContent = routeLoadError ? routeLoadError.message : "路線データの読み込み完了をお待ちください。";
+      return;
+    }
+    analyzing = true;
+    updateAnalyzeButton();
     statusEl.textContent = "GPXを解析しています…";
+    latestAnalysis = null;
+    latestCandidates = [];
+    confirmedNumbers.clear();
+    updateConfirmUi();
+    candidatesEl.innerHTML = '<div class="empty-box">解析中です。</div>';
+    candidateCountEl.textContent = "解析中";
     try {
       const text = await file.text();
       const points = parseGpx(text);
@@ -1108,29 +1199,41 @@
       currentBounds = polyline.getBounds();
       if (currentBounds.isValid()) map.fitBounds(currentBounds, { padding: [18, 18], maxZoom: 10 });
 
-      latestAnalysis = { fileName: file.name, fileSize: file.size || 0, points, meters, startTime, endTime };
+      const fingerprint = await trackFingerprint(points);
       confirmedNumbers.clear();
       confirmStatusEl.textContent = "";
       const candidates = await analyzeCandidates(points);
+      latestAnalysis = { fileName: file.name, fileSize: file.size || 0, points, meters, startTime, endTime, trackFingerprint: fingerprint };
       setFlowStage(1);
       renderCandidates(candidates);
       statusEl.textContent = `解析完了：${points.length.toLocaleString("ja-JP")}点／${(meters / 1000).toFixed(1)} km。候補をクリックして地図上一致区間を確認し、今回走った国道を1回だけ確定してください。`;
     } catch (error) {
       statusEl.textContent = error && error.message ? error.message : "GPX解析に失敗しました。";
       summaryEl.hidden = true;
+      latestAnalysis = null;
+      latestCandidates = [];
+      confirmedNumbers.clear();
+      candidatesEl.innerHTML = '<div class="empty-box">解析を完了できませんでした。再度解析してください。</div>';
+      candidateCountEl.textContent = "解析失敗";
+      updateConfirmUi();
     } finally {
-      analyzeButton.disabled = !fileInput.files.length;
+      analyzing = false;
+      updateAnalyzeButton();
+      updateConfirmUi();
     }
   }
 
   fileInput.addEventListener("change", () => {
     latestAnalysis = null;
+    latestCandidates = [];
     confirmedNumbers.clear();
     setFlowStage(0);
     updateConfirmUi();
     confirmStatusEl.textContent = "";
-    analyzeButton.disabled = !fileInput.files.length;
-    statusEl.textContent = fileInput.files.length ? `選択：${fileInput.files[0].name}` : "GPXファイルを選択してください。";
+    updateAnalyzeButton();
+    statusEl.textContent = routeLoadError ? routeLoadError.message
+      : fileInput.files.length ? `選択：${fileInput.files[0].name}${routesReady ? "" : "（路線データ読込中）"}`
+        : "GPXファイルを選択してください。";
   });
   analyzeButton.addEventListener("click", analyze);
   saveConfirmedButton.addEventListener("click", saveConfirmedRoutes);
@@ -1151,6 +1254,18 @@
       if (!response.ok) throw new Error(`路線データ読込失敗: ${response.status}`);
       return response.json();
     })
-    .then(data => { routes = Array.isArray(data) ? data : []; })
-    .catch(error => { statusEl.textContent = error.message; });
+    .then(data => {
+      if (!Array.isArray(data) || !data.some(route => route.challengeTarget !== false)) {
+        throw new Error("路線データが空、または形式が正しくありません。");
+      }
+      routes = data;
+      routesReady = true;
+      updateAnalyzeButton();
+      statusEl.textContent = fileInput.files.length ? `選択：${fileInput.files[0].name}` : "GPXファイルを選択してください。";
+    })
+    .catch(error => {
+      routeLoadError = new Error(`路線データを読み込めませんでした。ページを再読み込みしてください。${error && error.message ? `（${error.message}）` : ""}`);
+      updateAnalyzeButton();
+      statusEl.textContent = routeLoadError.message;
+    });
 })();
