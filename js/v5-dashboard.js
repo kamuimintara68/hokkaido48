@@ -32,6 +32,7 @@
     end: document.getElementById("homePlannerRouteEnd"),
     remaining: document.getElementById("homePlannerRouteRemaining"),
     note: document.getElementById("homePlannerRouteNote"),
+    editStatus: document.getElementById("homePlannerEditStatus"),
     toggle: document.getElementById("homePlannerToggle"),
     clear: document.getElementById("homePlannerClear"),
     count: document.getElementById("homePlannerCandidateCount"),
@@ -663,6 +664,10 @@
     planner.empty.hidden = true;
     planner.route.hidden = false;
     planner.number.textContent = route.number;
+    if (planner.editStatus) {
+      planner.editStatus.href = `route-status.html?route=${encodeURIComponent(route.number)}`;
+      planner.editStatus.hidden = false;
+    }
     planner.status.className = `status-badge ${statusClass(status)}`;
     planner.status.textContent = status;
     planner.title.textContent = route.name || `一般国道${route.number}号`;
