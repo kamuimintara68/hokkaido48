@@ -1,0 +1,6 @@
+{
+  "name": "hokkaido48-gpx-regression",
+  "private": true,
+  "scripts": { "test": "node --test gpx-import.test.cjs" },
+  "devDependencies": { "playwright": "1.62.1", "leaflet": "1.9.4" }
+}
